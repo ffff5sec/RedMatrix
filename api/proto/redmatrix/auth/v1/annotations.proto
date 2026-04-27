@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+// RedMatrix 鉴权 / 授权 / admin 自动化的方法级与字段级注解。
+// RedMatrix RBAC, internal-call gating, multi-tenancy bypass and admin-codegen annotations.
+//
+// 详见 docs/LLD/02-proto-services.md §2.3-2.5、docs/LLD/22-rls-implementation.md §6.4。
+package redmatrix.auth.v1;
+
+import "google/protobuf/descriptor.proto";
+
+// Role 平台 4 个独立角色。与 docs/UX/01-roles.md 对齐。
+// PlatformAuditor 仅 Phase 2 启用，MVP 不发放该角色。
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_SUPER_ADMIN = 1;
+  ROLE_PROJECT_ADMIN = 2;
+  ROLE_TENANT_AUDITOR = 3;
+  ROLE_PLATFORM_AUDITOR = 4; // Phase 2
+}
+
+// === Method-level 注解 ===
+
+extend google.protobuf.MethodOptions {
+  // 允许调用此 RPC 的角色集合（OR 关系）。
+  // 空 = 已登录用户均可（仍受 require_project_member 进一步约束）。
+  // Allowed roles for this RPC (OR semantics). Empty = any authenticated user.
+  repeated Role allowed_roles = 50001;
+
+  // 是否要求调用方为请求中 project_id 字段所指项目的成员。
+  // SuperAdmin / TenantAuditor 自动跳过此校验。
+  // Whether the caller must be a member of the target project.
+  bool require_project_member = 50002;
+
+  // 是否允许通过 in-process DirectClient 调用（21-direct-client-pattern §6.4）。
+  // 默认 false：只允许走 ConnectRPC 入口。
+  // Whether this RPC may be invoked via the in-process DirectClient.
+  bool allow_internal = 50003;
+
+  // 是否跳过租户隔离（仅维护类 RPC）。
+  // 启用后服务端使用 maintenance pool 旁路 RLS（22-rls §4.4）。
+  // Whether to bypass tenant isolation (RLS). Maintenance RPCs only.
+  bool skip_tenancy = 50004;
+}
+
+// === Service-level 注解（admin codegen，UX-03 §6.1）===
+
+extend google.protobuf.ServiceOptions {
+  // 是否纳入 admin CRUD 自动生成（AdminList / AdminForm 驱动）。
+  // Whether the service participates in admin-UI auto codegen.
+  bool admin_managed = 50100;
+}
+
+// === Message-level 注解 ===
+
+extend google.protobuf.MessageOptions {
+  // 主资源的 admin 显示名（出现在导航中）。空 = 非主资源。
+  // Admin display name (also used as resource key in navigation). Empty = not a top-level resource.
+  string admin_resource = 50101;
+}
+
+// === Field-level 注解 ===
+
+extend google.protobuf.FieldOptions {
+  // 字段级脱敏标记。AdminList / AdminForm 在列表中渲染脱敏占位，
+  // 编辑时占位 ***，留空保持原值（详见 docs/LLD/50-frontend-arch.md §11.2）。
+  // Sensitive field marker. Admin UI auto-applies masking and "leave blank to keep" semantics.
+  bool field_sensitive = 50200;
+}

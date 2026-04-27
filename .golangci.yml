@@ -4,6 +4,9 @@ run:
   timeout: 5m
   go: "1.22"
   tests: true
+  # gen/ 是 buf generate 产物，不强制 lint
+  skip-dirs:
+    - gen
 
 linters:
   disable-all: true

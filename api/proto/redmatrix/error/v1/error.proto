@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+// 跨边界错误细节载荷。
+// Cross-boundary error detail payload.
+//
+// ConnectRPC 错误格式（docs/LLD/03-error-catalog.md §5.1）：
+//   {
+//     "code": "not_found",
+//     "message": "资产不存在",
+//     "details": [
+//       { "type": "redmatrix.error.v1.ErrorInfo",
+//         "value": { "code": "ASSET_NOT_FOUND", "request_id": "...", "fields": {...} } }
+//     ]
+//   }
+package redmatrix.error.v1;
+
+// ErrorInfo 详细错误信息（每个 ConnectError 至多一条）。
+// Detailed error info attached to a ConnectError as a typed detail.
+message ErrorInfo {
+  // 业务错误码（DOMAIN_REASON 全大写，详见 03-error-catalog.md §3）。
+  // Business error code (UPPER_SNAKE per 03-error-catalog).
+  string code = 1;
+
+  // 用户可读消息（中文，i18n 在 Phase 2 启用）。
+  // User-facing message (zh-CN; i18n in Phase 2).
+  string message = 2;
+
+  // 关联的 request_id，便于跨服务链路追踪与日志关联。
+  // Request ID for log correlation.
+  string request_id = 3;
+
+  // 上下文字段（已脱敏）。键值字符串，UI 可展示但不强依赖。
+  // Contextual fields (already redacted). For UI display + ops triage.
+  map<string, string> fields = 4;
+}
+
+// ValidationError 字段级校验错误（VALIDATION_FAILED 时通过 details 多条返回）。
+// Per-field validation error (returned as repeated details on VALIDATION_FAILED).
+message ValidationError {
+  // 字段路径（点分，如 task.targets[0]）。
+  // Dotted field path.
+  string field = 1;
+
+  // 校验错误码（如 REQUIRED / TOO_LONG / FORMAT）。
+  // Validation rule key.
+  string code = 2;
+
+  // 用户可读消息。
+  string message = 3;
+}

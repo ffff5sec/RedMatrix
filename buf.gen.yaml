@@ -1,0 +1,21 @@
+version: v2
+
+# buf v2 managed mode：统一覆盖 go_package（避免每个文件手写）
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/ffff5sec/RedMatrix/gen/proto
+
+plugins:
+  # Go message types
+  - local: protoc-gen-go
+    out: gen/proto
+    opt:
+      - paths=source_relative
+
+  # ConnectRPC handler / client
+  - local: protoc-gen-connect-go
+    out: gen/proto
+    opt:
+      - paths=source_relative

@@ -1,4 +1,8 @@
-.PHONY: all build server node test test-race lint vet vuln tidy fmt clean run-server run-node
+.PHONY: all build server node test test-race lint vet vuln tidy fmt clean run-server run-node proto proto-lint proto-check tools
+
+# 让 Makefile 子 shell 能找到 go install 出来的 buf / protoc-gen-* 等
+GOBIN   := $(shell go env GOPATH)/bin
+export PATH := $(GOBIN):$(PATH)
 
 VERSION ?= dev
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -58,6 +62,33 @@ run-server: server
 
 run-node: node
 	./bin/redmatrix-node
+
+# ============= Proto =============
+# 工具安装（首次或 CI 缓存失效后调用）
+tools:
+	go install github.com/bufbuild/buf/cmd/buf@latest
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install connectrpc.com/connect/cmd/protoc-gen-connect-go@v1.16.2
+
+# 完整 proto 流水线：格式化 + lint + 代码生成
+proto:
+	@command -v buf >/dev/null 2>&1 || { echo "buf not installed; run 'make tools'"; exit 1; }
+	buf format -w
+	buf lint
+	buf generate
+	@echo "✓ proto generated to gen/proto/"
+
+# 仅 lint + 格式 diff（CI 用）
+proto-lint:
+	buf lint
+	buf format -d
+
+# CI 漂移检查：生成代码后 git diff --exit-code 守底
+proto-check:
+	buf format -d
+	buf lint
+	buf generate
+	@git diff --exit-code -- gen/ || { echo "✗ generated code drift; run 'make proto' locally and commit"; exit 1; }
 
 # ============= 清理 =============
 clean:

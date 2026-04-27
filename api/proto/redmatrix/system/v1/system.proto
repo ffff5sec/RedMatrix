@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+// 系统级 RPC（非业务）。MVP 仅含 GetVersion，作为 buf 工具链的 smoke test。
+// 后续按 docs/LLD/02-proto-services.md §SystemService 扩充
+// (GetAdminOverview / GetSystemSettings / UpdateSystemSettings / GetSBOM / ListTodos 等)。
+package redmatrix.system.v1;
+
+import "redmatrix/auth/v1/annotations.proto";
+
+// SystemService 平台元信息查询。
+// Platform meta-info queries.
+service SystemService {
+  // 获取服务端版本与构建元信息。无需登录，返回 Server 二进制 ldflags 注入值。
+  // Get server version + build metadata. Public; returns ldflags-injected build info.
+  rpc GetVersion(GetVersionRequest) returns (GetVersionResponse) {
+    option (redmatrix.auth.v1.allow_internal) = true;
+  }
+}
+
+// GetVersionRequest 空请求。
+message GetVersionRequest {}
+
+// GetVersionResponse 版本元信息。
+message GetVersionResponse {
+  // 语义化版本（git tag）。
+  string version = 1;
+
+  // git commit short hash。
+  string commit = 2;
+
+  // 构建时间（UTC ISO-8601）。
+  string build_date = 3;
+}

@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+// 分页公共类型。所有 List/Search RPC 的请求 / 响应共用。
+// Common pagination types shared by every List/Search RPC.
+//
+// 详见 docs/LLD/02-proto-services.md §3.4。
+package redmatrix.common.v1;
+
+// PageRequest 分页请求公共字段。建议作为 message 字段嵌入而非平铺。
+// Pagination request envelope. Embed as a sub-message rather than flatten.
+message PageRequest {
+  // 1-based 页码。默认 1。
+  // 1-based page number; default 1.
+  int32 page_num = 1;
+
+  // 每页大小。默认 20，最大 200（服务端 clamp）。
+  // Page size; default 20, server clamps to 200.
+  int32 page_size = 2;
+
+  // 可选：排序字段（业务自定义命名空间，如 "created_at:desc,name:asc"）。
+  // Optional sort spec; service-defined namespace.
+  string sort = 3;
+}
+
+// PageResponse 分页响应公共字段。
+// Pagination response envelope.
+message PageResponse {
+  // 当前页号（与请求 echo）。
+  int32 page_num = 1;
+
+  // 当前页大小（实际返回数 ≤ page_size）。
+  int32 page_size = 2;
+
+  // 命中总数（精确值；ES 大表场景由实现选择 track_total_hits 策略）。
+  int64 total = 3;
+}

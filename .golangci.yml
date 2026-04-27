@@ -1,0 +1,72 @@
+# RedMatrix golangci-lint 配置
+# 文档参考：docs/LLD/00-conventions.md §2.8 与 docs/LLD/30-test-strategy.md §4
+run:
+  timeout: 5m
+  go: "1.22"
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gocritic
+    - gofmt
+    - goimports
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - prealloc
+    - revive
+    - staticcheck
+    - typecheck
+    - unconvert
+    - unused
+    - whitespace
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/ffff5sec/RedMatrix
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+      - style
+    disabled-checks:
+      - paramTypeCombine
+      - unnamedResult
+  revive:
+    rules:
+      - name: var-naming
+      - name: error-return
+      - name: error-naming
+      - name: if-return
+      - name: increment-decrement
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+        disabled: true
+  gosec:
+    excludes:
+      - G104   # 与 errcheck 重叠
+  misspell:
+    locale: US
+
+issues:
+  max-same-issues: 0
+  max-issues-per-linter: 0
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - gocritic
+        - prealloc
+    - path: cmd/.*main\.go
+      linters:
+        - gosec   # main 内 fmt.Fprintf 误报

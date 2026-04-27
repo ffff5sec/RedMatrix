@@ -1,0 +1,79 @@
+# === Design docs（本地真相源，不入仓）===
+docs/
+
+# === OS / IDE ===
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+*.iml
+.fleet/
+.zed/
+
+# === Claude / agent local state ===
+.claude/
+.aider*
+
+# === Secrets / env ===
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+!**/testdata/**/*.pem
+!**/testdata/**/*.key
+secrets/
+pki/
+ca/
+*.crt
+!**/testdata/**/*.crt
+
+# === Go ===
+bin/
+dist/
+build/
+*.exe
+*.test
+*.out
+*.prof
+coverage.txt
+coverage.html
+go-coverage.*
+vendor/
+
+# === Node / Vue (web/) ===
+node_modules/
+web/dist/
+web/.vite/
+web/coverage/
+web/.eslintcache
+web/playwright-report/
+web/test-results/
+web/stats.html
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Generated artifacts ===
+# proto-generated TS is committed (per LLD 50 D50-20)
+# proto-generated Go: keep local-generated under gen/, committed
+# build artifacts only:
+*.tsbuildinfo
+
+# === Local docker / data ===
+data/
+volumes/
+*.dump
+*.dump.gz
+*.dump.gz.enc
+*.snapshot
+
+# === Misc ===
+tmp/
+.cache/
+.tmp/

@@ -19,7 +19,7 @@ env:
   # 与 Makefile / 模块版本对齐。
   PROTOC_GEN_GO_VERSION: 'v1.36.11'
   PROTOC_GEN_CONNECT_GO_VERSION: 'v1.16.2'
-  GOLANGCI_LINT_VERSION: 'v1.62.2'
+  GOLANGCI_LINT_VERSION: 'v2.11.4'
 
 jobs:
   lint:

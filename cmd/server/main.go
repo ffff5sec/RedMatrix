@@ -36,6 +36,7 @@ import (
 
 	"github.com/ffff5sec/RedMatrix/internal/config"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/platform/bootstrapcheck"
 	"github.com/ffff5sec/RedMatrix/internal/platform/health"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/platform/metrics"
@@ -133,6 +134,12 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		return fail(stderr, err)
 	}
 	if err := cfg.Validate(); err != nil {
+		return fail(stderr, err)
+	}
+
+	// danger guard 自检（占位符 / AWS key / PEM / 弱默认）。
+	// 在 storage 打开前；命中即 BOOTSTRAP_GUARD_VIOLATION → exit 2。
+	if err := bootstrapcheck.CheckConfig(cfg); err != nil {
 		return fail(stderr, err)
 	}
 

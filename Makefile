@@ -1,4 +1,4 @@
-.PHONY: all build server node test test-race lint vet vuln tidy fmt clean run-server run-node proto proto-lint proto-check tools
+.PHONY: all build server node test test-race test-integration lint vet vuln tidy fmt clean run-server run-node proto proto-lint proto-check tools
 
 # 让 Makefile 子 shell 能找到 go install 出来的 buf / protoc-gen-* 等
 GOBIN   := $(shell go env GOPATH)/bin
@@ -36,6 +36,11 @@ test:
 
 test-race:
 	go test -race -coverprofile=coverage.out ./...
+
+# 集成测试（用 testcontainers 起真 PG / Redis / ES 等）。需 Docker daemon 在线。
+# 单独 tag 与 unit 测试隔离：默认 `make test` 不跑这些。
+test-integration:
+	go test -tags=integration -count=1 ./...
 
 # ============= 静态分析 =============
 vet:

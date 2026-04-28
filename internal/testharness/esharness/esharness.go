@@ -40,10 +40,10 @@ func Start(t *testing.T) *ES {
 		Image:        imageDefault,
 		ExposedPorts: []string{"9200/tcp"},
 		Env: map[string]string{
-			"discovery.type":                   "single-node",
-			"xpack.security.enabled":           "false",
-			"xpack.security.enrollment.enabled": "false",
-			"ES_JAVA_OPTS":                      "-Xms512m -Xmx512m",
+			"discovery.type":                                    "single-node",
+			"xpack.security.enabled":                            "false",
+			"xpack.security.enrollment.enabled":                 "false",
+			"ES_JAVA_OPTS":                                      "-Xms512m -Xmx512m",
 			"cluster.routing.allocation.disk.threshold_enabled": "false",
 		},
 		WaitingFor: wait.ForHTTP("/_cluster/health").

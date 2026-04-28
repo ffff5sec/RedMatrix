@@ -36,48 +36,48 @@ const (
 
 // === 3.2 认证 AUTH ===
 const (
-	ErrAuthFailed                Code = "AUTH_FAILED"
-	ErrAuthTokenInvalid          Code = "AUTH_TOKEN_INVALID"
-	ErrAuthTokenExpired          Code = "AUTH_TOKEN_EXPIRED"
-	ErrAuthTokenVersionMismatch  Code = "AUTH_TOKEN_VERSION_MISMATCH"
-	ErrAuthAPIKeyRevoked         Code = "AUTH_API_KEY_REVOKED"
-	ErrAuthCaptchaRequired       Code = "AUTH_CAPTCHA_REQUIRED"
-	ErrAuthCaptchaInvalid        Code = "AUTH_CAPTCHA_INVALID"
-	ErrAuthAccountLocked         Code = "AUTH_ACCOUNT_LOCKED"
-	ErrAuthIPLocked              Code = "AUTH_IP_LOCKED"
-	ErrAuthPasswordTooWeak       Code = "AUTH_PASSWORD_TOO_WEAK"
-	ErrAuthPasswordReuse         Code = "AUTH_PASSWORD_REUSE"
-	ErrAuthMustChangePassword    Code = "AUTH_MUST_CHANGE_PASSWORD"
+	ErrAuthFailed               Code = "AUTH_FAILED"
+	ErrAuthTokenInvalid         Code = "AUTH_TOKEN_INVALID"
+	ErrAuthTokenExpired         Code = "AUTH_TOKEN_EXPIRED"
+	ErrAuthTokenVersionMismatch Code = "AUTH_TOKEN_VERSION_MISMATCH"
+	ErrAuthAPIKeyRevoked        Code = "AUTH_API_KEY_REVOKED"
+	ErrAuthCaptchaRequired      Code = "AUTH_CAPTCHA_REQUIRED"
+	ErrAuthCaptchaInvalid       Code = "AUTH_CAPTCHA_INVALID"
+	ErrAuthAccountLocked        Code = "AUTH_ACCOUNT_LOCKED"
+	ErrAuthIPLocked             Code = "AUTH_IP_LOCKED"
+	ErrAuthPasswordTooWeak      Code = "AUTH_PASSWORD_TOO_WEAK"
+	ErrAuthPasswordReuse        Code = "AUTH_PASSWORD_REUSE"
+	ErrAuthMustChangePassword   Code = "AUTH_MUST_CHANGE_PASSWORD"
 )
 
 // === 3.3 授权 AUTHZ ===
 const (
-	ErrAuthzForbidden         Code = "AUTHZ_FORBIDDEN"
-	ErrAuthzRoleInsufficient  Code = "AUTHZ_ROLE_INSUFFICIENT"
-	ErrAuthzNotProjectMember  Code = "AUTHZ_NOT_PROJECT_MEMBER"
-	ErrAuthzTenantMismatch    Code = "AUTHZ_TENANT_MISMATCH"
+	ErrAuthzForbidden        Code = "AUTHZ_FORBIDDEN"
+	ErrAuthzRoleInsufficient Code = "AUTHZ_ROLE_INSUFFICIENT"
+	ErrAuthzNotProjectMember Code = "AUTHZ_NOT_PROJECT_MEMBER"
+	ErrAuthzTenantMismatch   Code = "AUTHZ_TENANT_MISMATCH"
 )
 
 // === 3.4 用户 USER ===
 const (
-	ErrUserNotFound                  Code = "USER_NOT_FOUND"
-	ErrUserUsernameExists            Code = "USER_USERNAME_EXISTS"
-	ErrUserEmailExists               Code = "USER_EMAIL_EXISTS"
-	ErrUserCannotDeleteSelf          Code = "USER_CANNOT_DELETE_SELF"
+	ErrUserNotFound                   Code = "USER_NOT_FOUND"
+	ErrUserUsernameExists             Code = "USER_USERNAME_EXISTS"
+	ErrUserEmailExists                Code = "USER_EMAIL_EXISTS"
+	ErrUserCannotDeleteSelf           Code = "USER_CANNOT_DELETE_SELF"
 	ErrUserCannotDeleteLastSuperAdmin Code = "USER_CANNOT_DELETE_LAST_SUPERADMIN"
-	ErrUserRoleImmutable             Code = "USER_ROLE_IMMUTABLE"
-	ErrUserUsernameImmutable         Code = "USER_USERNAME_IMMUTABLE"
-	ErrUserAccountExpired            Code = "USER_ACCOUNT_EXPIRED"
+	ErrUserRoleImmutable              Code = "USER_ROLE_IMMUTABLE"
+	ErrUserUsernameImmutable          Code = "USER_USERNAME_IMMUTABLE"
+	ErrUserAccountExpired             Code = "USER_ACCOUNT_EXPIRED"
 )
 
 // === 3.5 项目 PROJECT ===
 const (
-	ErrProjectNotFound          Code = "PROJECT_NOT_FOUND"
-	ErrProjectNameExists        Code = "PROJECT_NAME_EXISTS"
-	ErrProjectAccessDenied      Code = "PROJECT_ACCESS_DENIED"
-	ErrProjectArchived          Code = "PROJECT_ARCHIVED"
-	ErrProjectHasRunningTasks   Code = "PROJECT_HAS_RUNNING_TASKS"
-	ErrProjectNoAvailableNodes  Code = "PROJECT_NO_AVAILABLE_NODES"
+	ErrProjectNotFound         Code = "PROJECT_NOT_FOUND"
+	ErrProjectNameExists       Code = "PROJECT_NAME_EXISTS"
+	ErrProjectAccessDenied     Code = "PROJECT_ACCESS_DENIED"
+	ErrProjectArchived         Code = "PROJECT_ARCHIVED"
+	ErrProjectHasRunningTasks  Code = "PROJECT_HAS_RUNNING_TASKS"
+	ErrProjectNoAvailableNodes Code = "PROJECT_NO_AVAILABLE_NODES"
 )
 
 // === 3.6 资产 ASSET ===
@@ -92,57 +92,57 @@ const (
 
 // === 3.7 任务 TASK ===
 const (
-	ErrTaskNotFound          Code = "TASK_NOT_FOUND"
-	ErrTaskRunNotFound       Code = "TASK_RUN_NOT_FOUND"
-	ErrTaskNameExists        Code = "TASK_NAME_EXISTS"
-	ErrTaskInvalidState      Code = "TASK_INVALID_STATE"
-	ErrTaskNoTargets         Code = "TASK_NO_TARGETS"
-	ErrTaskTemplateNotFound  Code = "TASK_TEMPLATE_NOT_FOUND"
-	ErrTaskCronInvalid       Code = "TASK_CRON_INVALID"
-	ErrTaskProxyInvalid      Code = "TASK_PROXY_INVALID"
-	ErrTaskNodeNotAvailable  Code = "TASK_NODE_NOT_AVAILABLE"
-	ErrTaskPluginInvalid     Code = "TASK_PLUGIN_INVALID"
+	ErrTaskNotFound         Code = "TASK_NOT_FOUND"
+	ErrTaskRunNotFound      Code = "TASK_RUN_NOT_FOUND"
+	ErrTaskNameExists       Code = "TASK_NAME_EXISTS"
+	ErrTaskInvalidState     Code = "TASK_INVALID_STATE"
+	ErrTaskNoTargets        Code = "TASK_NO_TARGETS"
+	ErrTaskTemplateNotFound Code = "TASK_TEMPLATE_NOT_FOUND"
+	ErrTaskCronInvalid      Code = "TASK_CRON_INVALID"
+	ErrTaskProxyInvalid     Code = "TASK_PROXY_INVALID"
+	ErrTaskNodeNotAvailable Code = "TASK_NODE_NOT_AVAILABLE"
+	ErrTaskPluginInvalid    Code = "TASK_PLUGIN_INVALID"
 )
 
 // === 3.8 节点 NODE ===
 const (
-	ErrNodeNotFound                Code = "NODE_NOT_FOUND"
-	ErrNodeNameExists              Code = "NODE_NAME_EXISTS"
-	ErrNodeOffline                 Code = "NODE_OFFLINE"
+	ErrNodeNotFound                 Code = "NODE_NOT_FOUND"
+	ErrNodeNameExists               Code = "NODE_NAME_EXISTS"
+	ErrNodeOffline                  Code = "NODE_OFFLINE"
 	ErrNodeRegistrationTokenInvalid Code = "NODE_REGISTRATION_TOKEN_INVALID"
 	ErrNodeRegistrationTokenExpired Code = "NODE_REGISTRATION_TOKEN_EXPIRED"
-	ErrNodeCertExpired             Code = "NODE_CERT_EXPIRED"
-	ErrNodeCertRevoked             Code = "NODE_CERT_REVOKED"
-	ErrNodeHasRunningTasks         Code = "NODE_HAS_RUNNING_TASKS"
-	ErrNodeUpgradeFailed           Code = "NODE_UPGRADE_FAILED"
+	ErrNodeCertExpired              Code = "NODE_CERT_EXPIRED"
+	ErrNodeCertRevoked              Code = "NODE_CERT_REVOKED"
+	ErrNodeHasRunningTasks          Code = "NODE_HAS_RUNNING_TASKS"
+	ErrNodeUpgradeFailed            Code = "NODE_UPGRADE_FAILED"
 )
 
 // === 3.9 插件 PLUGIN ===
 const (
-	ErrPluginNotFound                  Code = "PLUGIN_NOT_FOUND"
-	ErrPluginSlugVersionExists         Code = "PLUGIN_SLUG_VERSION_EXISTS"
-	ErrPluginInvalidFormat             Code = "PLUGIN_INVALID_FORMAT"
-	ErrPluginTierInvalid               Code = "PLUGIN_TIER_INVALID"
-	ErrPluginBinaryChecksumMismatch    Code = "PLUGIN_BINARY_CHECKSUM_MISMATCH"
-	ErrPluginPrivilegeNotApproved      Code = "PLUGIN_PRIVILEGE_NOT_APPROVED"
-	ErrPluginPrivilegeNotPending       Code = "PLUGIN_PRIVILEGE_NOT_PENDING"
-	ErrPluginPrivilegeUnknown          Code = "PLUGIN_PRIVILEGE_UNKNOWN"
+	ErrPluginNotFound                   Code = "PLUGIN_NOT_FOUND"
+	ErrPluginSlugVersionExists          Code = "PLUGIN_SLUG_VERSION_EXISTS"
+	ErrPluginInvalidFormat              Code = "PLUGIN_INVALID_FORMAT"
+	ErrPluginTierInvalid                Code = "PLUGIN_TIER_INVALID"
+	ErrPluginBinaryChecksumMismatch     Code = "PLUGIN_BINARY_CHECKSUM_MISMATCH"
+	ErrPluginPrivilegeNotApproved       Code = "PLUGIN_PRIVILEGE_NOT_APPROVED"
+	ErrPluginPrivilegeNotPending        Code = "PLUGIN_PRIVILEGE_NOT_PENDING"
+	ErrPluginPrivilegeUnknown           Code = "PLUGIN_PRIVILEGE_UNKNOWN"
 	ErrPluginPrivilegePartialNotAllowed Code = "PLUGIN_PRIVILEGE_PARTIAL_NOT_ALLOWED"
-	ErrPluginPrivilegeTampered         Code = "PLUGIN_PRIVILEGE_TAMPERED"
-	ErrPluginPrivilegeRejected         Code = "PLUGIN_PRIVILEGE_REJECTED"
-	ErrPluginParamsInvalid             Code = "PLUGIN_PARAMS_INVALID"
-	ErrPluginInstallationFailed        Code = "PLUGIN_INSTALLATION_FAILED"
-	ErrPluginUpgradeBackwards          Code = "PLUGIN_UPGRADE_BACKWARDS"
-	ErrPluginInUse                     Code = "PLUGIN_IN_USE"
-	ErrPluginPlatformMismatch          Code = "PLUGIN_PLATFORM_MISMATCH"
-	ErrPluginConfirmMismatch           Code = "PLUGIN_CONFIRM_MISMATCH"
-	ErrPluginInactive                  Code = "PLUGIN_INACTIVE"
-	ErrPluginNotInCache                Code = "PLUGIN_NOT_IN_CACHE"
-	ErrPluginDownload                  Code = "PLUGIN_DOWNLOAD"
-	ErrPluginHandshakeFailed           Code = "PLUGIN_HANDSHAKE_FAILED"
-	ErrPluginUnavailable               Code = "PLUGIN_UNAVAILABLE"
-	ErrPluginCapabilityViolation       Code = "PLUGIN_CAPABILITY_VIOLATION"
-	ErrPluginActivate                  Code = "PLUGIN_ACTIVATE"
+	ErrPluginPrivilegeTampered          Code = "PLUGIN_PRIVILEGE_TAMPERED"
+	ErrPluginPrivilegeRejected          Code = "PLUGIN_PRIVILEGE_REJECTED"
+	ErrPluginParamsInvalid              Code = "PLUGIN_PARAMS_INVALID"
+	ErrPluginInstallationFailed         Code = "PLUGIN_INSTALLATION_FAILED"
+	ErrPluginUpgradeBackwards           Code = "PLUGIN_UPGRADE_BACKWARDS"
+	ErrPluginInUse                      Code = "PLUGIN_IN_USE"
+	ErrPluginPlatformMismatch           Code = "PLUGIN_PLATFORM_MISMATCH"
+	ErrPluginConfirmMismatch            Code = "PLUGIN_CONFIRM_MISMATCH"
+	ErrPluginInactive                   Code = "PLUGIN_INACTIVE"
+	ErrPluginNotInCache                 Code = "PLUGIN_NOT_IN_CACHE"
+	ErrPluginDownload                   Code = "PLUGIN_DOWNLOAD"
+	ErrPluginHandshakeFailed            Code = "PLUGIN_HANDSHAKE_FAILED"
+	ErrPluginUnavailable                Code = "PLUGIN_UNAVAILABLE"
+	ErrPluginCapabilityViolation        Code = "PLUGIN_CAPABILITY_VIOLATION"
+	ErrPluginActivate                   Code = "PLUGIN_ACTIVATE"
 )
 
 // === 3.10 通知 NOTIFY ===
@@ -164,10 +164,10 @@ const (
 
 // === 3.12 报告 REPORT ===
 const (
-	ErrReportNotFound          Code = "REPORT_NOT_FOUND"
-	ErrReportGenerationFailed  Code = "REPORT_GENERATION_FAILED"
-	ErrReportExpired           Code = "REPORT_EXPIRED"
-	ErrReportTooLarge          Code = "REPORT_TOO_LARGE"
+	ErrReportNotFound         Code = "REPORT_NOT_FOUND"
+	ErrReportGenerationFailed Code = "REPORT_GENERATION_FAILED"
+	ErrReportExpired          Code = "REPORT_EXPIRED"
+	ErrReportTooLarge         Code = "REPORT_TOO_LARGE"
 )
 
 // === 3.13 事件 EVENT ===
@@ -196,15 +196,15 @@ const (
 
 // === 3.17 启动校验 / 运行时 BOOTSTRAP / RUNTIME ===
 const (
-	ErrBootstrapCryptoInvalid       Code = "BOOTSTRAP_CRYPTO_INVALID"
-	ErrBootstrapKeyReuseForbidden   Code = "BOOTSTRAP_KEY_REUSE_FORBIDDEN"
-	ErrBootstrapConfigInvalid       Code = "BOOTSTRAP_CONFIG_INVALID"
-	ErrBootstrapDBUnreachable       Code = "BOOTSTRAP_DB_UNREACHABLE"
-	ErrBootstrapPKIInvalid          Code = "BOOTSTRAP_PKI_INVALID"
-	ErrBootstrapStorageMissing      Code = "BOOTSTRAP_STORAGE_MISSING"
-	ErrBootstrapGuardViolation      Code = "BOOTSTRAP_GUARD_VIOLATION"
-	ErrRuntimeSandboxUnavailable    Code = "RUNTIME_SANDBOX_UNAVAILABLE"
-	ErrMetricsUnavailable           Code = "METRICS_UNAVAILABLE"
+	ErrBootstrapCryptoInvalid     Code = "BOOTSTRAP_CRYPTO_INVALID"
+	ErrBootstrapKeyReuseForbidden Code = "BOOTSTRAP_KEY_REUSE_FORBIDDEN"
+	ErrBootstrapConfigInvalid     Code = "BOOTSTRAP_CONFIG_INVALID"
+	ErrBootstrapDBUnreachable     Code = "BOOTSTRAP_DB_UNREACHABLE"
+	ErrBootstrapPKIInvalid        Code = "BOOTSTRAP_PKI_INVALID"
+	ErrBootstrapStorageMissing    Code = "BOOTSTRAP_STORAGE_MISSING"
+	ErrBootstrapGuardViolation    Code = "BOOTSTRAP_GUARD_VIOLATION"
+	ErrRuntimeSandboxUnavailable  Code = "RUNTIME_SANDBOX_UNAVAILABLE"
+	ErrMetricsUnavailable         Code = "METRICS_UNAVAILABLE"
 )
 
 // AllCodes 列出所有已定义错误码，便于测试覆盖性校验。

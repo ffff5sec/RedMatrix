@@ -25,15 +25,15 @@ import (
 
 // RequiredBuckets 启动期必须存在的 9 个 bucket，与 01 §3.4 / 40 §4.4 严格一致。
 var RequiredBuckets = []string{
-	"redmatrix-plugins",          // 插件二进制 / YAML POC（节点拉取）
-	"redmatrix-screenshots",      // 任务截图（生命周期 30d）
-	"redmatrix-response-bodies",  // 大响应体（30d）
-	"redmatrix-reports",          // 业务报告导出（30d）
-	"redmatrix-audit-archive",    // 审计归档 WORM 90d compliance
-	"redmatrix-es-snapshots",     // ES 快照
-	"redmatrix-logs",             // Loki 后端
-	"redmatrix-backups",          // PG dump 加密备份 governance 30d
-	"redmatrix-avatars",          // 用户头像
+	"redmatrix-plugins",         // 插件二进制 / YAML POC（节点拉取）
+	"redmatrix-screenshots",     // 任务截图（生命周期 30d）
+	"redmatrix-response-bodies", // 大响应体（30d）
+	"redmatrix-reports",         // 业务报告导出（30d）
+	"redmatrix-audit-archive",   // 审计归档 WORM 90d compliance
+	"redmatrix-es-snapshots",    // ES 快照
+	"redmatrix-logs",            // Loki 后端
+	"redmatrix-backups",         // PG dump 加密备份 governance 30d
+	"redmatrix-avatars",         // 用户头像
 }
 
 // Config MinIO 客户端配置。

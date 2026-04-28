@@ -78,8 +78,8 @@ func ctxAttrs(ctx context.Context) []any {
 		return nil
 	}
 	pairs := []struct {
-		key   string
-		ckey  ctxKey
+		key  string
+		ckey ctxKey
 	}{
 		{"request_id", ctxKeyRequestID},
 		{"user_id", ctxKeyUserID},

@@ -1,0 +1,82 @@
+name: Integration
+
+# 集成测试（PG + Redis + ES + MinIO 真容器）。
+# 因 ES 等启动较慢 + 需要 Docker，不在 PR 上跑。
+#
+# 触发：
+#   - schedule: 每日 03:00 UTC（避开高峰）
+#   - workflow_dispatch: 手动从 Actions 页触发（PR 大改动时人工跑）
+#   - push tags v*: 发版前自动验证
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+# 同一 ref 新触发时取消旧 run（手动 dispatch 重复点不浪费资源）。
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: '1.25'
+
+jobs:
+  integration:
+    name: Integration tests (PG + Redis + ES + MinIO)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Pre-pull container images（并行节省 testcontainers 启动）
+        run: |
+          # 与各 harness 内 imageDefault 严格对齐
+          docker pull postgres:16-alpine &
+          docker pull redis:7-alpine &
+          docker pull docker.elastic.co/elasticsearch/elasticsearch:8.15.0 &
+          docker pull minio/minio:RELEASE.2024-08-29T01-40-52Z &
+          wait
+
+      - name: Run integration tests
+        env:
+          # testcontainers 默认探测 Docker socket，CI runner 已有
+          TESTCONTAINERS_RYUK_DISABLED: 'false'
+        run: |
+          go test -tags=integration -count=1 -timeout=20m \
+            -coverprofile=coverage-integration.out \
+            -covermode=atomic \
+            ./...
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage-integration.out ]; then
+            go tool cover -func=coverage-integration.out | tail -20
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-integration
+          path: coverage-integration.out
+          retention-days: 14
+
+      - name: Capture container logs on failure
+        if: failure()
+        run: |
+          echo "=== Running containers ==="
+          docker ps -a || true
+          echo "=== Last 50 lines of each container ==="
+          for c in $(docker ps -aq); do
+            echo "--- $c ---"
+            docker logs --tail 50 "$c" 2>&1 || true
+          done

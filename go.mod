@@ -1,6 +1,6 @@
 module github.com/ffff5sec/RedMatrix
 
-go 1.25.7
+go 1.25.8
 
 require (
 	connectrpc.com/connect v1.16.2

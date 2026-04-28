@@ -1,0 +1,165 @@
+name: CI
+
+# 单测 / 静态检查；快速反馈（< 5min）。
+# PR + main push 触发；不依赖 Docker。
+# 集成测试见 integration.yml（schedule + tag + workflow_dispatch）。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同一 PR 新 push 时取消旧 run，节省排队时间。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GO_VERSION: '1.25'
+  # 与 Makefile / 模块版本对齐。
+  PROTOC_GEN_GO_VERSION: 'v1.36.11'
+  PROTOC_GEN_CONNECT_GO_VERSION: 'v1.16.2'
+  GOLANGCI_LINT_VERSION: 'v1.62.2'
+
+jobs:
+  lint:
+    name: Lint (Go + Buf)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install protoc plugins (cached via Go modcache)
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}
+          go install connectrpc.com/connect/cmd/protoc-gen-connect-go@${PROTOC_GEN_CONNECT_GO_VERSION}
+
+      - name: Setup buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: gofmt drift
+        run: |
+          out=$(gofmt -l . | grep -v '^gen/' || true)
+          if [ -n "$out" ]; then
+            echo "::error::gofmt found unformatted files:"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go vet -tags=integration
+        run: go vet -tags=integration ./...
+
+      - name: go mod tidy drift
+        run: |
+          go mod tidy
+          if ! git diff --exit-code go.mod go.sum; then
+            echo "::error::go.mod / go.sum 未 tidy；运行 'go mod tidy' 后再提交"
+            exit 1
+          fi
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          # 项目内部 .golangci.yml 已 skip-dirs gen/
+          args: --timeout=5m
+
+      - name: buf lint
+        run: buf lint
+
+      - name: buf format check
+        run: |
+          DIFF=$(buf format -d)
+          if [ -n "$DIFF" ]; then
+            echo "::error::buf format 未应用；运行 'buf format -w' 后再提交"
+            echo "$DIFF"
+            exit 1
+          fi
+
+      - name: buf generate drift（gen/ 必须与 .proto 同步）
+        run: |
+          buf generate
+          if ! git diff --exit-code -- gen/; then
+            echo "::error::gen/ 与 .proto 不同步；运行 'make proto' 后再提交"
+            exit 1
+          fi
+
+  test:
+    name: Unit tests (-race)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run tests
+        run: go test -race -count=1 -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Coverage summary
+        run: go tool cover -func=coverage.out | tail -20
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage.out
+          retention-days: 14
+
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build redmatrix-server
+        run: go build -trimpath -o /tmp/bin/redmatrix-server ./cmd/server
+
+      - name: Build redmatrix-node
+        run: go build -trimpath -o /tmp/bin/redmatrix-node ./cmd/node
+
+      - name: Smoke (--help / version)
+        run: |
+          # scaffold 阶段 main 直接成功 exit 0 + 打印版本（缺 env 才 exit 2）。
+          # 这里只验证 build 出来的二进制能 invoke：
+          /tmp/bin/redmatrix-node || true
+          /tmp/bin/redmatrix-server 2>&1 || true
+
+  security:
+    name: govulncheck (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # 咨询性质：报告所有可达漏洞但不阻塞 PR。Go stdlib 漏洞按时间动态出现，
+    # 强阻塞会导致 CI 时不时出现非 PR 引入的红灯。由 maintainer 周度 triage。
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...

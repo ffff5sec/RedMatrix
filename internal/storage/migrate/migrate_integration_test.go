@@ -119,10 +119,44 @@ func TestDown_RollsBackOne(t *testing.T) {
 
 	assert.Less(t, vDown, vUp, "Down 后版本号应下降")
 
-	// 0002 已被回滚 → pgcrypto 应不再存在（注：本测试容器内 pgcrypto 仅由 0002 装上）
-	var hasCrypto bool
+	// 0003（最新）已被回滚 → outbox_events 表应不存在
+	var hasOutbox bool
 	require.NoError(t, db.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname='pgcrypto')`,
-	).Scan(&hasCrypto))
-	assert.False(t, hasCrypto, "Down 应移除 0002 装上的扩展")
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='outbox_events')`,
+	).Scan(&hasOutbox))
+	assert.False(t, hasOutbox, "Down 应移除 0003 创建的表")
+}
+
+// 新增：验证 0003 outbox 表 schema 正确
+func TestUp_OutboxTableExists(t *testing.T) {
+	h := pgharness.Start(t)
+
+	db, err := sql.Open("pgx", h.AdminDSN)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	require.NoError(t, Up(ctx, db))
+
+	// 验证关键列与索引存在
+	for _, col := range []string{"id", "topic", "payload", "tenant_id",
+		"created_at", "next_attempt_at", "published_at", "failed_permanently_at",
+		"attempts", "last_error", "trace_id"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.columns
+			                WHERE table_name='outbox_events' AND column_name=$1)`,
+			col).Scan(&exists))
+		assert.Truef(t, exists, "列 outbox_events.%s 应存在", col)
+	}
+
+	for _, idx := range []string{"idx_outbox_pending", "idx_outbox_topic", "idx_outbox_tenant"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname=$1)`,
+			idx).Scan(&exists))
+		assert.Truef(t, exists, "索引 %s 应存在", idx)
+	}
 }

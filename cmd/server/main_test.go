@@ -6,10 +6,30 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+
+	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 )
+
+// runForTest 包装 runWith，注入测试用的快速超时与不主动建连的 pool 配置。
+//   - pgPingTimeout 2s：足够 ECONNREFUSED 多次返回，不会拖测试
+//   - pgPoolOverride：MaxConns=2 / MinConns=0，避免 pgxpool 后台无限重连
+func runForTest(stdout, stderr io.Writer) int {
+	return runWith(stdout, stderr, runOptions{
+		pgPingTimeout:  2 * time.Second,
+		migrateTimeout: 5 * time.Second,
+		pgPoolOverride: func(cfg pg.Config) pg.Config {
+			cfg.AppMaxConns = 2
+			cfg.AppMinConns = 0
+			cfg.MaintenanceMaxConns = 2
+			cfg.MaintenanceMinConns = 0
+			cfg.AdminMaxConns = 2
+			return cfg
+		},
+	})
+}
 
 // 测试专用密钥（与 internal/config 测试中保持互异）。
 var (
@@ -29,13 +49,17 @@ func bytesOfLen(n int, fill byte) []byte {
 
 // setValidEnv 注入一份能通过 config.Validate 的最小 env。
 // 复用 t.Setenv 自动还原。注意：调用方不可使用 t.Parallel()。
+//
+// PG / Redis / MinIO host 全部指向 127.0.0.1:1（保留端口，必然 ECONNREFUSED），
+// 让 PG ping 在毫秒级失败 → BOOTSTRAP_DB_UNREACHABLE，避免 DNS / 长连接 timeout
+// 拖慢测试。完整 boot 成功路径由 testcontainers 集成测试覆盖（后续 PR）。
 func setValidEnv(t *testing.T) {
 	t.Helper()
-	t.Setenv("PG_DSN", "postgres://redmatrix_app:pw@pg:5432/redmatrix?sslmode=require")
-	t.Setenv("PG_DSN_MAINTENANCE", "postgres://redmatrix_maintenance:pw@pg:5432/redmatrix?sslmode=require")
-	t.Setenv("ES_URL", "http://es:9200")
-	t.Setenv("REDIS_URL", "redis://:pw@redis:6379/0")
-	t.Setenv("MINIO_ENDPOINT", "minio:9000")
+	t.Setenv("PG_DSN", "postgres://redmatrix_app:pw@127.0.0.1:1/redmatrix?sslmode=require")
+	t.Setenv("PG_DSN_MAINTENANCE", "postgres://redmatrix_maintenance:pw@127.0.0.1:1/redmatrix?sslmode=require")
+	t.Setenv("ES_URL", "http://127.0.0.1:1")
+	t.Setenv("REDIS_URL", "redis://:pw@127.0.0.1:1/0")
+	t.Setenv("MINIO_ENDPOINT", "127.0.0.1:1")
 	t.Setenv("MINIO_PUBLIC_ENDPOINT", "minio.example.com:9000")
 	t.Setenv("MINIO_ACCESS_KEY", "AKIA")
 	t.Setenv("MINIO_SECRET_KEY", "secret")
@@ -46,29 +70,35 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("ENCRYPTION_KEY", testEncKey)
 	t.Setenv("AUDIT_HMAC_KEY", testHMACKey)
 	t.Setenv("BACKUP_KEY", testBackupKey)
+	// AutoMigrate 默认 true，但 PG_DSN_ADMIN 留空 → migrate 跳过（仅 Warn）。
+	// 若测试关心 admin 路径请单独设置。
+	t.Setenv("RM_AUTO_MIGRATE", "false")
 }
 
-func TestRunSuccess(t *testing.T) {
+func TestRunPGUnreachable(t *testing.T) {
+	// 全配置合法但 PG 不可达 → boot 应在 ping 阶段失败。
 	setValidEnv(t)
 	var stdout, stderr bytes.Buffer
 
-	code := run(&stdout, &stderr)
+	code := runForTest(&stdout, &stderr)
 
-	assert.Equal(t, 0, code, "stderr=%s", stderr.String())
-	assert.Empty(t, stderr.String())
+	assert.Equal(t, 2, code, "BOOTSTRAP_DB_UNREACHABLE 应映射 exit 2")
+	assert.Contains(t, stderr.String(), "BOOTSTRAP_DB_UNREACHABLE")
 
+	// stdout 应包含启动 + 配置摘要（在 ping 之前已输出）
 	out := stdout.String()
 	assert.Contains(t, out, "redmatrix-server starting")
-	assert.Contains(t, out, "scaffold boot complete")
 	assert.Contains(t, out, "config loaded")
+	// 不应到达 scaffold-complete 行（在 ping 之后）
+	assert.NotContains(t, out, "scaffold boot complete")
 }
 
 func TestRunNoSecretLeakInBootSummary(t *testing.T) {
 	setValidEnv(t)
-	var stdout bytes.Buffer
+	var stdout, stderr bytes.Buffer
 
-	code := run(&stdout, io.Discard)
-	require.Equal(t, 0, code)
+	// 此测试不关心 exit code（PG 不可达必失败），只关心日志不泄漏密钥
+	_ = runForTest(&stdout, &stderr)
 
 	out := stdout.String()
 	// 关键不变量：摘要输出不得包含任何密钥 / DSN 凭据 / MinIO 凭据原文
@@ -90,7 +120,7 @@ func TestRunMissingRequiredEnv(t *testing.T) {
 	t.Setenv("PG_DSN", "")
 
 	var stderr bytes.Buffer
-	code := run(io.Discard, &stderr)
+	code := runForTest(io.Discard, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "BOOTSTRAP_CONFIG_INVALID")
@@ -102,7 +132,7 @@ func TestRunInvalidJWTSecret(t *testing.T) {
 	t.Setenv("JWT_SECRET", "tooshort")
 
 	var stderr bytes.Buffer
-	code := run(io.Discard, &stderr)
+	code := runForTest(io.Discard, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "BOOTSTRAP_CRYPTO_INVALID")
@@ -113,7 +143,7 @@ func TestRunInvalidBase64Key(t *testing.T) {
 	t.Setenv("ENCRYPTION_KEY", "not-base64!!!@@@")
 
 	var stderr bytes.Buffer
-	code := run(io.Discard, &stderr)
+	code := runForTest(io.Discard, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "BOOTSTRAP_CRYPTO_INVALID")
@@ -125,7 +155,7 @@ func TestRunKeyReuse(t *testing.T) {
 	t.Setenv("BACKUP_KEY", testEncKey) // 与 ENCRYPTION_KEY 相同
 
 	var stderr bytes.Buffer
-	code := run(io.Discard, &stderr)
+	code := runForTest(io.Discard, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "BOOTSTRAP_KEY_REUSE_FORBIDDEN")
@@ -136,7 +166,7 @@ func TestRunSslDisableRejected(t *testing.T) {
 	t.Setenv("PG_DSN", "postgres://redmatrix_app:pw@pg:5432/redmatrix?sslmode=disable")
 
 	var stderr bytes.Buffer
-	code := run(io.Discard, &stderr)
+	code := runForTest(io.Discard, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "BOOTSTRAP_CONFIG_INVALID")
@@ -148,7 +178,7 @@ func TestRunInvalidLogLevelFromConfig(t *testing.T) {
 	t.Setenv("LOG_LEVEL", "verbose")
 
 	var stderr bytes.Buffer
-	code := run(io.Discard, &stderr)
+	code := runForTest(io.Discard, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "BOOTSTRAP_CONFIG_INVALID")
@@ -160,7 +190,7 @@ func TestFailExitCodeBootstrap(t *testing.T) {
 	t.Setenv("JWT_SECRET", "x")
 
 	var stderr bytes.Buffer
-	code := run(io.Discard, &stderr)
+	code := runForTest(io.Discard, &stderr)
 	assert.Equal(t, 2, code, "BOOTSTRAP_* errors must map to exit 2")
 }
 
@@ -169,7 +199,7 @@ func TestStderrFormat(t *testing.T) {
 	t.Setenv("PG_DSN", "")
 
 	var stderr bytes.Buffer
-	_ = run(io.Discard, &stderr)
+	_ = runForTest(io.Discard, &stderr)
 
 	// stderr 应是单行 "redmatrix-server: <code>: <msg>" 格式
 	line := strings.TrimSpace(stderr.String())

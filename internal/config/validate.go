@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -68,7 +69,8 @@ func validateRequiredEnv(c *Config) error {
 	for _, r := range required {
 		if r.value == "" {
 			return errx.New(errx.ErrBootstrapConfigInvalid,
-				"必填环境变量缺失").WithFields("var", r.field)
+				fmt.Sprintf("必填环境变量缺失: %s", r.field)).
+				WithFields("var", r.field)
 		}
 	}
 	return nil
@@ -153,17 +155,17 @@ func requireSSLEnabled(dsn, name string) error {
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return errx.Wrap(errx.ErrBootstrapConfigInvalid, err,
-			"PG DSN 解析失败").WithFields("var", name)
+			fmt.Sprintf("%s 解析失败", name)).WithFields("var", name)
 	}
 	if !strings.HasPrefix(u.Scheme, "postgres") {
 		return errx.New(errx.ErrBootstrapConfigInvalid,
-			"PG DSN scheme 必须为 postgres / postgresql").
+			fmt.Sprintf("%s scheme 必须为 postgres / postgresql（实为 %s）", name, u.Scheme)).
 			WithFields("var", name, "got_scheme", u.Scheme)
 	}
 	mode := u.Query().Get("sslmode")
 	if mode == "disable" {
 		return errx.New(errx.ErrBootstrapConfigInvalid,
-			"PG DSN sslmode=disable 不允许（生产必须 require / verify-full）").
+			fmt.Sprintf("%s sslmode=disable 不允许（生产必须 require / verify-full）", name)).
 			WithFields("var", name)
 	}
 	return nil
@@ -176,7 +178,7 @@ func requireUser(dsn, name, expected string) error {
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return errx.Wrap(errx.ErrBootstrapConfigInvalid, err,
-			"PG DSN 解析失败").WithFields("var", name)
+			fmt.Sprintf("%s 解析失败", name)).WithFields("var", name)
 	}
 	if u.User == nil || u.User.Username() != expected {
 		got := ""
@@ -184,7 +186,8 @@ func requireUser(dsn, name, expected string) error {
 			got = u.User.Username()
 		}
 		return errx.New(errx.ErrBootstrapConfigInvalid,
-			"PG DSN 用户名不符（22-rls §4.4 要求严格分工）").
+			fmt.Sprintf("%s 用户名不符（要 %s，实为 %s；22-rls §4.4 要求严格分工）",
+				name, expected, got)).
 			WithFields("var", name, "expected", expected, "got", got)
 	}
 	return nil

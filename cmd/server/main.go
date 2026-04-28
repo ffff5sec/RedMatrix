@@ -32,6 +32,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/config"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
+	"github.com/ffff5sec/RedMatrix/internal/storage/es"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	"github.com/ffff5sec/RedMatrix/internal/storage/redis"
@@ -46,6 +47,9 @@ const (
 	// defaultRedisPingTimeout 启动期 Redis 探活的超时上限。
 	defaultRedisPingTimeout = 10 * time.Second
 
+	// defaultESPingTimeout 启动期 ES cluster health 探活的超时上限。
+	defaultESPingTimeout = 15 * time.Second
+
 	// defaultMigrateTimeout 一次完整 goose Up 的超时上限。
 	defaultMigrateTimeout = 5 * time.Minute
 )
@@ -55,9 +59,11 @@ const (
 type runOptions struct {
 	pgPingTimeout    time.Duration
 	redisPingTimeout time.Duration
+	esPingTimeout    time.Duration
 	migrateTimeout   time.Duration
 	pgPoolOverride   func(cfg pg.Config) pg.Config       // 测试用：例如把 MinConns 设 0
 	redisOverride    func(cfg redis.Config) redis.Config // 测试用：把 MinIdleConns 设 0
+	esOverride       func(cfg es.Config) es.Config       // 测试用：超时 / dial
 }
 
 func main() {
@@ -105,6 +111,10 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 	redisTimeout := opts.redisPingTimeout
 	if redisTimeout == 0 {
 		redisTimeout = defaultRedisPingTimeout
+	}
+	esTimeout := opts.esPingTimeout
+	if esTimeout == 0 {
+		esTimeout = defaultESPingTimeout
 	}
 	migTimeout := opts.migrateTimeout
 	if migTimeout == 0 {
@@ -164,6 +174,36 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 	logger.Info("redis ready",
 		"url", redis.Sanitize(cfg.DB.RedisURL),
 	)
+
+	// === 6c. ES cluster health ===
+	esCfg := es.Config{URL: cfg.DB.ESURL}
+	if opts.esOverride != nil {
+		esCfg = opts.esOverride(esCfg)
+	}
+	esClient, err := es.Open(ctx, esCfg)
+	if err != nil {
+		logger.LogError(ctx, "es open failed", err)
+		fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+		return failExitCode(err)
+	}
+	defer func() { _ = esClient.Close() }()
+
+	esCtx, cancelES := context.WithTimeout(ctx, esTimeout)
+	defer cancelES()
+	if err := esClient.Ping(esCtx); err != nil {
+		logger.LogError(esCtx, "es ping failed", err)
+		fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+		return failExitCode(err)
+	}
+	if status, name, herr := esClient.Health(esCtx); herr == nil {
+		logger.Info("es ready",
+			"url", es.Sanitize(cfg.DB.ESURL),
+			"cluster", name,
+			"status", status,
+		)
+	} else {
+		logger.Info("es ready", "url", es.Sanitize(cfg.DB.ESURL))
+	}
 
 	// === 7. 可选：自动跑迁移 ===
 	if cfg.Dev.AutoMigrate {

@@ -10,21 +10,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ffff5sec/RedMatrix/internal/testharness/esharness"
 	"github.com/ffff5sec/RedMatrix/internal/testharness/pgharness"
 	"github.com/ffff5sec/RedMatrix/internal/testharness/redisharness"
 )
 
-// setRealStorageEnv 启 PG + Redis 容器，覆盖 setValidEnv 的 127.0.0.1:1 占位
+// setRealStorageEnv 启 PG + Redis + ES 容器，覆盖 setValidEnv 的 127.0.0.1:1 占位
 // 让 boot 完整 ping 通过。
-func setRealStorageEnv(t *testing.T) (pg *pgharness.PG, rds *redisharness.Redis) {
+func setRealStorageEnv(t *testing.T) (pg *pgharness.PG, rds *redisharness.Redis, esC *esharness.ES) {
 	t.Helper()
 	pgC := pgharness.Start(t)
 	rdsC := redisharness.Start(t)
+	esCC := esharness.Start(t)
 	setValidEnv(t)
 	t.Setenv("PG_DSN", pgC.AppDSN)
 	t.Setenv("PG_DSN_MAINTENANCE", pgC.MaintenanceDSN)
 	t.Setenv("REDIS_URL", rdsC.URL)
-	return pgC, rdsC
+	t.Setenv("ES_URL", esCC.URL)
+	return pgC, rdsC, esCC
 }
 
 // TestRun_FullSuccess 走真实 PG 容器，验证 boot 完整流水线（Open + Ping + 不带 migrate）。
@@ -48,6 +51,7 @@ func TestRun_FullSuccess(t *testing.T) {
 	assert.Contains(t, out, "config loaded")
 	assert.Contains(t, out, "pg pools ready")
 	assert.Contains(t, out, "redis ready")
+	assert.Contains(t, out, "es ready")
 	assert.Contains(t, out, "scaffold boot complete")
 
 	// 不应进入 migrate 路径
@@ -57,7 +61,7 @@ func TestRun_FullSuccess(t *testing.T) {
 // TestRun_FullSuccessWithAutoMigrate 走 RM_AUTO_MIGRATE=true 路径，
 // 验证 migrate.Up 落库后日志输出 "auto-migrate applied"。
 func TestRun_FullSuccessWithAutoMigrate(t *testing.T) {
-	pgC, _ := setRealStorageEnv(t)
+	pgC, _, _ := setRealStorageEnv(t)
 	t.Setenv("PG_DSN_ADMIN", pgC.AdminDSN)
 	t.Setenv("RM_AUTO_MIGRATE", "true")
 
@@ -69,6 +73,7 @@ func TestRun_FullSuccessWithAutoMigrate(t *testing.T) {
 	out := stdout.String()
 	assert.Contains(t, out, "auto-migrate applied")
 	assert.Contains(t, out, "redis ready")
+	assert.Contains(t, out, "es ready")
 	assert.Contains(t, out, "scaffold boot complete")
 
 	// 摘要应标记 admin 已配置

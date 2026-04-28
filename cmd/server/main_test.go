@@ -10,18 +10,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/ffff5sec/RedMatrix/internal/storage/es"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	"github.com/ffff5sec/RedMatrix/internal/storage/redis"
 )
 
 // runForTest 包装 runWith，注入测试用的快速超时与不主动建连的池配置。
 //
-// PG / Redis 都以小池 + MinIdleConns=0 启动，避免不可达 URL 的后台重连拖死测试。
-// PG ping 2s / Redis ping 1s 足够 ECONNREFUSED 反弹。
+// 不可达 URL（127.0.0.1:1）下，超时配合小池让 unit 测试秒级失败（PG ping 总是
+// 第一个失败点；Redis / ES 路径在 unit 中不会被触达，但 override 仍提供以保险）。
 func runForTest(stdout, stderr io.Writer) int {
 	return runWith(stdout, stderr, runOptions{
 		pgPingTimeout:    2 * time.Second,
 		redisPingTimeout: 1 * time.Second,
+		esPingTimeout:    1 * time.Second,
 		migrateTimeout:   5 * time.Second,
 		pgPoolOverride: func(cfg pg.Config) pg.Config {
 			cfg.AppMaxConns = 2
@@ -34,6 +36,11 @@ func runForTest(stdout, stderr io.Writer) int {
 		redisOverride: func(cfg redis.Config) redis.Config {
 			cfg.PoolSize = 2
 			cfg.MinIdleConns = 0
+			return cfg
+		},
+		esOverride: func(cfg es.Config) es.Config {
+			cfg.MaxRetries = 0
+			cfg.DialTimeout = 500 * time.Millisecond
 			return cfg
 		},
 	})

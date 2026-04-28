@@ -109,17 +109,14 @@ type runOptions struct {
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	os.Exit(runWith(os.Stdout, os.Stderr, runOptions{
+	rc := runWith(os.Stdout, os.Stderr, runOptions{
 		ctx:          ctx,
 		httpBindAddr: defaultHTTPBindAddr,
-	}))
-}
-
-// run 是 unit-test-friendly 入口，使用默认 options（无 HTTP server / 无信号 ctx）。
-// 单测 + 现有 boot 集成测试都走这条；HTTP 接入测试调 runWith 直接传 opts。
-func run(stdout, stderr io.Writer) int {
-	return runWith(stdout, stderr, runOptions{})
+	})
+	// 显式调 stop() 后再 os.Exit，避免 lint exitAfterDefer 警告
+	// （os.Exit 跳过 defer，会让 signal.Notify 通道泄漏）。
+	stop()
+	os.Exit(rc)
 }
 
 // runWith 是可测试入口，允许注入超时 / 池配置覆盖。

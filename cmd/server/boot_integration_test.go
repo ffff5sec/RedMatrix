@@ -72,7 +72,7 @@ func TestRun_FullSuccess(t *testing.T) {
 	t.Setenv("RM_AUTO_MIGRATE", "false")
 
 	var stdout, stderr bytes.Buffer
-	code := run(&stdout, &stderr)
+	code := runWith(&stdout, &stderr, runOptions{})
 
 	require.Equal(t, 0, code, "stderr=%s", stderr.String())
 	assert.Empty(t, stderr.String())
@@ -99,7 +99,7 @@ func TestRun_FullSuccessWithAutoMigrate(t *testing.T) {
 	t.Setenv("RM_AUTO_MIGRATE", "true")
 
 	var stdout, stderr bytes.Buffer
-	code := run(&stdout, &stderr)
+	code := runWith(&stdout, &stderr, runOptions{})
 
 	require.Equal(t, 0, code, "stderr=%s", stderr.String())
 
@@ -123,7 +123,7 @@ func TestRun_FullSuccessNoSecretLeak(t *testing.T) {
 	setRealStorageEnv(t)
 
 	var stdout, stderr bytes.Buffer
-	require.Equal(t, 0, run(&stdout, &stderr), "stderr=%s", stderr.String())
+	require.Equal(t, 0, runWith(&stdout, &stderr, runOptions{}), "stderr=%s", stderr.String())
 
 	out := stdout.String()
 
@@ -145,7 +145,7 @@ func TestRun_AutoMigrateAdminMissingWarns(t *testing.T) {
 	t.Setenv("RM_AUTO_MIGRATE", "true")
 
 	var stdout, stderr bytes.Buffer
-	require.Equal(t, 0, run(&stdout, &stderr))
+	require.Equal(t, 0, runWith(&stdout, &stderr, runOptions{}))
 
 	out := stdout.String()
 	// Warn 行包含关键提示

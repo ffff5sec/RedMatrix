@@ -234,12 +234,15 @@ func TestNilBusTopics(t *testing.T) {
 
 func TestConcurrentSubscribePublish(t *testing.T) {
 	b := New(nil)
-	var stop atomic.Bool
+	var subDone sync.WaitGroup
+	subDone.Add(1)
 	var subN, pubN atomic.Int32
 
-	// 并发 Subscribe
+	// 并发 Subscribe：固定 100 次（避免在快机器上 Subscribe 远快于 Publish，
+	// 导致 handler 列表无界增长 + 每次 Publish 迭代上百万 handler 卡死）。
 	go func() {
-		for !stop.Load() {
+		defer subDone.Done()
+		for i := 0; i < 100; i++ {
 			Subscribe[AssetCreated](b, func(context.Context, AssetCreated) error {
 				return nil
 			})
@@ -247,15 +250,16 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 		}
 	}()
 
-	// 并发 Publish
-	for i := 0; i < 200; i++ {
+	// 并发 Publish：固定 100 次。
+	for i := 0; i < 100; i++ {
 		_ = Publish(context.Background(), b, AssetCreated{AssetID: "x"})
 		pubN.Add(1)
 	}
-	stop.Store(true)
+	subDone.Wait()
 
 	// race detector 必须干净（go test -race）；只确保循环跑了。
-	assert.GreaterOrEqual(t, pubN.Load(), int32(200))
+	assert.Equal(t, int32(100), pubN.Load())
+	assert.Equal(t, int32(100), subN.Load())
 }
 
 // === 类型不匹配（防御）===

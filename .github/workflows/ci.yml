@@ -68,11 +68,9 @@ jobs:
           fi
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
-          # 项目内部 .golangci.yml 已 skip-dirs gen/
-          args: --timeout=5m
 
       - name: buf lint
         run: buf lint

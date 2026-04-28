@@ -38,6 +38,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/platform/health"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
+	"github.com/ffff5sec/RedMatrix/internal/platform/metrics"
 	"github.com/ffff5sec/RedMatrix/internal/storage/es"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
 	rmminio "github.com/ffff5sec/RedMatrix/internal/storage/minio"
@@ -313,9 +314,12 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		aggregator.Register("es", esClient.Ping)
 		aggregator.Register("minio", mio.Ping)
 
+		metricsReg := metrics.New(version.Version, version.Commit, version.BuildDate)
+
 		mux := http.NewServeMux()
 		mux.Handle("/health", health.LivenessHandler())
 		mux.Handle("/ready", aggregator.ReadinessHandler())
+		mux.Handle("/metrics", metricsReg.Handler())
 
 		listener, err := net.Listen("tcp", opts.httpBindAddr)
 		if err != nil {
@@ -335,7 +339,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		logger.Info("http server listening",
 			"addr", actualAddr,
-			"endpoints", []string{"/health", "/ready"},
+			"endpoints", []string{"/health", "/ready", "/metrics"},
 		)
 
 		serverErr := make(chan error, 1)

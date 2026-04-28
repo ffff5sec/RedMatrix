@@ -229,6 +229,21 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 		}
 	})
 
+	// /metrics → 200 + 含 redmatrix_build_info + go_goroutines
+	t.Run("metrics", func(t *testing.T) {
+		resp, err := http.Get("http://" + addr + "/metrics")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		body := string(bodyBytes)
+		assert.Contains(t, body, "redmatrix_build_info")
+		assert.Contains(t, body, "go_goroutines")
+		assert.Contains(t, body, "process_resident_memory_bytes")
+	})
+
 	// 触发优雅退出
 	cancel()
 

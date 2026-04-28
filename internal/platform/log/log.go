@@ -27,6 +27,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/platform/ctxmeta"
 )
 
 // LevelTrace 是 slog.LevelDebug 之下的细粒度级别。
@@ -138,7 +139,7 @@ func (l *Logger) WithCtx(ctx context.Context) *Logger {
 	if l == nil || ctx == nil {
 		return l
 	}
-	attrs := ctxAttrs(ctx)
+	attrs := ctxmeta.Attrs(ctx)
 	if len(attrs) == 0 {
 		return l
 	}

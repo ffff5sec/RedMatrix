@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/platform/ctxmeta"
 )
 
 // === 构造与基本输出 ===
@@ -115,11 +116,11 @@ func TestWithCtxIncludesAllMeta(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	ctx = WithRequestID(ctx, "req_abc")
-	ctx = WithUserID(ctx, "u_1")
-	ctx = WithTenantID(ctx, "t_1")
-	ctx = WithProjectID(ctx, "p_1")
-	ctx = WithRole(ctx, "SuperAdmin")
+	ctx = ctxmeta.WithRequestID(ctx, "req_abc")
+	ctx = ctxmeta.WithUserID(ctx, "u_1")
+	ctx = ctxmeta.WithTenantID(ctx, "t_1")
+	ctx = ctxmeta.WithProjectID(ctx, "p_1")
+	ctx = ctxmeta.WithRole(ctx, "SuperAdmin")
 
 	l.WithCtx(ctx).Info("hit")
 
@@ -153,27 +154,27 @@ func TestWithCtxNilSafe(t *testing.T) {
 }
 
 func TestWithRequestIDEmptyIsNoop(t *testing.T) {
-	ctx := WithRequestID(context.Background(), "")
-	assert.Equal(t, "", RequestIDFromContext(ctx))
+	ctx := ctxmeta.WithRequestID(context.Background(), "")
+	assert.Equal(t, "", ctxmeta.RequestIDFromContext(ctx))
 }
 
 func TestCtxGetters(t *testing.T) {
 	ctx := context.Background()
-	ctx = WithRequestID(ctx, "r")
-	ctx = WithUserID(ctx, "u")
-	ctx = WithTenantID(ctx, "t")
-	ctx = WithProjectID(ctx, "p")
-	ctx = WithRole(ctx, "ProjectAdmin")
+	ctx = ctxmeta.WithRequestID(ctx, "r")
+	ctx = ctxmeta.WithUserID(ctx, "u")
+	ctx = ctxmeta.WithTenantID(ctx, "t")
+	ctx = ctxmeta.WithProjectID(ctx, "p")
+	ctx = ctxmeta.WithRole(ctx, "ProjectAdmin")
 
-	assert.Equal(t, "r", RequestIDFromContext(ctx))
-	assert.Equal(t, "u", UserIDFromContext(ctx))
-	assert.Equal(t, "t", TenantIDFromContext(ctx))
-	assert.Equal(t, "p", ProjectIDFromContext(ctx))
-	assert.Equal(t, "ProjectAdmin", RoleFromContext(ctx))
+	assert.Equal(t, "r", ctxmeta.RequestIDFromContext(ctx))
+	assert.Equal(t, "u", ctxmeta.UserIDFromContext(ctx))
+	assert.Equal(t, "t", ctxmeta.TenantIDFromContext(ctx))
+	assert.Equal(t, "p", ctxmeta.ProjectIDFromContext(ctx))
+	assert.Equal(t, "ProjectAdmin", ctxmeta.RoleFromContext(ctx))
 }
 
 func TestCtxGettersNilCtxSafe(t *testing.T) {
-	assert.Equal(t, "", RequestIDFromContext(nil)) //nolint:staticcheck
+	assert.Equal(t, "", ctxmeta.RequestIDFromContext(nil)) //nolint:staticcheck
 }
 
 // === LogError ===
@@ -187,8 +188,8 @@ func TestLogErrorExtractsDomainError(t *testing.T) {
 	de := errx.Internal(errx.ErrDatabase, cause).
 		WithFields("asset_id", "ast_xxx", "tenant_id", "t_xxx")
 
-	ctx := WithRequestID(context.Background(), "req_abc123")
-	ctx = WithUserID(ctx, "u_xxx")
+	ctx := ctxmeta.WithRequestID(context.Background(), "req_abc123")
+	ctx = ctxmeta.WithUserID(ctx, "u_xxx")
 
 	l.LogError(ctx, "request failed", de)
 

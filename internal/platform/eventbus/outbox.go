@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/platform/ctxmeta"
 )
 
 // Record 是 outbox_events 表的一行（仅 Relay 关心的字段）。
@@ -52,8 +53,10 @@ func PublishTx[T Event](ctx context.Context, tx pgx.Tx, ev T) error {
 		return errx.Wrap(errx.ErrInternal, err, "eventbus: marshal event payload").
 			WithFields("topic", ev.Topic())
 	}
-	traceID := traceIDFromContext(ctx)
-	tenantID := tenantIDFromContext(ctx)
+	// trace_id 列存 ctxmeta.RequestID（与日志 / 审计链路同源）；
+	// tenant_id 列存 ctxmeta.TenantID。
+	traceID := ctxmeta.RequestIDFromContext(ctx)
+	tenantID := ctxmeta.TenantIDFromContext(ctx)
 
 	_, err = tx.Exec(ctx, `
 		INSERT INTO outbox_events (topic, payload, tenant_id, trace_id)
@@ -202,51 +205,14 @@ func nullableUUID(s string) any {
 	return s
 }
 
-// === ctx 元数据钩子（与 internal/platform/log.WithRequestID/WithTenantID 兼容）===
+// === ctx 元数据钩子统一走 internal/platform/ctxmeta ===
 //
-// 我们不直接 import log 包以免循环：用 context.Value + log 内部 ctxKey 类型相同
-// 不可行（unexported）。这里复制 string-key 对照，等 internal/platform/ctxmeta
-// 抽出独立包后切换。
+// 历史（已删除）：本包曾自带 outboxCtxKey 与 WithTraceID / WithTenantID。现已切到
+// ctxmeta，保持 5 个 ctx key（request_id / user_id / tenant_id / project_id / role）
+// 跨包单一真相源。调用方注入：
 //
-// 临时方案：只支持调用方手动通过下面 helper 把 traceID/tenantID 设入 ctx；
-// log 包的 ctx-aware helper 暂不与 outbox 联动（next PR 的 ctxmeta 包统一）。
-
-type outboxCtxKey int
-
-const (
-	ctxKeyTraceID outboxCtxKey = iota
-	ctxKeyTenantID
-)
-
-// WithTraceID 把 trace ID 注入 ctx，PublishTx 写 outbox.trace_id 时取此值。
-// 业务代码可在 RPC 拦截器层完成注入，以便事件全链路追溯。
-func WithTraceID(ctx context.Context, id string) context.Context {
-	if id == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, ctxKeyTraceID, id)
-}
-
-// WithTenantID 同上。tenant_id 主要用于审计与按租户维度的指标聚合。
-func WithTenantID(ctx context.Context, id string) context.Context {
-	if id == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, ctxKeyTenantID, id)
-}
-
-func traceIDFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	v, _ := ctx.Value(ctxKeyTraceID).(string)
-	return v
-}
-
-func tenantIDFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	v, _ := ctx.Value(ctxKeyTenantID).(string)
-	return v
-}
+//	ctx := ctxmeta.WithRequestID(ctx, "req_abc")
+//	ctx  = ctxmeta.WithTenantID(ctx, "t_xxx")
+//	eventbus.PublishTx(ctx, tx, ev)
+//
+// PublishTx 内部把 RequestID 写入 outbox.trace_id 列、TenantID 写入 tenant_id 列。

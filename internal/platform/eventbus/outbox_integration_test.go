@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ffff5sec/RedMatrix/internal/platform/ctxmeta"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
 	"github.com/ffff5sec/RedMatrix/internal/testharness/pgharness"
 )
@@ -61,8 +62,8 @@ func TestPublishTx_TraceAndTenantInjected(t *testing.T) {
 	pool := setupOutboxDB(t)
 	outbox := NewOutbox(pool)
 
-	ctx := WithTraceID(context.Background(), "req_abc")
-	ctx = WithTenantID(ctx, "11111111-1111-1111-1111-111111111111")
+	ctx := ctxmeta.WithRequestID(context.Background(), "req_abc")
+	ctx = ctxmeta.WithTenantID(ctx, "11111111-1111-1111-1111-111111111111")
 
 	tx, err := pool.Begin(ctx)
 	require.NoError(t, err)

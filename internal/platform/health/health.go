@@ -43,8 +43,8 @@ type Report struct {
 
 // Aggregator 持有 N 个命名 probe，并发执行。
 type Aggregator struct {
-	mu             sync.RWMutex
-	probes         map[string]Probe
+	mu              sync.RWMutex
+	probes          map[string]Probe
 	perProbeTimeout time.Duration
 }
 

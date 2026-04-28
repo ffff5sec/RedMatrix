@@ -3,7 +3,7 @@ module github.com/ffff5sec/RedMatrix
 go 1.25.8
 
 require (
-	connectrpc.com/connect v1.16.2
+	connectrpc.com/connect v1.19.2
 	github.com/elastic/go-elasticsearch/v8 v8.19.5
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/minio/minio-go/v7 v7.1.0

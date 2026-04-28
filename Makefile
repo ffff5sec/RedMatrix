@@ -73,7 +73,7 @@ run-node: node
 tools:
 	go install github.com/bufbuild/buf/cmd/buf@latest
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install connectrpc.com/connect/cmd/protoc-gen-connect-go@v1.16.2
+	go install connectrpc.com/connect/cmd/protoc-gen-connect-go@v1.19.2
 
 # 完整 proto 流水线：格式化 + lint + 代码生成
 proto:

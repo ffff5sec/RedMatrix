@@ -11,7 +11,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ffff5sec/RedMatrix/internal/testharness/pgharness"
+	"github.com/ffff5sec/RedMatrix/internal/testharness/redisharness"
 )
+
+// setRealStorageEnv 启 PG + Redis 容器，覆盖 setValidEnv 的 127.0.0.1:1 占位
+// 让 boot 完整 ping 通过。
+func setRealStorageEnv(t *testing.T) (pg *pgharness.PG, rds *redisharness.Redis) {
+	t.Helper()
+	pgC := pgharness.Start(t)
+	rdsC := redisharness.Start(t)
+	setValidEnv(t)
+	t.Setenv("PG_DSN", pgC.AppDSN)
+	t.Setenv("PG_DSN_MAINTENANCE", pgC.MaintenanceDSN)
+	t.Setenv("REDIS_URL", rdsC.URL)
+	return pgC, rdsC
+}
 
 // TestRun_FullSuccess 走真实 PG 容器，验证 boot 完整流水线（Open + Ping + 不带 migrate）。
 //
@@ -19,12 +33,7 @@ import (
 //   - PG 探活 30s 超时
 //   - 默认 MinConns 主动建连（容器响应快，不会卡）
 func TestRun_FullSuccess(t *testing.T) {
-	h := pgharness.Start(t)
-	setValidEnv(t)
-
-	t.Setenv("PG_DSN", h.AppDSN)
-	t.Setenv("PG_DSN_MAINTENANCE", h.MaintenanceDSN)
-	// AdminDSN 留空 → autoMigrate 走 Warn-then-skip 路径
+	setRealStorageEnv(t)
 	t.Setenv("PG_DSN_ADMIN", "")
 	t.Setenv("RM_AUTO_MIGRATE", "false")
 
@@ -38,6 +47,7 @@ func TestRun_FullSuccess(t *testing.T) {
 	assert.Contains(t, out, "redmatrix-server starting")
 	assert.Contains(t, out, "config loaded")
 	assert.Contains(t, out, "pg pools ready")
+	assert.Contains(t, out, "redis ready")
 	assert.Contains(t, out, "scaffold boot complete")
 
 	// 不应进入 migrate 路径
@@ -47,12 +57,8 @@ func TestRun_FullSuccess(t *testing.T) {
 // TestRun_FullSuccessWithAutoMigrate 走 RM_AUTO_MIGRATE=true 路径，
 // 验证 migrate.Up 落库后日志输出 "auto-migrate applied"。
 func TestRun_FullSuccessWithAutoMigrate(t *testing.T) {
-	h := pgharness.Start(t)
-	setValidEnv(t)
-
-	t.Setenv("PG_DSN", h.AppDSN)
-	t.Setenv("PG_DSN_MAINTENANCE", h.MaintenanceDSN)
-	t.Setenv("PG_DSN_ADMIN", h.AdminDSN)
+	pgC, _ := setRealStorageEnv(t)
+	t.Setenv("PG_DSN_ADMIN", pgC.AdminDSN)
 	t.Setenv("RM_AUTO_MIGRATE", "true")
 
 	var stdout, stderr bytes.Buffer
@@ -62,6 +68,7 @@ func TestRun_FullSuccessWithAutoMigrate(t *testing.T) {
 
 	out := stdout.String()
 	assert.Contains(t, out, "auto-migrate applied")
+	assert.Contains(t, out, "redis ready")
 	assert.Contains(t, out, "scaffold boot complete")
 
 	// 摘要应标记 admin 已配置
@@ -74,10 +81,7 @@ func TestRun_FullSuccessWithAutoMigrate(t *testing.T) {
 //   - unit 测试在 PG 不可达分支验证（boot 早退）
 //   - 集成测试在完整成功路径验证（boot 走完）
 func TestRun_FullSuccessNoSecretLeak(t *testing.T) {
-	h := pgharness.Start(t)
-	setValidEnv(t)
-	t.Setenv("PG_DSN", h.AppDSN)
-	t.Setenv("PG_DSN_MAINTENANCE", h.MaintenanceDSN)
+	setRealStorageEnv(t)
 
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, run(&stdout, &stderr), "stderr=%s", stderr.String())
@@ -89,7 +93,7 @@ func TestRun_FullSuccessNoSecretLeak(t *testing.T) {
 	assert.NotContains(t, out, testEncKey)
 	assert.NotContains(t, out, testHMACKey)
 	assert.NotContains(t, out, testBackupKey)
-	// 容器密码 "app_test_pw" 不应泄漏（pg.Sanitize 已脱敏）
+	// 容器密码 "app_test_pw" 不应泄漏（pg.Sanitize / redis.Sanitize 已脱敏）
 	assert.NotContains(t, out, "app_test_pw")
 	assert.NotContains(t, out, "maint_test_pw")
 }
@@ -97,10 +101,7 @@ func TestRun_FullSuccessNoSecretLeak(t *testing.T) {
 // TestRun_AutoMigrateAdminMissingWarns 验证 RM_AUTO_MIGRATE=true 但
 // PG_DSN_ADMIN 缺失时不报错（Warn-skip 路径）。
 func TestRun_AutoMigrateAdminMissingWarns(t *testing.T) {
-	h := pgharness.Start(t)
-	setValidEnv(t)
-	t.Setenv("PG_DSN", h.AppDSN)
-	t.Setenv("PG_DSN_MAINTENANCE", h.MaintenanceDSN)
+	setRealStorageEnv(t)
 	t.Setenv("PG_DSN_ADMIN", "")
 	t.Setenv("RM_AUTO_MIGRATE", "true")
 

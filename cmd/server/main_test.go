@@ -11,21 +11,29 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
+	"github.com/ffff5sec/RedMatrix/internal/storage/redis"
 )
 
-// runForTest 包装 runWith，注入测试用的快速超时与不主动建连的 pool 配置。
-//   - pgPingTimeout 2s：足够 ECONNREFUSED 多次返回，不会拖测试
-//   - pgPoolOverride：MaxConns=2 / MinConns=0，避免 pgxpool 后台无限重连
+// runForTest 包装 runWith，注入测试用的快速超时与不主动建连的池配置。
+//
+// PG / Redis 都以小池 + MinIdleConns=0 启动，避免不可达 URL 的后台重连拖死测试。
+// PG ping 2s / Redis ping 1s 足够 ECONNREFUSED 反弹。
 func runForTest(stdout, stderr io.Writer) int {
 	return runWith(stdout, stderr, runOptions{
-		pgPingTimeout:  2 * time.Second,
-		migrateTimeout: 5 * time.Second,
+		pgPingTimeout:    2 * time.Second,
+		redisPingTimeout: 1 * time.Second,
+		migrateTimeout:   5 * time.Second,
 		pgPoolOverride: func(cfg pg.Config) pg.Config {
 			cfg.AppMaxConns = 2
 			cfg.AppMinConns = 0
 			cfg.MaintenanceMaxConns = 2
 			cfg.MaintenanceMinConns = 0
 			cfg.AdminMaxConns = 2
+			return cfg
+		},
+		redisOverride: func(cfg redis.Config) redis.Config {
+			cfg.PoolSize = 2
+			cfg.MinIdleConns = 0
 			return cfg
 		},
 	})

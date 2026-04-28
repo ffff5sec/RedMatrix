@@ -34,6 +34,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
+	"github.com/ffff5sec/RedMatrix/internal/storage/redis"
 	"github.com/ffff5sec/RedMatrix/internal/version"
 )
 
@@ -42,16 +43,21 @@ const (
 	// 与 40 §2.5 启动 fail-fast 行为对齐。
 	defaultPGPingTimeout = 30 * time.Second
 
+	// defaultRedisPingTimeout 启动期 Redis 探活的超时上限。
+	defaultRedisPingTimeout = 10 * time.Second
+
 	// defaultMigrateTimeout 一次完整 goose Up 的超时上限。
 	defaultMigrateTimeout = 5 * time.Minute
 )
 
-// runOptions 让测试可控地缩短启动超时（PG 不可达时避免 30s × N 测试卡死）。
+// runOptions 让测试可控地缩短启动超时（不可达存储时避免每个测试 30s × N 卡死）。
 // 生产路径（main → run）一律走默认值。
 type runOptions struct {
-	pgPingTimeout  time.Duration
-	migrateTimeout time.Duration
-	pgPoolOverride func(cfg pg.Config) pg.Config // 测试用：例如把 MinConns 设 0
+	pgPingTimeout    time.Duration
+	redisPingTimeout time.Duration
+	migrateTimeout   time.Duration
+	pgPoolOverride   func(cfg pg.Config) pg.Config       // 测试用：例如把 MinConns 设 0
+	redisOverride    func(cfg redis.Config) redis.Config // 测试用：把 MinIdleConns 设 0
 }
 
 func main() {
@@ -92,9 +98,13 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 	logBootSummary(logger, cfg)
 
 	ctx := context.Background()
-	pingTimeout := opts.pgPingTimeout
-	if pingTimeout == 0 {
-		pingTimeout = defaultPGPingTimeout
+	pgTimeout := opts.pgPingTimeout
+	if pgTimeout == 0 {
+		pgTimeout = defaultPGPingTimeout
+	}
+	redisTimeout := opts.redisPingTimeout
+	if redisTimeout == 0 {
+		redisTimeout = defaultRedisPingTimeout
 	}
 	migTimeout := opts.migrateTimeout
 	if migTimeout == 0 {
@@ -118,7 +128,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 	}
 	defer pool.Close()
 
-	pingCtx, cancelPing := context.WithTimeout(ctx, pingTimeout)
+	pingCtx, cancelPing := context.WithTimeout(ctx, pgTimeout)
 	defer cancelPing()
 	if err := pool.Ping(pingCtx); err != nil {
 		logger.LogError(pingCtx, "pg ping failed", err)
@@ -129,6 +139,30 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		"app.dsn", pg.Sanitize(cfg.DB.PGDSN),
 		"maintenance.dsn", pg.Sanitize(cfg.DB.PGMaintenanceDSN),
 		"admin.enabled", pool.Admin != nil,
+	)
+
+	// === 6b. Redis ===
+	redisCfg := redis.Config{URL: cfg.DB.RedisURL}
+	if opts.redisOverride != nil {
+		redisCfg = opts.redisOverride(redisCfg)
+	}
+	rds, err := redis.Open(ctx, redisCfg)
+	if err != nil {
+		logger.LogError(ctx, "redis open failed", err)
+		fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+		return failExitCode(err)
+	}
+	defer func() { _ = rds.Close() }()
+
+	rdsCtx, cancelRds := context.WithTimeout(ctx, redisTimeout)
+	defer cancelRds()
+	if err := rds.Ping(rdsCtx); err != nil {
+		logger.LogError(rdsCtx, "redis ping failed", err)
+		fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+		return failExitCode(err)
+	}
+	logger.Info("redis ready",
+		"url", redis.Sanitize(cfg.DB.RedisURL),
 	)
 
 	// === 7. 可选：自动跑迁移 ===

@@ -2,11 +2,8 @@
 # 文档参考：docs/LLD/00-conventions.md §2.8 与 docs/LLD/30-test-strategy.md §4
 run:
   timeout: 5m
-  go: "1.22"
+  go: "1.25"
   tests: true
-  # gen/ 是 buf generate 产物，不强制 lint
-  skip-dirs:
-    - gen
 
 linters:
   disable-all: true
@@ -64,6 +61,10 @@ linters-settings:
 issues:
   max-same-issues: 0
   max-issues-per-linter: 0
+  # gen/ 是 buf generate 产物，不强制 lint（golangci v1.59+ 用 exclude-dirs，
+  # 替代旧版 run.skip-dirs）。
+  exclude-dirs:
+    - gen
   exclude-rules:
     - path: _test\.go
       linters:

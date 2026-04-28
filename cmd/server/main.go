@@ -21,16 +21,22 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // database/sql 驱动注册（goose 用）
 
 	"github.com/ffff5sec/RedMatrix/internal/config"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/platform/health"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/storage/es"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
@@ -56,6 +62,19 @@ const (
 
 	// defaultMigrateTimeout 一次完整 goose Up 的超时上限。
 	defaultMigrateTimeout = 5 * time.Minute
+
+	// defaultHTTPBindAddr 是 main 的默认监听地址（与 04-config-schema §3.1
+	// server.http.bind 对齐；后续接 RPC handler 会用同一端口）。
+	defaultHTTPBindAddr = ":8080"
+
+	// defaultHTTPReadHeaderTimeout 防 Slowloris：限制 header 读取上限。
+	defaultHTTPReadHeaderTimeout = 5 * time.Second
+
+	// defaultShutdownTimeout HTTP server graceful shutdown 上限。
+	defaultShutdownTimeout = 10 * time.Second
+
+	// defaultProbeTimeout health Aggregator 单 probe 超时（小于 PG ping 默认）。
+	defaultProbeTimeout = 3 * time.Second
 )
 
 // runOptions 让测试可控地缩短启动超时（不可达存储时避免每个测试 30s × N 卡死）。
@@ -73,19 +92,44 @@ type runOptions struct {
 	// minioSkipVerify=true 时仅 Ping，不调 VerifyBuckets（用于 dev / 测试场景下
 	// 容器还未跑 minio-bootstrap，让 boot 仍能通过）。
 	minioSkipVerify bool
+
+	// httpBindAddr 非空时启动 HTTP server 提供 /health + /ready；
+	// 空时跳过（unit / boot integration 测试默认行为）。
+	// 生产路径 main() 设 ":8080"。
+	httpBindAddr string
+
+	// ctx 控制 HTTP server 的生命周期。nil 时退化为 context.Background()。
+	// main() 用 signal.NotifyContext 监听 SIGINT/SIGTERM 让进程优雅退出。
+	ctx context.Context
+
+	// onListening 在 HTTP server 实际监听后调用一次，回传 listener.Addr()。
+	// 测试用：让外部知道 ":0" 被 OS 实际选中的端口。
+	onListening func(addr string)
 }
 
 func main() {
-	os.Exit(run(os.Stdout, os.Stderr))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	os.Exit(runWith(os.Stdout, os.Stderr, runOptions{
+		ctx:          ctx,
+		httpBindAddr: defaultHTTPBindAddr,
+	}))
 }
 
-// run 是生产入口，使用默认 options。
+// run 是 unit-test-friendly 入口，使用默认 options（无 HTTP server / 无信号 ctx）。
+// 单测 + 现有 boot 集成测试都走这条；HTTP 接入测试调 runWith 直接传 opts。
 func run(stdout, stderr io.Writer) int {
 	return runWith(stdout, stderr, runOptions{})
 }
 
 // runWith 是可测试入口，允许注入超时 / 池配置覆盖。
 func runWith(stdout, stderr io.Writer, opts runOptions) int {
+	parentCtx := opts.ctx
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	_ = parentCtx // silence unused-warning until used below
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fail(stderr, err)
@@ -112,7 +156,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 	)
 	logBootSummary(logger, cfg)
 
-	ctx := context.Background()
+	ctx := parentCtx
 	pgTimeout := opts.pgPingTimeout
 	if pgTimeout == 0 {
 		pgTimeout = defaultPGPingTimeout
@@ -264,7 +308,69 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 	}
 
-	// TODO(scaffold): ES / Redis / MinIO 探活 → 注册 handler → 监听 → 等 SIGTERM。
+	// === 8. HTTP server（/health + /ready；可选）===
+	if opts.httpBindAddr != "" {
+		aggregator := health.New(defaultProbeTimeout)
+		aggregator.Register("pg", pool.Ping)
+		aggregator.Register("redis", rds.Ping)
+		aggregator.Register("es", esClient.Ping)
+		aggregator.Register("minio", mio.Ping)
+
+		mux := http.NewServeMux()
+		mux.Handle("/health", health.LivenessHandler())
+		mux.Handle("/ready", aggregator.ReadinessHandler())
+
+		listener, err := net.Listen("tcp", opts.httpBindAddr)
+		if err != nil {
+			logger.LogError(ctx, "http listen failed", err,
+				"addr", opts.httpBindAddr)
+			fmt.Fprintf(stderr, "redmatrix-server: http listen %s: %v\n", opts.httpBindAddr, err)
+			return 1
+		}
+		actualAddr := listener.Addr().String()
+
+		srv := &http.Server{
+			Handler:           mux,
+			ReadHeaderTimeout: defaultHTTPReadHeaderTimeout,
+		}
+		if opts.onListening != nil {
+			opts.onListening(actualAddr)
+		}
+		logger.Info("http server listening",
+			"addr", actualAddr,
+			"endpoints", []string{"/health", "/ready"},
+		)
+
+		serverErr := make(chan error, 1)
+		go func() {
+			if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErr <- err
+			}
+			close(serverErr)
+		}()
+
+		select {
+		case <-ctx.Done():
+			logger.Info("shutdown signal received; closing http server",
+				"reason", ctx.Err().Error())
+		case err := <-serverErr:
+			logger.LogError(ctx, "http server crashed", err)
+			_ = srv.Close()
+			return 1
+		}
+
+		shutdownCtx, cancelShutdown := context.WithTimeout(
+			context.Background(), defaultShutdownTimeout)
+		defer cancelShutdown()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.LogError(shutdownCtx, "http server shutdown error", err)
+			return 1
+		}
+		logger.Info("http server shutdown complete")
+		return 0
+	}
+
+	// 无 HTTP path（unit / boot integration 测试场景）：保留 scaffold 行为。
 	logger.Info("scaffold boot complete; exiting until RPC wiring lands")
 	return 0
 }

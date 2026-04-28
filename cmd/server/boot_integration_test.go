@@ -4,30 +4,57 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	rmminio "github.com/ffff5sec/RedMatrix/internal/storage/minio"
 	"github.com/ffff5sec/RedMatrix/internal/testharness/esharness"
+	"github.com/ffff5sec/RedMatrix/internal/testharness/minioharness"
 	"github.com/ffff5sec/RedMatrix/internal/testharness/pgharness"
 	"github.com/ffff5sec/RedMatrix/internal/testharness/redisharness"
 )
 
-// setRealStorageEnv 启 PG + Redis + ES 容器，覆盖 setValidEnv 的 127.0.0.1:1 占位
-// 让 boot 完整 ping 通过。
-func setRealStorageEnv(t *testing.T) (pg *pgharness.PG, rds *redisharness.Redis, esC *esharness.ES) {
+// setRealStorageEnv 启 PG + Redis + ES + MinIO 四容器，覆盖 setValidEnv 的
+// 127.0.0.1:1 占位让 boot 完整 ping 通过。MinIO 上提前 EnsureBuckets 9 个，
+// 让 boot 的 VerifyBuckets 通过。
+func setRealStorageEnv(t *testing.T) (
+	pg *pgharness.PG,
+	rds *redisharness.Redis,
+	esC *esharness.ES,
+	mio *minioharness.MinIO,
+) {
 	t.Helper()
 	pgC := pgharness.Start(t)
 	rdsC := redisharness.Start(t)
 	esCC := esharness.Start(t)
+	mioC := minioharness.Start(t)
+
+	// 9 bucket 预建（生产由 minio-bootstrap job 做；这里在测试 helper 中等价完成）。
+	mioClient, err := rmminio.Open(context.Background(), rmminio.Config{
+		Endpoint:  mioC.Endpoint,
+		AccessKey: mioC.AccessKey,
+		SecretKey: mioC.SecretKey,
+	})
+	require.NoError(t, err)
+	defer func() { _ = mioClient.Close() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	require.NoError(t, mioClient.EnsureBuckets(ctx, rmminio.RequiredBuckets, ""))
+
 	setValidEnv(t)
 	t.Setenv("PG_DSN", pgC.AppDSN)
 	t.Setenv("PG_DSN_MAINTENANCE", pgC.MaintenanceDSN)
 	t.Setenv("REDIS_URL", rdsC.URL)
 	t.Setenv("ES_URL", esCC.URL)
-	return pgC, rdsC, esCC
+	t.Setenv("MINIO_ENDPOINT", mioC.Endpoint)
+	t.Setenv("MINIO_ACCESS_KEY", mioC.AccessKey)
+	t.Setenv("MINIO_SECRET_KEY", mioC.SecretKey)
+	return pgC, rdsC, esCC, mioC
 }
 
 // TestRun_FullSuccess 走真实 PG 容器，验证 boot 完整流水线（Open + Ping + 不带 migrate）。
@@ -52,6 +79,8 @@ func TestRun_FullSuccess(t *testing.T) {
 	assert.Contains(t, out, "pg pools ready")
 	assert.Contains(t, out, "redis ready")
 	assert.Contains(t, out, "es ready")
+	assert.Contains(t, out, "minio ready")
+	assert.Contains(t, out, `"buckets_verified":true`)
 	assert.Contains(t, out, "scaffold boot complete")
 
 	// 不应进入 migrate 路径
@@ -61,7 +90,7 @@ func TestRun_FullSuccess(t *testing.T) {
 // TestRun_FullSuccessWithAutoMigrate 走 RM_AUTO_MIGRATE=true 路径，
 // 验证 migrate.Up 落库后日志输出 "auto-migrate applied"。
 func TestRun_FullSuccessWithAutoMigrate(t *testing.T) {
-	pgC, _, _ := setRealStorageEnv(t)
+	pgC, _, _, _ := setRealStorageEnv(t)
 	t.Setenv("PG_DSN_ADMIN", pgC.AdminDSN)
 	t.Setenv("RM_AUTO_MIGRATE", "true")
 
@@ -74,6 +103,7 @@ func TestRun_FullSuccessWithAutoMigrate(t *testing.T) {
 	assert.Contains(t, out, "auto-migrate applied")
 	assert.Contains(t, out, "redis ready")
 	assert.Contains(t, out, "es ready")
+	assert.Contains(t, out, "minio ready")
 	assert.Contains(t, out, "scaffold boot complete")
 
 	// 摘要应标记 admin 已配置

@@ -34,6 +34,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/storage/es"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
+	rmminio "github.com/ffff5sec/RedMatrix/internal/storage/minio"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	"github.com/ffff5sec/RedMatrix/internal/storage/redis"
 	"github.com/ffff5sec/RedMatrix/internal/version"
@@ -50,6 +51,9 @@ const (
 	// defaultESPingTimeout 启动期 ES cluster health 探活的超时上限。
 	defaultESPingTimeout = 15 * time.Second
 
+	// defaultMinioPingTimeout 启动期 MinIO ListBuckets + 9 bucket 校验的超时上限。
+	defaultMinioPingTimeout = 15 * time.Second
+
 	// defaultMigrateTimeout 一次完整 goose Up 的超时上限。
 	defaultMigrateTimeout = 5 * time.Minute
 )
@@ -60,10 +64,15 @@ type runOptions struct {
 	pgPingTimeout    time.Duration
 	redisPingTimeout time.Duration
 	esPingTimeout    time.Duration
+	minioPingTimeout time.Duration
 	migrateTimeout   time.Duration
-	pgPoolOverride   func(cfg pg.Config) pg.Config       // 测试用：例如把 MinConns 设 0
-	redisOverride    func(cfg redis.Config) redis.Config // 测试用：把 MinIdleConns 设 0
-	esOverride       func(cfg es.Config) es.Config       // 测试用：超时 / dial
+	pgPoolOverride   func(cfg pg.Config) pg.Config           // 测试用：例如把 MinConns 设 0
+	redisOverride    func(cfg redis.Config) redis.Config     // 测试用：把 MinIdleConns 设 0
+	esOverride       func(cfg es.Config) es.Config           // 测试用：超时 / dial
+	minioOverride    func(cfg rmminio.Config) rmminio.Config // 测试用：endpoint / TLS
+	// minioSkipVerify=true 时仅 Ping，不调 VerifyBuckets（用于 dev / 测试场景下
+	// 容器还未跑 minio-bootstrap，让 boot 仍能通过）。
+	minioSkipVerify bool
 }
 
 func main() {
@@ -115,6 +124,10 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 	esTimeout := opts.esPingTimeout
 	if esTimeout == 0 {
 		esTimeout = defaultESPingTimeout
+	}
+	minioTimeout := opts.minioPingTimeout
+	if minioTimeout == 0 {
+		minioTimeout = defaultMinioPingTimeout
 	}
 	migTimeout := opts.migrateTimeout
 	if migTimeout == 0 {
@@ -204,6 +217,44 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 	} else {
 		logger.Info("es ready", "url", es.Sanitize(cfg.DB.ESURL))
 	}
+
+	// === 6d. MinIO（Ping + 9 bucket 校验）===
+	mioCfg := rmminio.Config{
+		Endpoint:  cfg.DB.MinIOEndpoint,
+		AccessKey: cfg.DB.MinIOAccessKey,
+		SecretKey: cfg.DB.MinIOSecretKey,
+		// 内网 endpoint 默认无 TLS；公网 endpoint 由调用方自管。
+		UseSSL: false,
+	}
+	if opts.minioOverride != nil {
+		mioCfg = opts.minioOverride(mioCfg)
+	}
+	mio, err := rmminio.Open(ctx, mioCfg)
+	if err != nil {
+		logger.LogError(ctx, "minio open failed", err)
+		fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+		return failExitCode(err)
+	}
+	defer func() { _ = mio.Close() }()
+
+	mioCtx, cancelMio := context.WithTimeout(ctx, minioTimeout)
+	defer cancelMio()
+	if err := mio.Ping(mioCtx); err != nil {
+		logger.LogError(mioCtx, "minio ping failed", err)
+		fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+		return failExitCode(err)
+	}
+	if !opts.minioSkipVerify {
+		if err := mio.VerifyBuckets(mioCtx, rmminio.RequiredBuckets); err != nil {
+			logger.LogError(mioCtx, "minio bucket verify failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+	}
+	logger.Info("minio ready",
+		"endpoint", rmminio.Sanitize(cfg.DB.MinIOEndpoint, cfg.DB.MinIOAccessKey),
+		"buckets_verified", !opts.minioSkipVerify,
+	)
 
 	// === 7. 可选：自动跑迁移 ===
 	if cfg.Dev.AutoMigrate {

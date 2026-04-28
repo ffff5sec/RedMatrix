@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ffff5sec/RedMatrix/internal/storage/es"
+	rmminio "github.com/ffff5sec/RedMatrix/internal/storage/minio"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	"github.com/ffff5sec/RedMatrix/internal/storage/redis"
 )
@@ -43,6 +44,12 @@ func runForTest(stdout, stderr io.Writer) int {
 			cfg.DialTimeout = 500 * time.Millisecond
 			return cfg
 		},
+		minioPingTimeout: 1 * time.Second,
+		minioOverride: func(cfg rmminio.Config) rmminio.Config {
+			return cfg
+		},
+		// unit 测试不依赖真 MinIO；保持 default minioSkipVerify=false（即默认会 Verify），
+		// 只是 PG 早就 fail 不会到 MinIO 路径。集成测试场景由 boot_integration_test 设 true。
 	})
 }
 

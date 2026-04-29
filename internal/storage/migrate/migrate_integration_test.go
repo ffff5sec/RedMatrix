@@ -119,12 +119,54 @@ func TestDown_RollsBackOne(t *testing.T) {
 
 	assert.Less(t, vDown, vUp, "Down 后版本号应下降")
 
-	// 0004（最新）已被回滚 → users 表应不存在
-	var hasUsers bool
+	// 0005（最新）已被回滚 → user_sessions 表应不存在
+	var hasSessions bool
 	require.NoError(t, db.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='users')`,
-	).Scan(&hasUsers))
-	assert.False(t, hasUsers, "Down 应移除 0004 创建的 users 表")
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='user_sessions')`,
+	).Scan(&hasSessions))
+	assert.False(t, hasSessions, "Down 应移除 0005 创建的 user_sessions 表")
+}
+
+// 验证 0005 user_sessions 表 schema
+func TestUp_UserSessionsTableExists(t *testing.T) {
+	h := pgharness.Start(t)
+
+	db, err := sql.Open("pgx", h.AdminDSN)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	require.NoError(t, Up(ctx, db))
+
+	for _, col := range []string{"id", "tenant_id", "user_id", "user_agent",
+		"ip", "issued_at", "last_seen_at", "token_version", "expires_at"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.columns
+			                WHERE table_name='user_sessions' AND column_name=$1)`,
+			col).Scan(&exists))
+		assert.Truef(t, exists, "列 user_sessions.%s 应存在", col)
+	}
+
+	for _, c := range []string{"user_sessions_token_version_nonneg",
+		"user_sessions_expires_after_issued"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname=$1)`,
+			c).Scan(&exists))
+		assert.Truef(t, exists, "约束 %s 应存在", c)
+	}
+
+	for _, idx := range []string{"idx_sessions_user_active", "idx_sessions_tenant",
+		"idx_sessions_expires"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname=$1)`,
+			idx).Scan(&exists))
+		assert.Truef(t, exists, "索引 %s 应存在", idx)
+	}
 }
 
 // 验证 0004 users 表 schema

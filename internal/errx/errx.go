@@ -197,6 +197,7 @@ var codeToConnect = map[Code]connect.Code{
 	ErrUserRoleImmutable:              connect.CodeInvalidArgument,
 	ErrUserUsernameImmutable:          connect.CodeInvalidArgument,
 	ErrUserAccountExpired:             connect.CodeUnauthenticated,
+	ErrSessionNotFound:                connect.CodeNotFound,
 
 	// PROJECT
 	ErrProjectNotFound:         connect.CodeNotFound,

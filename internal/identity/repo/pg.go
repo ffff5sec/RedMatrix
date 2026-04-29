@@ -149,6 +149,35 @@ func (r *pgRepo) IncrementTokenVersion(ctx context.Context, id string) error {
 	return nil
 }
 
+// LogoutAllSessions 单事务跑两条 UPDATE：tv++ + 全部未过期 session 置 expires_at=now()。
+// LLD 10 §5.5：tv 是吊销机制；sessions.expires_at 是 UI 同步（列表显示 inactive）。
+func (r *pgRepo) LogoutAllSessions(ctx context.Context, id string) error {
+	if r == nil || r.pool == nil {
+		return errx.New(errx.ErrInternal, "identity.repo: nil pool")
+	}
+	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `
+			UPDATE users SET token_version = token_version + 1, updated_at = now()
+			 WHERE id = $1::uuid
+		`, id)
+		if err != nil {
+			return errx.Wrap(errx.ErrDatabase, err, "identity.repo: bump tv").
+				WithFields("id", id)
+		}
+		if tag.RowsAffected() == 0 {
+			return errx.New(errx.ErrUserNotFound, "用户不存在").WithFields("id", id)
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE user_sessions SET expires_at = now()
+			 WHERE user_id = $1::uuid AND expires_at > now()
+		`, id); err != nil {
+			return errx.Wrap(errx.ErrDatabase, err, "identity.repo: expire sessions").
+				WithFields("user_id", id)
+		}
+		return nil
+	})
+}
+
 func (r *pgRepo) UpdateStatus(ctx context.Context, id string, status domain.Status) error {
 	if r == nil || r.pool == nil {
 		return errx.New(errx.ErrInternal, "identity.repo: nil pool")

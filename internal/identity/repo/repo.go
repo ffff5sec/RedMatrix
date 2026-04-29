@@ -40,4 +40,8 @@ type Repository interface {
 
 	// UpdateStatus 切换用户状态（active / disabled / pending_deletion）。
 	UpdateStatus(ctx context.Context, id string, status domain.Status) error
+
+	// LogoutAllSessions 在单事务内：token_version+1 + 该用户所有未过期 session 置 expires_at=now()。
+	// 用于"全部下线"语义（LLD 10 §5.5 + §7.4）。返回 ErrUserNotFound 若用户不存在。
+	LogoutAllSessions(ctx context.Context, id string) error
 }

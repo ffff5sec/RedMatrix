@@ -51,6 +51,9 @@ type Service struct {
 	now       func() time.Time // 注入，便于测试
 }
 
+// AccessTTL 返回 access token 的 TTL（用于 service 层算 session 过期时间）。
+func (s *Service) AccessTTL() time.Duration { return s.accessTTL }
+
 // NewService 创建 JWT 服务。secret 必须 ≥ MinSecretLen；ttl ≤ 0 时用 DefaultAccessTTL。
 func NewService(secret string, accessTTL time.Duration) (*Service, error) {
 	if len(secret) < MinSecretLen {

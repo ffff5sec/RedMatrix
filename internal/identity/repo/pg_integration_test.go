@@ -210,6 +210,40 @@ func TestIncrementTokenVersion(t *testing.T) {
 	assert.Equal(t, 3, got.TokenVersion)
 }
 
+// === LogoutAllSessions: 验证单事务内 tv++ + sessions 全部 expires_at=now() ===
+
+func TestLogoutAllSessions_Atomic(t *testing.T) {
+	users, sessions, u := setupSessionRepo(t)
+	ctx := context.Background()
+
+	// 三条未过期 session
+	for i := 0; i < 3; i++ {
+		require.NoError(t, sessions.Create(ctx, newSession(u.ID, u.TenantID)))
+	}
+
+	require.NoError(t, users.LogoutAllSessions(ctx, u.ID))
+
+	got, _ := users.GetByID(ctx, u.ID)
+	assert.Equal(t, 1, got.TokenVersion, "tv 应+1")
+
+	now := time.Now().UTC()
+	rows, err := sessions.ListByUser(ctx, u.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	for _, s := range rows {
+		assert.True(t, s.IsExpired(now), "所有 session 应被置过期")
+	}
+}
+
+func TestLogoutAllSessions_NotFound(t *testing.T) {
+	r := setupRepo(t)
+	err := r.LogoutAllSessions(context.Background(),
+		"00000000-0000-0000-0000-000000000000")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrUserNotFound, c)
+}
+
 // === UpdateLastLogin ===
 
 func TestUpdateLastLogin(t *testing.T) {

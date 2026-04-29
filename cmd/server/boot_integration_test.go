@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,10 +13,12 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ffff5sec/RedMatrix/internal/platform/health"
+	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
 	rmminio "github.com/ffff5sec/RedMatrix/internal/storage/minio"
 	"github.com/ffff5sec/RedMatrix/internal/testharness/esharness"
 	"github.com/ffff5sec/RedMatrix/internal/testharness/minioharness"
@@ -24,8 +27,10 @@ import (
 )
 
 // setRealStorageEnv 启 PG + Redis + ES + MinIO 四容器，覆盖 setValidEnv 的
-// 127.0.0.1:1 占位让 boot 完整 ping 通过。MinIO 上提前 EnsureBuckets 9 个，
-// 让 boot 的 VerifyBuckets 通过。
+// 127.0.0.1:1 占位让 boot 完整 ping 通过：
+//   - PG：跑 migrate.Up 让所有 schema（含 outbox_events）落库。Relay goroutine
+//     启动后会扫 outbox 表，缺表则崩。
+//   - MinIO：提前 EnsureBuckets 9 个让 boot 的 VerifyBuckets 通过。
 func setRealStorageEnv(t *testing.T) (
 	pg *pgharness.PG,
 	rds *redisharness.Redis,
@@ -38,16 +43,23 @@ func setRealStorageEnv(t *testing.T) (
 	esCC := esharness.Start(t)
 	mioC := minioharness.Start(t)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// PG schema：所有迁移落库（包含 0003 outbox_events，Relay 需要）
+	db, err := sql.Open("pgx", pgC.AdminDSN)
+	require.NoError(t, err)
+	defer db.Close()
+	require.NoError(t, migrate.Up(ctx, db))
+
 	// 9 bucket 预建（生产由 minio-bootstrap job 做；这里在测试 helper 中等价完成）。
-	mioClient, err := rmminio.Open(context.Background(), rmminio.Config{
+	mioClient, err := rmminio.Open(ctx, rmminio.Config{
 		Endpoint:  mioC.Endpoint,
 		AccessKey: mioC.AccessKey,
 		SecretKey: mioC.SecretKey,
 	})
 	require.NoError(t, err)
 	defer func() { _ = mioClient.Close() }()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	require.NoError(t, mioClient.EnsureBuckets(ctx, rmminio.RequiredBuckets, ""))
 
 	setValidEnv(t)
@@ -170,8 +182,11 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 	addrCh := make(chan string, 1)
 	codeCh := make(chan int, 1)
 
+	// 提到外部供 cancel 后断言 relay 启停日志。读取在 codeCh receive 之后
+	// （channel happens-before 保证写完成）。
+	var stdout, stderr bytes.Buffer
+
 	go func() {
-		var stdout, stderr bytes.Buffer
 		code := runWith(&stdout, &stderr, runOptions{
 			ctx:          ctx,
 			httpBindAddr: "127.0.0.1:0",
@@ -179,10 +194,6 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 				addrCh <- addr
 			},
 		})
-		t.Logf("runWith stdout:\n%s", stdout.String())
-		if stderr.Len() > 0 {
-			t.Logf("runWith stderr:\n%s", stderr.String())
-		}
 		codeCh <- code
 	}()
 
@@ -253,4 +264,16 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("runWith 未在 15s 内退出")
 	}
+
+	// codeCh receive 之后 goroutine 已退出，安全读取 stdout/stderr
+	out := stdout.String()
+	t.Logf("runWith stdout:\n%s", out)
+	if stderr.Len() > 0 {
+		t.Logf("runWith stderr:\n%s", stderr.String())
+	}
+
+	// Relay 启停日志（与 cmd/server boot 流水线对齐）
+	assert.Contains(t, out, "relay starting", "Relay 应在 HTTP server 之前启动")
+	assert.Contains(t, out, "relay stopping", "ctx 取消应触发 relay stopping")
+	assert.Contains(t, out, "relay shutdown complete", "runWith 退出前 relay 应完整退出")
 }

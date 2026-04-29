@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/config"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/platform/bootstrapcheck"
+	"github.com/ffff5sec/RedMatrix/internal/platform/eventbus"
 	"github.com/ffff5sec/RedMatrix/internal/platform/health"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/platform/metrics"
@@ -328,11 +330,33 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle("/ready", aggregator.ReadinessHandler())
 		mux.Handle("/metrics", metricsReg.Handler())
 
+		// === 8a. Async eventbus Relay ===
+		// Relay 跑在独立 goroutine，与 HTTP server 共用 ctx；ctx 取消时同步退出。
+		// Bus + Registry 在 boot 时为空 — 业务模块（待落）会调 RegisterType[T] +
+		// Subscribe[T] 自管。空 Registry 时 Relay 遇到事件会标 failed（unknown topic），
+		// 但 scaffold 阶段无业务 PublishTx 调用，pending 队列恒空。
+		eventBus := eventbus.New(logger)
+		eventRegistry := eventbus.NewRegistry()
+		outbox := eventbus.NewOutbox(pool.Maintenance)
+		relay := eventbus.NewRelay(outbox, eventBus, eventRegistry, eventbus.RelayConfig{}, logger)
+
+		var relayWG sync.WaitGroup
+		relayWG.Add(1)
+		go func() {
+			defer relayWG.Done()
+			if err := relay.Run(ctx); err != nil {
+				logger.LogError(ctx, "relay exited with error", err)
+			}
+		}()
+
+		// === 8b. HTTP server ===
 		listener, err := net.Listen("tcp", opts.httpBindAddr)
 		if err != nil {
 			logger.LogError(ctx, "http listen failed", err,
 				"addr", opts.httpBindAddr)
 			fmt.Fprintf(stderr, "redmatrix-server: http listen %s: %v\n", opts.httpBindAddr, err)
+			// Listen 失败 → 取消 ctx 让 Relay 退出 + 等它结束
+			relayWG.Wait()
 			return 1
 		}
 		actualAddr := listener.Addr().String()
@@ -372,9 +396,14 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		defer cancelShutdown()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			logger.LogError(shutdownCtx, "http server shutdown error", err)
+			relayWG.Wait()
 			return 1
 		}
 		logger.Info("http server shutdown complete")
+
+		// 等 Relay goroutine 退出（ctx 已取消触发优雅退出）
+		relayWG.Wait()
+		logger.Info("relay shutdown complete")
 		return 0
 	}
 

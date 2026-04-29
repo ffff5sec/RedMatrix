@@ -91,7 +91,12 @@ func VerifyPassword(plain, encoded string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("argon2: invalid hash b64: %w", err)
 	}
+	// 防御 PHC 解码出来的 hash 长度异常（合法 argon2 输出常 32 字节；框 16-1024 拦垃圾）。
+	if len(expected) < 16 || len(expected) > 1024 {
+		return false, fmt.Errorf("argon2: hash length %d out of range [16,1024]", len(expected))
+	}
+	keyLen := uint32(len(expected)) //nolint:gosec // 上面已限制 ≤1024，远小于 uint32 上限
 
-	computed := argon2.IDKey([]byte(plain), salt, timeCost, memory, threads, uint32(len(expected)))
+	computed := argon2.IDKey([]byte(plain), salt, timeCost, memory, threads, keyLen)
 	return subtle.ConstantTimeCompare(expected, computed) == 1, nil
 }

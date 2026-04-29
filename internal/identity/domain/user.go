@@ -111,10 +111,7 @@ func (u *User) ValidateForCreate() error {
 		return errx.New(errx.ErrInvalidInput,
 			"password_hash 不能为空（请先 HashPassword 后再 Create）")
 	}
-	if err := u.ValidateTenantConsistency(); err != nil {
-		return err
-	}
-	return nil
+	return u.ValidateTenantConsistency()
 }
 
 // ValidateTenantConsistency 与 PG CHECK 约束 users_tenant_role_consistency 等价的应用层校验。

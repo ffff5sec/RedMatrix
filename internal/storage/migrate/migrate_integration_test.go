@@ -119,12 +119,47 @@ func TestDown_RollsBackOne(t *testing.T) {
 
 	assert.Less(t, vDown, vUp, "Down 后版本号应下降")
 
-	// 0003（最新）已被回滚 → outbox_events 表应不存在
-	var hasOutbox bool
+	// 0004（最新）已被回滚 → users 表应不存在
+	var hasUsers bool
 	require.NoError(t, db.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='outbox_events')`,
-	).Scan(&hasOutbox))
-	assert.False(t, hasOutbox, "Down 应移除 0003 创建的表")
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='users')`,
+	).Scan(&hasUsers))
+	assert.False(t, hasUsers, "Down 应移除 0004 创建的 users 表")
+}
+
+// 验证 0004 users 表 schema
+func TestUp_UsersTableExists(t *testing.T) {
+	h := pgharness.Start(t)
+
+	db, err := sql.Open("pgx", h.AdminDSN)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	require.NoError(t, Up(ctx, db))
+
+	for _, col := range []string{"id", "tenant_id", "username", "password_hash",
+		"email", "role", "status", "token_version", "must_change_password",
+		"last_login_at", "created_at", "updated_at"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.columns
+			                WHERE table_name='users' AND column_name=$1)`,
+			col).Scan(&exists))
+		assert.Truef(t, exists, "列 users.%s 应存在", col)
+	}
+
+	// CHECK 约束三件套
+	for _, c := range []string{"users_role_valid", "users_status_valid",
+		"users_tenant_role_consistency"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname=$1)`,
+			c).Scan(&exists))
+		assert.Truef(t, exists, "约束 %s 应存在", c)
+	}
 }
 
 // 新增：验证 0003 outbox 表 schema 正确

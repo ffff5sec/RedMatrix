@@ -22,6 +22,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/crypto"
 	"github.com/ffff5sec/RedMatrix/internal/identity/domain"
+	"github.com/ffff5sec/RedMatrix/internal/identity/policy"
 	"github.com/ffff5sec/RedMatrix/internal/identity/repo"
 )
 
@@ -91,6 +92,7 @@ type service struct {
 	users    repo.Repository
 	sessions repo.SessionRepository
 	jwt      *crypto.Service
+	lockout  policy.Lockout // 可空：nil 时跳过所有锁定逻辑（dev / 单测）
 	now      func() time.Time
 
 	// dummyHash 启动时一次性生成；用户不存在时也跑 VerifyPassword 保耗时一致。
@@ -102,9 +104,15 @@ type service struct {
 // 参数：
 //   - users / sessions：持久层
 //   - jwt：JWT 服务（PR2-A）
+//   - lockout：失败计数 / IP+账号锁定（可空，nil 表示禁用）
 //
 // 副作用：构造时跑一次 HashPassword 生成 dummy hash（约 1 次 argon2id 计算）。
-func New(users repo.Repository, sessions repo.SessionRepository, jwt *crypto.Service) (Service, error) {
+func New(
+	users repo.Repository,
+	sessions repo.SessionRepository,
+	jwt *crypto.Service,
+	lockout policy.Lockout,
+) (Service, error) {
 	if users == nil || sessions == nil || jwt == nil {
 		return nil, errx.New(errx.ErrInternal, "auth.New: 依赖不能为 nil")
 	}
@@ -116,6 +124,7 @@ func New(users repo.Repository, sessions repo.SessionRepository, jwt *crypto.Ser
 		users:     users,
 		sessions:  sessions,
 		jwt:       jwt,
+		lockout:   lockout,
 		now:       time.Now,
 		dummyHash: dummy,
 	}, nil
@@ -123,19 +132,29 @@ func New(users repo.Repository, sessions repo.SessionRepository, jwt *crypto.Ser
 
 // === Login ===
 
-// Login 实现 LLD 10 §4.3 关键伪代码（不含 lockout/captcha — PR2-C）。
+// Login 实现 LLD 10 §4.3 关键伪代码（含 lockout，不含 captcha — PR2-C₂）。
 //
 // 流程：
-//  1. 加载用户；不存在也走 dummy verify 保恒定耗时（防账号枚举）
-//  2. 状态校验（active 才能登录；其他统一 AUTH_FAILED）
-//  3. argon2id 密码比对
-//  4. 任何一步失败 → AUTH_FAILED（不暴露具体原因）
-//  5. 成功 → 写 session + 签 JWT + 更新 last_login_at
+//  1. IP 锁定 check（早退；暴露 AUTH_IP_LOCKED 给本人）
+//  2. 加载用户；不存在也走 dummy verify 保恒定耗时（防账号枚举）
+//  3. argon2id 密码比对（恒定耗时；不论何种失败原因都跑）
+//  4. 密码错 / 用户不存在 / 状态非 active → 记失败 + AUTH_FAILED（混淆）
+//  5. 密码对 + 账号已锁定 → AUTH_ACCOUNT_LOCKED（不计失败；本人能感知）
+//  6. 全通过 → 重置失败计数 + 写 session + 签 JWT + 刷 last_login
 func (s *service) Login(ctx context.Context, req LoginRequest) (*LoginResult, error) {
 	if strings.TrimSpace(req.Username) == "" || req.Password == "" {
 		return nil, errx.New(errx.ErrAuthFailed, "用户名或密码错误")
 	}
 
+	// 1. IP 锁定 check（无 user 上下文也能查；fail-open 由 lockout 内部管）
+	if s.lockout != nil {
+		if locked, until := s.lockout.IsIPLocked(ctx, req.ClientIP); locked {
+			return nil, errx.New(errx.ErrAuthIPLocked, "请稍后再试").
+				WithFields("until", until.UTC().Format(time.RFC3339))
+		}
+	}
+
+	// 2. 加载用户
 	u, lookupErr := s.users.GetByUsername(ctx, req.Username)
 	hashToCompare := s.dummyHash
 	found := lookupErr == nil && u != nil
@@ -143,15 +162,38 @@ func (s *service) Login(ctx context.Context, req LoginRequest) (*LoginResult, er
 		hashToCompare = u.PasswordHash
 	}
 
+	// 3. 恒定耗时密码 verify（即使 found=false 也跑 dummy）
 	pwdOK, _ := domain.VerifyPassword(req.Password, hashToCompare)
 	statusOK := found && u.Status == domain.StatusActive
 
+	// 4. 失败混淆路径
 	if !found || !pwdOK || !statusOK {
-		// lookupErr 可能是 ErrUserNotFound 也可能是 ErrDatabase；后者要透出
+		// DB 错原样透（不计入失败计数）
 		if lookupErr != nil && !isUserNotFound(lookupErr) {
 			return nil, lookupErr
 		}
+		// 计失败：账号 + IP 双维度
+		var userIDForLockout string
+		if found {
+			userIDForLockout = u.ID
+		}
+		if s.lockout != nil {
+			s.lockout.RecordFailure(ctx, req.ClientIP, userIDForLockout)
+		}
 		return nil, errx.New(errx.ErrAuthFailed, "用户名或密码错误")
+	}
+
+	// 5. 密码对 + 账号锁定 check（账号锁定本人能感知）
+	if s.lockout != nil {
+		if locked, until := s.lockout.IsAccountLocked(ctx, u.ID); locked {
+			return nil, errx.New(errx.ErrAuthAccountLocked, "账号已锁定，请稍后再试").
+				WithFields("until", until.UTC().Format(time.RFC3339))
+		}
+	}
+
+	// 6. 成功路径：清失败计数
+	if s.lockout != nil {
+		s.lockout.ResetFailures(ctx, req.ClientIP, u.ID)
 	}
 
 	now := s.now().UTC()

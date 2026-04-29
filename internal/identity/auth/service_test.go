@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -177,6 +178,37 @@ func (m *mockSessionRepo) UpdateLastSeen(_ context.Context, id string) error {
 	return errx.New(errx.ErrSessionNotFound, "not found")
 }
 
+type mockLockout struct {
+	ipLocked         bool
+	ipLockedUntil    time.Time
+	acctLocked       bool
+	acctLockedUntil  time.Time
+	recordCalls      int
+	resetCalls       int
+	lastFailureUser  string
+	lastFailureIP    string
+	nextRecordResult [2]bool // 注入：下次 RecordFailure 返回值
+}
+
+func (m *mockLockout) IsIPLocked(_ context.Context, _ netip.Addr) (bool, time.Time) {
+	return m.ipLocked, m.ipLockedUntil
+}
+
+func (m *mockLockout) IsAccountLocked(_ context.Context, _ string) (bool, time.Time) {
+	return m.acctLocked, m.acctLockedUntil
+}
+
+func (m *mockLockout) RecordFailure(_ context.Context, ip netip.Addr, userID string) (bool, bool) {
+	m.recordCalls++
+	m.lastFailureUser = userID
+	m.lastFailureIP = ip.String()
+	return m.nextRecordResult[0], m.nextRecordResult[1]
+}
+
+func (m *mockLockout) ResetFailures(_ context.Context, _ netip.Addr, _ string) {
+	m.resetCalls++
+}
+
 // === fixtures ===
 
 const (
@@ -190,7 +222,18 @@ func setupSvc(t *testing.T) (*service, *mockUserRepo, *mockSessionRepo, *crypto.
 	sessions := newMockSessionRepo()
 	jwt, err := crypto.NewService(testJWTSecret, time.Hour)
 	require.NoError(t, err)
-	svc, err := New(users, sessions, jwt)
+	svc, err := New(users, sessions, jwt, nil) // lockout=nil → 现有用例不受影响
+	require.NoError(t, err)
+	return svc.(*service), users, sessions, jwt
+}
+
+func setupSvcWithLockout(t *testing.T, l *mockLockout) (*service, *mockUserRepo, *mockSessionRepo, *crypto.Service) {
+	t.Helper()
+	users := newMockUserRepo()
+	sessions := newMockSessionRepo()
+	jwt, err := crypto.NewService(testJWTSecret, time.Hour)
+	require.NoError(t, err)
+	svc, err := New(users, sessions, jwt, l)
 	require.NoError(t, err)
 	return svc.(*service), users, sessions, jwt
 }
@@ -219,8 +262,16 @@ func newActiveUser(t *testing.T, username string) *domain.User {
 
 func TestNew_RejectsNilDeps(t *testing.T) {
 	jwt, _ := crypto.NewService(testJWTSecret, time.Hour)
-	_, err := New(nil, nil, jwt)
+	_, err := New(nil, nil, jwt, nil)
 	require.Error(t, err)
+}
+
+func TestNew_AcceptsNilLockout(t *testing.T) {
+	users := newMockUserRepo()
+	sessions := newMockSessionRepo()
+	jwt, _ := crypto.NewService(testJWTSecret, time.Hour)
+	_, err := New(users, sessions, jwt, nil)
+	require.NoError(t, err, "lockout 可空（dev / 单测）")
 }
 
 // === Login ===
@@ -335,6 +386,125 @@ func TestLogin_SetsMustChangeFlag(t *testing.T) {
 
 // JWT.Issue 在 HS256 + 内存签名下几乎不可能失败；rollback 是 best-effort 兜底
 // （也无法用单元测试可靠触发）。保留代码路径不写测试 — 价值低且抖动大。
+
+// === Login + Lockout ===
+
+func TestLogin_IPLocked_RejectsEarly(t *testing.T) {
+	lock := &mockLockout{
+		ipLocked:      true,
+		ipLockedUntil: time.Now().Add(10 * time.Minute),
+	}
+	svc, users, sessions, _ := setupSvcWithLockout(t, lock)
+	users.put(newActiveUser(t, "alice"))
+
+	_, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: knownPlain,
+		ClientIP: netip.MustParseAddr("203.0.113.1"),
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthIPLocked, c)
+	assert.Equal(t, 0, sessions.createCalls, "IP 锁定应早退；不写 session")
+	assert.Equal(t, 0, lock.recordCalls, "IP 锁定不应再计失败")
+}
+
+func TestLogin_AccountLocked_AfterPasswordOK(t *testing.T) {
+	lock := &mockLockout{
+		acctLocked:      true,
+		acctLockedUntil: time.Now().Add(15 * time.Minute),
+	}
+	svc, users, sessions, _ := setupSvcWithLockout(t, lock)
+	users.put(newActiveUser(t, "alice"))
+
+	_, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: knownPlain,
+		ClientIP: netip.MustParseAddr("203.0.113.2"),
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthAccountLocked, c, "密码对+账号锁定 → AUTH_ACCOUNT_LOCKED")
+	assert.Equal(t, 0, sessions.createCalls)
+	assert.Equal(t, 0, lock.recordCalls, "账号已锁定不应再计失败")
+}
+
+func TestLogin_AccountLockedButPasswordWrong_StillAuthFailed(t *testing.T) {
+	// 即便账号已锁定，密码错误时仍混淆为 AUTH_FAILED（不暴露账号状态）
+	lock := &mockLockout{
+		acctLocked:      true,
+		acctLockedUntil: time.Now().Add(15 * time.Minute),
+	}
+	svc, users, _, _ := setupSvcWithLockout(t, lock)
+	users.put(newActiveUser(t, "alice"))
+
+	_, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: "wrong",
+		ClientIP: netip.MustParseAddr("203.0.113.3"),
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthFailed, c)
+	assert.Equal(t, 1, lock.recordCalls, "密码错走失败计数（即便账号锁定）")
+}
+
+func TestLogin_RecordsFailureOnBadPassword(t *testing.T) {
+	lock := &mockLockout{}
+	svc, users, _, _ := setupSvcWithLockout(t, lock)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+
+	_, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: "wrong",
+		ClientIP: netip.MustParseAddr("203.0.113.4"),
+	})
+	require.Error(t, err)
+	assert.Equal(t, 1, lock.recordCalls)
+	assert.Equal(t, u.ID, lock.lastFailureUser, "找到的 user 应记入账号维度")
+	assert.Equal(t, "203.0.113.4", lock.lastFailureIP)
+}
+
+func TestLogin_RecordsFailureOnUnknownUser_OnlyIP(t *testing.T) {
+	lock := &mockLockout{}
+	svc, _, _, _ := setupSvcWithLockout(t, lock)
+
+	_, err := svc.Login(context.Background(), LoginRequest{
+		Username: "ghost", Password: "anything",
+		ClientIP: netip.MustParseAddr("203.0.113.5"),
+	})
+	require.Error(t, err)
+	assert.Equal(t, 1, lock.recordCalls)
+	assert.Equal(t, "", lock.lastFailureUser, "用户不存在时 userID 空，仅 IP 维度计")
+	assert.Equal(t, "203.0.113.5", lock.lastFailureIP)
+}
+
+func TestLogin_ResetsFailuresOnSuccess(t *testing.T) {
+	lock := &mockLockout{}
+	svc, users, _, _ := setupSvcWithLockout(t, lock)
+	users.put(newActiveUser(t, "alice"))
+
+	res, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: knownPlain,
+		ClientIP: netip.MustParseAddr("203.0.113.6"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, 1, lock.resetCalls)
+	assert.Equal(t, 0, lock.recordCalls)
+}
+
+func TestLogin_DBError_DoesNotCountFailure(t *testing.T) {
+	lock := &mockLockout{}
+	svc, users, _, _ := setupSvcWithLockout(t, lock)
+	users.getByUserErr = errx.New(errx.ErrDatabase, "boom")
+
+	_, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: knownPlain,
+		ClientIP: netip.MustParseAddr("203.0.113.7"),
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrDatabase, c)
+	assert.Equal(t, 0, lock.recordCalls, "DB 故障不应当作登录失败计")
+}
 
 // === AuthenticateBearer ===
 

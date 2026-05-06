@@ -96,7 +96,8 @@ func Load(opts ...Option) (*Config, error) {
 		Bootstrap: BootstrapAdmin{
 			Username: stringOrDefault(get("ADMIN_BOOTSTRAP_USERNAME"), "admin"),
 			Password: get("ADMIN_BOOTSTRAP_PASSWORD"),
-			Email:    stringOrDefault(get("ADMIN_BOOTSTRAP_EMAIL"), "admin@localhost"),
+			// 默认必须含 TLD —— users.email 域校验要求 local@domain.tld 形态。
+			Email: stringOrDefault(get("ADMIN_BOOTSTRAP_EMAIL"), "admin@example.com"),
 		},
 
 		Log: LogConfig{

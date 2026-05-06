@@ -59,7 +59,7 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, "info", cfg.Log.Level)
 	assert.Equal(t, "json", cfg.Log.Format)
 	assert.Equal(t, "admin", cfg.Bootstrap.Username)
-	assert.Equal(t, "admin@localhost", cfg.Bootstrap.Email)
+	assert.Equal(t, "admin@example.com", cfg.Bootstrap.Email)
 	assert.True(t, cfg.Dev.AutoMigrate)
 	assert.False(t, cfg.Dev.DevMode)
 	assert.False(t, cfg.Dev.LEStaging)

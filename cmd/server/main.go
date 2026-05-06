@@ -340,6 +340,13 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle(idMount.path, idMount.handler)
 		logger.Info("identity service mounted", "path", idMount.path)
 
+		// === 8a₂. Bootstrap admin（首启幂等）===
+		// 用 maintenance 池：SuperAdmin tenant_id=NULL，绕开 RLS（待 tenancy 模块落地）
+		if err := runBootstrap(ctx, logger, stdout, pool, cfg); err != nil {
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+
 		// === 8b. Async eventbus Relay ===
 		// Relay 跑在独立 goroutine，与 HTTP server 共用 ctx；ctx 取消时同步退出。
 		// Bus + Registry 在 boot 时为空 — 业务模块（待落）会调 RegisterType[T] +

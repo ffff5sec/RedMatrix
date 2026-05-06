@@ -116,7 +116,8 @@ type BootstrapAdmin struct {
 	// Password 留空 = 启动期生成强随机并 stdout 输出一次（仅首启）。
 	Password string
 
-	// Email 默认 "admin@localhost"。env ADMIN_BOOTSTRAP_EMAIL。
+	// Email 默认 "admin@example.com"。env ADMIN_BOOTSTRAP_EMAIL。
+	// 默认含 TLD：users.email 域校验要求 local@domain.tld 形态。
 	Email string
 }
 

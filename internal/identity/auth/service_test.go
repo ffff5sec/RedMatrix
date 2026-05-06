@@ -88,6 +88,16 @@ func (m *mockUserRepo) IncrementTokenVersion(_ context.Context, id string) error
 
 func (m *mockUserRepo) UpdateStatus(_ context.Context, _ string, _ domain.Status) error { return nil }
 
+func (m *mockUserRepo) CountByRole(_ context.Context, role domain.Role) (int, error) {
+	n := 0
+	for _, u := range m.users {
+		if u.Role == role {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (m *mockUserRepo) LogoutAllSessions(_ context.Context, id string) error {
 	if m.logoutAllErr != nil {
 		return m.logoutAllErr

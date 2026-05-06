@@ -200,6 +200,26 @@ func (r *pgRepo) UpdateStatus(ctx context.Context, id string, status domain.Stat
 	return nil
 }
 
+// CountByRole 数 users 表中指定角色的行数。
+func (r *pgRepo) CountByRole(ctx context.Context, role domain.Role) (int, error) {
+	if r == nil || r.pool == nil {
+		return 0, errx.New(errx.ErrInternal, "identity.repo: nil pool")
+	}
+	if !role.Valid() {
+		return 0, errx.New(errx.ErrInvalidInput, "role 不合法").
+			WithFields("got", string(role))
+	}
+	var n int
+	err := r.pool.QueryRow(ctx,
+		`SELECT count(*) FROM users WHERE role = $1`,
+		string(role)).Scan(&n)
+	if err != nil {
+		return 0, errx.Wrap(errx.ErrDatabase, err, "identity.repo: count by role").
+			WithFields("role", string(role))
+	}
+	return n, nil
+}
+
 // === Helpers ===
 
 const selectUserSQL = `

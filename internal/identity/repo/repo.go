@@ -44,4 +44,8 @@ type Repository interface {
 	// LogoutAllSessions 在单事务内：token_version+1 + 该用户所有未过期 session 置 expires_at=now()。
 	// 用于"全部下线"语义（LLD 10 §5.5 + §7.4）。返回 ErrUserNotFound 若用户不存在。
 	LogoutAllSessions(ctx context.Context, id string) error
+
+	// CountByRole 数指定角色的用户数（不计 deleted_at 非空的，PR1 schema 暂未启 deleted_at；
+	// 与 schema 演进同步即可）。Bootstrap 判幂等用：SuperAdmin > 0 → skip。
+	CountByRole(ctx context.Context, role domain.Role) (int, error)
 }

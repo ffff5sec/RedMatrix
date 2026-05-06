@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,6 +30,24 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/testharness/pgharness"
 	"github.com/ffff5sec/RedMatrix/internal/testharness/redisharness"
 )
+
+// readCaptchaFromRedis 直接从 Redis 取 captcha 答案（仅集成测试用；
+// 生产用户从图片 OCR）。Key 格式与 policy.NewRedisCaptcha 对齐。
+func readCaptchaFromRedis(t *testing.T, captchaID string) string {
+	t.Helper()
+	url := os.Getenv("REDIS_URL")
+	require.NotEmpty(t, url)
+	opt, err := goredis.ParseURL(url)
+	require.NoError(t, err)
+	c := goredis.NewClient(opt)
+	defer func() { _ = c.Close() }()
+
+	ans, err := c.Get(context.Background(),
+		"global:captcha:"+captchaID).Result()
+	require.NoError(t, err)
+	require.NotEmpty(t, ans)
+	return ans
+}
 
 // setRealStorageEnv 启 PG + Redis + ES + MinIO 四容器，覆盖 setValidEnv 的
 // 127.0.0.1:1 占位让 boot 完整 ping 通过：
@@ -178,6 +198,9 @@ func TestRun_AutoMigrateAdminMissingWarns(t *testing.T) {
 func TestRun_HTTPHealthEndpoints(t *testing.T) {
 	setRealStorageEnv(t)
 	t.Setenv("RM_AUTO_MIGRATE", "false")
+	// Bootstrap admin：固定密码便于 Login smoke 复用
+	const bootstrapPwd = "TestBootstrapAdminPwd1!"
+	t.Setenv("ADMIN_BOOTSTRAP_PASSWORD", bootstrapPwd)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -276,6 +299,54 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 		require.True(t, len(png) > 8)
 		assert.Equal(t, byte(0x89), png[0])
 		assert.Equal(t, byte(0x50), png[1])
+	})
+
+	// IdentityService.Login smoke：用 bootstrap 写入的 SuperAdmin 凭据登录。
+	// 验证：Bootstrap 真落库 + Login 走完密码校验 / 写 session / 签 JWT 全链路。
+	//
+	// 注意：默认 captcha policy AlwaysShow=true → Login 会要 captcha。
+	// 但本测试不带 captcha 时 server 应返 AUTH_CAPTCHA_REQUIRED；先验该错码，
+	// 再带 captcha 完整跑一遍。
+	t.Run("identity_login_bootstrap_admin", func(t *testing.T) {
+		client := identityv1connect.NewIdentityServiceClient(
+			http.DefaultClient,
+			"http://"+addr,
+		)
+
+		// 1. 不带 captcha → 期望 AUTH_CAPTCHA_REQUIRED
+		_, err := client.Login(context.Background(),
+			connect.NewRequest(&identityv1.LoginRequest{
+				Username: "admin",
+				Password: bootstrapPwd,
+			}))
+		require.Error(t, err)
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err),
+			"AlwaysShow=true 时缺 captcha 必返 AUTH_CAPTCHA_REQUIRED")
+
+		// 2. 取 captcha
+		capRes, err := client.GetCaptcha(context.Background(),
+			connect.NewRequest(&identityv1.GetCaptchaRequest{}))
+		require.NoError(t, err)
+
+		// 直接从 Redis 读答案（用例需求；前端用户从图片 OCR）
+		captchaAnswer := readCaptchaFromRedis(t, capRes.Msg.GetCaptchaId())
+
+		// 3. 带 captcha 登录
+		captchaID := capRes.Msg.GetCaptchaId()
+		loginRes, err := client.Login(context.Background(),
+			connect.NewRequest(&identityv1.LoginRequest{
+				Username:      "admin",
+				Password:      bootstrapPwd,
+				CaptchaId:     &captchaID,
+				CaptchaAnswer: &captchaAnswer,
+			}))
+		require.NoError(t, err)
+		assert.NotEmpty(t, loginRes.Msg.GetAccessToken(), "Login 应返 JWT")
+		require.NotNil(t, loginRes.Msg.GetUser())
+		assert.Equal(t, "admin", loginRes.Msg.GetUser().GetUsername())
+		assert.Equal(t, "SUPER_ADMIN", loginRes.Msg.GetUser().GetRole())
+		assert.True(t, loginRes.Msg.GetMustChangePassword(),
+			"bootstrap admin 首登必须要求改密")
 	})
 
 	// 触发优雅退出

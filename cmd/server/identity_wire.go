@@ -1,15 +1,21 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/identity/v1/identityv1connect"
+	"github.com/ffff5sec/RedMatrix/internal/config"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/identity"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	"github.com/ffff5sec/RedMatrix/internal/identity/crypto"
 	"github.com/ffff5sec/RedMatrix/internal/identity/handler"
 	"github.com/ffff5sec/RedMatrix/internal/identity/policy"
 	"github.com/ffff5sec/RedMatrix/internal/identity/repo"
+	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	rmredis "github.com/ffff5sec/RedMatrix/internal/storage/redis"
 )
@@ -71,4 +77,60 @@ func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*
 
 	path, h := identityv1connect.NewIdentityServiceHandler(idHandler)
 	return &identityHandlerMount{path: path, handler: h}, nil
+}
+
+// runBootstrap 在 HTTP server 启动前落地首个 SuperAdmin（幂等）。
+//
+// 用 pool.Maintenance（绕 RLS）：SuperAdmin tenant_id=NULL，App 池启 RLS 后无法直插。
+//
+// 副作用：
+//   - 第一次启动 + ADMIN_BOOTSTRAP_PASSWORD 留空 → 生成的随机密码 + 警告横幅
+//     一次性写 stdout（仅本次进程；不入日志结构化字段防被 log 收集）
+//   - 已存在 SuperAdmin → info 日志 "skipped"，本次配置即使设了 password 也忽略
+//   - 任何失败 → 返错给 caller（main.go failExitCode）
+func runBootstrap(
+	ctx context.Context,
+	logger *log.Logger,
+	stdout io.Writer,
+	pool *pg.Pool,
+	cfg *config.Config,
+) error {
+	if pool == nil || pool.Maintenance == nil {
+		return errx.New(errx.ErrInternal, "runBootstrap: pool.Maintenance 不能为 nil")
+	}
+	users := repo.NewPG(pool.Maintenance)
+
+	res, err := identity.Bootstrap(ctx, users, identity.BootstrapConfig{
+		Username: cfg.Bootstrap.Username,
+		Email:    cfg.Bootstrap.Email,
+		Password: cfg.Bootstrap.Password,
+	})
+	if err != nil {
+		logger.LogError(ctx, "bootstrap admin failed", err)
+		return err
+	}
+
+	switch {
+	case !res.Created:
+		logger.Info("bootstrap admin skipped (SuperAdmin 已存在)",
+			"username", cfg.Bootstrap.Username,
+		)
+	case res.GeneratedPassword != "":
+		// 一次性密码必须显式 stdout —— 不进结构化日志，避免被收集
+		fmt.Fprintf(stdout,
+			"\n========================================\n"+
+				"BOOTSTRAP ADMIN CREATED\n"+
+				"  username: %s\n"+
+				"  password: %s   (one-time; must change on first login)\n"+
+				"========================================\n\n",
+			cfg.Bootstrap.Username, res.GeneratedPassword)
+		logger.Info("bootstrap admin created with random password",
+			"username", cfg.Bootstrap.Username,
+		)
+	default:
+		logger.Info("bootstrap admin created with provided password",
+			"username", cfg.Bootstrap.Username,
+		)
+	}
+	return nil
 }

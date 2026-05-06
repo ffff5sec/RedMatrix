@@ -45,6 +45,15 @@ type mockAuthSvc struct {
 	revokeErr  error
 	revokeUser string
 	revokeKey  string
+
+	getCurrentRes  *domain.User
+	getCurrentErr  error
+	getCurrentUser string
+
+	changePwdErr     error
+	changePwdUser    string
+	changePwdCurrent string
+	changePwdNew     string
 }
 
 func (m *mockAuthSvc) Login(_ context.Context, req auth.LoginRequest) (*auth.LoginResult, error) {
@@ -93,6 +102,21 @@ func (m *mockAuthSvc) RevokeAPIKey(_ context.Context, userID, keyID string) erro
 	m.revokeUser = userID
 	m.revokeKey = keyID
 	return m.revokeErr
+}
+
+func (m *mockAuthSvc) GetCurrentUser(_ context.Context, userID string) (*domain.User, error) {
+	m.getCurrentUser = userID
+	if m.getCurrentErr != nil {
+		return nil, m.getCurrentErr
+	}
+	return m.getCurrentRes, nil
+}
+
+func (m *mockAuthSvc) ChangePassword(_ context.Context, userID, current, newPwd string) error {
+	m.changePwdUser = userID
+	m.changePwdCurrent = current
+	m.changePwdNew = newPwd
+	return m.changePwdErr
 }
 
 // === mock captcha ===
@@ -484,4 +508,128 @@ func TestClientIP_XRealIP(t *testing.T) {
 func TestClientIP_None(t *testing.T) {
 	a := clientIP(http.Header{})
 	assert.False(t, a.IsValid())
+}
+
+// === GetCurrentUser ===
+
+func TestGetCurrentUser_Happy(t *testing.T) {
+	now := time.Now().UTC()
+	svc := &mockAuthSvc{
+		authBearerRes: authedPrincipal(),
+		getCurrentRes: &domain.User{
+			ID: "u-1", TenantID: "t-1", Username: "alice",
+			Role: domain.RoleProjectAdmin, Status: domain.StatusActive,
+			CreatedAt: now,
+		},
+	}
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.GetCurrentUserRequest{})
+	for k, v := range bearerHeader("jwt") {
+		req.Header()[k] = v
+	}
+	res, err := h.GetCurrentUser(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, res.Msg.GetUser())
+	assert.Equal(t, "alice", res.Msg.GetUser().GetUsername())
+	assert.Equal(t, "u-1", svc.getCurrentUser, "应传 principal.UserID")
+}
+
+func TestGetCurrentUser_NoAuth(t *testing.T) {
+	svc := &mockAuthSvc{}
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.GetCurrentUserRequest{})
+	_, err := h.GetCurrentUser(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+}
+
+// === ChangePassword ===
+
+func TestChangePassword_Happy(t *testing.T) {
+	svc := &mockAuthSvc{authBearerRes: authedPrincipal()}
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.ChangePasswordRequest{
+		CurrentPassword: "old-pwd",
+		NewPassword:     "NewStrongPwd123!",
+	})
+	for k, v := range bearerHeader("jwt") {
+		req.Header()[k] = v
+	}
+	res, err := h.ChangePassword(context.Background(), req)
+	require.NoError(t, err)
+	assert.True(t, res.Msg.GetAllSessionsRevoked())
+
+	assert.Equal(t, "u-1", svc.changePwdUser, "应传 principal.UserID")
+	assert.Equal(t, "old-pwd", svc.changePwdCurrent)
+	assert.Equal(t, "NewStrongPwd123!", svc.changePwdNew)
+}
+
+func TestChangePassword_RejectsAPIKeyPrincipal(t *testing.T) {
+	svc := &mockAuthSvc{
+		authBearerRes: &auth.UserPrincipal{
+			UserID: "u-1", APIKeyID: "k-1", Source: auth.PrincipalSourceAPIKey,
+		},
+	}
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.ChangePasswordRequest{
+		CurrentPassword: "x", NewPassword: "NewStrongPwd123!",
+	})
+	for k, v := range bearerHeader("rmk_xxx") {
+		req.Header()[k] = v
+	}
+	_, err := h.ChangePassword(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+}
+
+func TestChangePassword_TooWeakBubbles(t *testing.T) {
+	svc := &mockAuthSvc{
+		authBearerRes: authedPrincipal(),
+		changePwdErr:  errx.New(errx.ErrAuthPasswordTooWeak, "新密码至少 12 字符"),
+	}
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.ChangePasswordRequest{
+		CurrentPassword: "old", NewPassword: "short",
+	})
+	for k, v := range bearerHeader("jwt") {
+		req.Header()[k] = v
+	}
+	_, err := h.ChangePassword(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+}
+
+func TestChangePassword_WrongCurrentBubbles(t *testing.T) {
+	svc := &mockAuthSvc{
+		authBearerRes: authedPrincipal(),
+		changePwdErr:  errx.New(errx.ErrAuthFailed, "当前密码错误"),
+	}
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.ChangePasswordRequest{
+		CurrentPassword: "wrong", NewPassword: "NewStrongPwd123!",
+	})
+	for k, v := range bearerHeader("jwt") {
+		req.Header()[k] = v
+	}
+	_, err := h.ChangePassword(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+}
+
+func TestChangePassword_NoAuth(t *testing.T) {
+	svc := &mockAuthSvc{}
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.ChangePasswordRequest{
+		CurrentPassword: "x", NewPassword: "y",
+	})
+	_, err := h.ChangePassword(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 }

@@ -112,6 +112,20 @@ type Service interface {
 	// 返 ErrAPIKeyNotFound 防 ID 枚举）。
 	// SuperAdmin 强制撤其他用户 key 的能力留给后续 PR / 单独 RPC。
 	RevokeAPIKey(ctx context.Context, userID, keyID string) error
+
+	// GetCurrentUser 加载当前用户最新状态（不含 PasswordHash 字段；caller 自管）。
+	// 与 AuthenticateBearer 解出的 principal 对照可发现状态变更（如 disabled）。
+	GetCurrentUser(ctx context.Context, userID string) (*domain.User, error)
+
+	// ChangePassword 改密 + 自动 tv++（让所有现存 JWT 失效；必须重新登录）。
+	//
+	// 错码：
+	//   - 当前密码错 → AUTH_FAILED（不暴露具体原因）
+	//   - 新密码 < 12 字符 → AUTH_PASSWORD_TOO_WEAK
+	//   - 新密码与当前相同 → AUTH_PASSWORD_REUSE
+	//   - 用户不存在 → AUTH_FAILED（混淆）
+	//   - DB 故障 → 透传
+	ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error
 }
 
 // dummyPlaintext 用于生成 dummy hash；实际值不重要——只要不可猜中即可。
@@ -447,6 +461,75 @@ func (s *service) LogoutAllSessions(ctx context.Context, userID string) error {
 		return errx.New(errx.ErrInvalidInput, "user_id 不能为空")
 	}
 	return s.users.LogoutAllSessions(ctx, userID)
+}
+
+// === GetCurrentUser / ChangePassword ===
+
+// minNewPasswordLen 改密接受的最小长度。完整 LLD §6 password policy 留给后续 PR。
+const minNewPasswordLen = 12
+
+// GetCurrentUser 加载用户最新状态。透传 ErrUserNotFound（caller 决定是否混淆）。
+func (s *service) GetCurrentUser(ctx context.Context, userID string) (*domain.User, error) {
+	if strings.TrimSpace(userID) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "user_id 不能为空")
+	}
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	// 不返 PasswordHash —— handler/conv 也不应输出，但这里清空给上层多一层防御
+	u.PasswordHash = ""
+	return u, nil
+}
+
+// ChangePassword 改密流程（LLD 10 §6 / §5.4）。
+//
+// 流程：
+//  1. 校空入参
+//  2. 加载用户（不存在 → AUTH_FAILED 混淆）
+//  3. VerifyPassword(current, hash)；恒定耗时
+//  4. 新密码长度 ≥ 12；新 != current（防"换汤不换药"）
+//  5. HashPassword(new) → repo.UpdatePassword(mustChange=false)
+//     repo 层自动 tv++ —— 所有现存 JWT 立即失效（含 caller 自己的）
+func (s *service) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	if strings.TrimSpace(userID) == "" {
+		return errx.New(errx.ErrInvalidInput, "user_id 不能为空")
+	}
+	if currentPassword == "" || newPassword == "" {
+		return errx.New(errx.ErrInvalidInput, "current/new password 不能为空")
+	}
+
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		// 用户不存在 → AUTH_FAILED 混淆；DB 故障原样透
+		if isUserNotFound(err) {
+			return errx.New(errx.ErrAuthFailed, "当前密码错误")
+		}
+		return err
+	}
+
+	ok, _ := domain.VerifyPassword(currentPassword, u.PasswordHash)
+	if !ok {
+		return errx.New(errx.ErrAuthFailed, "当前密码错误")
+	}
+
+	if len(newPassword) < minNewPasswordLen {
+		return errx.New(errx.ErrAuthPasswordTooWeak,
+			"新密码至少 12 字符")
+	}
+
+	// 新 != current（防 reuse；MVP 仅查当前，完整 5 条 history 留给后续 PR）
+	if same, _ := domain.VerifyPassword(newPassword, u.PasswordHash); same {
+		return errx.New(errx.ErrAuthPasswordReuse, "新密码不可与当前密码相同")
+	}
+
+	hash, err := domain.HashPassword(newPassword)
+	if err != nil {
+		return errx.Wrap(errx.ErrInternal, err, "ChangePassword: 哈希失败")
+	}
+
+	// repo.UpdatePassword 自动 tv++（让旧 JWT 全失效；首登强制改密也借此关流程）
+	return s.users.UpdatePassword(ctx, u.ID, hash, false)
 }
 
 // === API Key CRUD ===

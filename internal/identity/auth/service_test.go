@@ -65,7 +65,14 @@ func (m *mockUserRepo) GetByUsername(_ context.Context, username string) (*domai
 	return m.users[id], nil
 }
 
-func (m *mockUserRepo) UpdatePassword(_ context.Context, _, _ string, _ bool) error {
+func (m *mockUserRepo) UpdatePassword(_ context.Context, id, newHash string, mustChange bool) error {
+	u, ok := m.users[id]
+	if !ok {
+		return errx.New(errx.ErrUserNotFound, "not found")
+	}
+	u.PasswordHash = newHash
+	u.MustChangePassword = mustChange
+	u.TokenVersion++ // 与 pg 行为对齐：UpdatePassword 自动 tv++
 	return nil
 }
 
@@ -1265,6 +1272,130 @@ func TestLogoutAllSessions_RepoError(t *testing.T) {
 	users.logoutAllErr = errx.New(errx.ErrDatabase, "boom")
 
 	err := svc.LogoutAllSessions(context.Background(), "u-1")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrDatabase, c)
+}
+
+// === GetCurrentUser ===
+
+func TestGetCurrentUser_Happy(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+
+	got, err := svc.GetCurrentUser(context.Background(), u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, got.ID)
+	assert.Equal(t, "alice", got.Username)
+	assert.Empty(t, got.PasswordHash, "GetCurrentUser 必须清空 PasswordHash")
+}
+
+func TestGetCurrentUser_NotFound(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+	_, err := svc.GetCurrentUser(context.Background(), "u-ghost")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrUserNotFound, c, "GetCurrentUser 透传 NotFound（caller 决定混淆）")
+}
+
+func TestGetCurrentUser_EmptyID(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+	_, err := svc.GetCurrentUser(context.Background(), "  ")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInvalidInput, c)
+}
+
+// === ChangePassword ===
+
+func TestChangePassword_Happy(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+	originalHash := u.PasswordHash
+	originalTV := u.TokenVersion
+
+	const newPwd = "NewStrongPwd123!"
+	err := svc.ChangePassword(context.Background(), u.ID, knownPlain, newPwd)
+	require.NoError(t, err)
+
+	// hash 已更换
+	assert.NotEqual(t, originalHash, u.PasswordHash)
+	// 新密码可校验
+	ok, _ := domain.VerifyPassword(newPwd, u.PasswordHash)
+	assert.True(t, ok)
+	// tv 已 +1（让所有现存 JWT 失效）
+	assert.Equal(t, originalTV+1, u.TokenVersion)
+	// must_change_password 清掉
+	assert.False(t, u.MustChangePassword)
+}
+
+func TestChangePassword_WrongCurrentPassword(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	u := newActiveUser(t, "alice")
+	originalHash := u.PasswordHash
+	users.put(u)
+
+	err := svc.ChangePassword(context.Background(), u.ID, "wrong-current", "NewStrongPwd123!")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthFailed, c)
+	assert.Equal(t, originalHash, u.PasswordHash, "失败不应改 hash")
+}
+
+func TestChangePassword_NewTooShort(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+
+	err := svc.ChangePassword(context.Background(), u.ID, knownPlain, "shortpwd")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthPasswordTooWeak, c)
+}
+
+func TestChangePassword_SameAsCurrent(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+
+	err := svc.ChangePassword(context.Background(), u.ID, knownPlain, knownPlain)
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthPasswordReuse, c)
+}
+
+func TestChangePassword_UserNotFound_ConfusedAsAuthFailed(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+	err := svc.ChangePassword(context.Background(), "u-ghost", "any-current", "NewStrongPwd123!")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthFailed, c, "用户不存在混淆为 AUTH_FAILED")
+}
+
+func TestChangePassword_EmptyInputs(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	users.put(newActiveUser(t, "alice"))
+
+	cases := [][3]string{
+		{"", "x", "NewStrongPwd123!"},
+		{"u-alice", "", "NewStrongPwd123!"},
+		{"u-alice", "x", ""},
+	}
+	for _, tc := range cases {
+		err := svc.ChangePassword(context.Background(), tc[0], tc[1], tc[2])
+		require.Error(t, err)
+		c, _ := errx.GetCode(err)
+		assert.Equal(t, errx.ErrInvalidInput, c)
+	}
+}
+
+func TestChangePassword_DBError_BubblesUp(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	users.getByIDErr = errx.New(errx.ErrDatabase, "boom")
+
+	err := svc.ChangePassword(context.Background(), "u-alice", knownPlain, "NewStrongPwd123!")
 	require.Error(t, err)
 	c, _ := errx.GetCode(err)
 	assert.Equal(t, errx.ErrDatabase, c)

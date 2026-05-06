@@ -35,6 +35,15 @@ service IdentityService {
 
   // ===== 需 JWT =====
 
+  // GetCurrentUser 取当前登录用户最新状态（不含 PasswordHash）。
+  // 前端 dashboard 加载时常调；用作 must_change_password 路由判定的真源。
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
+
+  // ChangePassword 改密。成功后 server 会自动 token_version++ 让所有现存 JWT
+  // 失效（含 caller 自己），client 必须重新登录。
+  // bootstrap admin 首登强制改密（must_change_password=true）的关流程入口。
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+
   // Logout 删除当前 session（不动 token_version；JWT 自然过期）。
   // session_id 由 handler 从 JWT.sid claim 取，不需 client 显式传。
   rpc Logout(LogoutRequest) returns (LogoutResponse);
@@ -106,6 +115,23 @@ message User {
   string status = 6; // active / disabled / pending_deletion
   google.protobuf.Timestamp created_at = 7;
   optional google.protobuf.Timestamp last_login_at = 8;
+}
+
+// ===== GetCurrentUser / ChangePassword =====
+
+message GetCurrentUserRequest {}
+message GetCurrentUserResponse {
+  User user = 1;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+message ChangePasswordResponse {
+  // all_sessions_revoked 总是 true：本次实现 token_version++，所有现存 JWT 失效。
+  // 留字段以便后续支持"仅本次会话改密"语义时区分。
+  bool all_sessions_revoked = 1;
 }
 
 // ===== Logout =====

@@ -347,6 +347,43 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 		assert.Equal(t, "SUPER_ADMIN", loginRes.Msg.GetUser().GetRole())
 		assert.True(t, loginRes.Msg.GetMustChangePassword(),
 			"bootstrap admin 首登必须要求改密")
+
+		// 4. ChangePassword 闭合 must_change_password 流程
+		const newPwd = "ChangedFromBootstrap1!"
+		jwt := loginRes.Msg.GetAccessToken()
+		cpReq := connect.NewRequest(&identityv1.ChangePasswordRequest{
+			CurrentPassword: bootstrapPwd,
+			NewPassword:     newPwd,
+		})
+		cpReq.Header().Set("Authorization", "Bearer "+jwt)
+		cpRes, err := client.ChangePassword(context.Background(), cpReq)
+		require.NoError(t, err)
+		assert.True(t, cpRes.Msg.GetAllSessionsRevoked(),
+			"ChangePassword 必须 tv++ → all_sessions_revoked")
+
+		// 5. 旧 JWT 失效（GetCurrentUser 应返 AUTH_TOKEN_VERSION_MISMATCH）
+		gcuReq := connect.NewRequest(&identityv1.GetCurrentUserRequest{})
+		gcuReq.Header().Set("Authorization", "Bearer "+jwt)
+		_, err = client.GetCurrentUser(context.Background(), gcuReq)
+		require.Error(t, err, "改密后旧 JWT 应失效")
+
+		// 6. 用新密码再登录（must_change_password 应已为 false）
+		cap2, err := client.GetCaptcha(context.Background(),
+			connect.NewRequest(&identityv1.GetCaptchaRequest{}))
+		require.NoError(t, err)
+		ans2 := readCaptchaFromRedis(t, cap2.Msg.GetCaptchaId())
+		cap2ID := cap2.Msg.GetCaptchaId()
+		loginRes2, err := client.Login(context.Background(),
+			connect.NewRequest(&identityv1.LoginRequest{
+				Username:      "admin",
+				Password:      newPwd,
+				CaptchaId:     &cap2ID,
+				CaptchaAnswer: &ans2,
+			}))
+		require.NoError(t, err)
+		assert.NotEmpty(t, loginRes2.Msg.GetAccessToken())
+		assert.False(t, loginRes2.Msg.GetMustChangePassword(),
+			"改密后 must_change_password 应清空")
 	})
 
 	// 触发优雅退出

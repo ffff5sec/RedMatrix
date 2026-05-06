@@ -95,6 +95,48 @@ func (h *Handler) Login(
 	}), nil
 }
 
+// === GetCurrentUser / ChangePassword ===
+
+func (h *Handler) GetCurrentUser(
+	ctx context.Context,
+	req *connect.Request[identityv1.GetCurrentUserRequest],
+) (*connect.Response[identityv1.GetCurrentUserResponse], error) {
+	p, err := RequireAuth(ctx, h.svc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	u, err := h.svc.GetCurrentUser(ctx, p.UserID)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&identityv1.GetCurrentUserResponse{
+		User: userToProto(u),
+	}), nil
+}
+
+func (h *Handler) ChangePassword(
+	ctx context.Context,
+	req *connect.Request[identityv1.ChangePasswordRequest],
+) (*connect.Response[identityv1.ChangePasswordResponse], error) {
+	p, err := RequireAuth(ctx, h.svc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	// API Key 凭证不能改密（API Key 自身不持密码）
+	if p.Source != auth.PrincipalSourceJWT {
+		return nil, toConnectError(errx.New(errx.ErrInvalidInput,
+			"ChangePassword 仅 JWT 凭证可调；API Key 请走 Revoke + 重建"))
+	}
+
+	if err := h.svc.ChangePassword(ctx, p.UserID,
+		req.Msg.GetCurrentPassword(), req.Msg.GetNewPassword()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&identityv1.ChangePasswordResponse{
+		AllSessionsRevoked: true, // 当前实现总是 true（tv++）
+	}), nil
+}
+
 // === Logout ===
 
 func (h *Handler) Logout(

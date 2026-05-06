@@ -55,6 +55,12 @@ const (
 	IdentityServiceGetCaptchaProcedure = "/redmatrix.identity.v1.IdentityService/GetCaptcha"
 	// IdentityServiceLoginProcedure is the fully-qualified name of the IdentityService's Login RPC.
 	IdentityServiceLoginProcedure = "/redmatrix.identity.v1.IdentityService/Login"
+	// IdentityServiceGetCurrentUserProcedure is the fully-qualified name of the IdentityService's
+	// GetCurrentUser RPC.
+	IdentityServiceGetCurrentUserProcedure = "/redmatrix.identity.v1.IdentityService/GetCurrentUser"
+	// IdentityServiceChangePasswordProcedure is the fully-qualified name of the IdentityService's
+	// ChangePassword RPC.
+	IdentityServiceChangePasswordProcedure = "/redmatrix.identity.v1.IdentityService/ChangePassword"
 	// IdentityServiceLogoutProcedure is the fully-qualified name of the IdentityService's Logout RPC.
 	IdentityServiceLogoutProcedure = "/redmatrix.identity.v1.IdentityService/Logout"
 	// IdentityServiceLogoutAllSessionsProcedure is the fully-qualified name of the IdentityService's
@@ -79,6 +85,13 @@ type IdentityServiceClient interface {
 	// Login 用户名 / 密码登录。失败统一 AUTH_FAILED 防枚举（LLD 10 §4.3）。
 	// 触发 captcha / lockout / IP-locked / account-locked 时返各自错码。
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
+	// GetCurrentUser 取当前登录用户最新状态（不含 PasswordHash）。
+	// 前端 dashboard 加载时常调；用作 must_change_password 路由判定的真源。
+	GetCurrentUser(context.Context, *connect.Request[v1.GetCurrentUserRequest]) (*connect.Response[v1.GetCurrentUserResponse], error)
+	// ChangePassword 改密。成功后 server 会自动 token_version++ 让所有现存 JWT
+	// 失效（含 caller 自己），client 必须重新登录。
+	// bootstrap admin 首登强制改密（must_change_password=true）的关流程入口。
+	ChangePassword(context.Context, *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error)
 	// Logout 删除当前 session（不动 token_version；JWT 自然过期）。
 	// session_id 由 handler 从 JWT.sid claim 取，不需 client 显式传。
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
@@ -119,6 +132,18 @@ func NewIdentityServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(identityServiceMethods.ByName("Login")),
 			connect.WithClientOptions(opts...),
 		),
+		getCurrentUser: connect.NewClient[v1.GetCurrentUserRequest, v1.GetCurrentUserResponse](
+			httpClient,
+			baseURL+IdentityServiceGetCurrentUserProcedure,
+			connect.WithSchema(identityServiceMethods.ByName("GetCurrentUser")),
+			connect.WithClientOptions(opts...),
+		),
+		changePassword: connect.NewClient[v1.ChangePasswordRequest, v1.ChangePasswordResponse](
+			httpClient,
+			baseURL+IdentityServiceChangePasswordProcedure,
+			connect.WithSchema(identityServiceMethods.ByName("ChangePassword")),
+			connect.WithClientOptions(opts...),
+		),
 		logout: connect.NewClient[v1.LogoutRequest, v1.LogoutResponse](
 			httpClient,
 			baseURL+IdentityServiceLogoutProcedure,
@@ -156,6 +181,8 @@ func NewIdentityServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 type identityServiceClient struct {
 	getCaptcha        *connect.Client[v1.GetCaptchaRequest, v1.GetCaptchaResponse]
 	login             *connect.Client[v1.LoginRequest, v1.LoginResponse]
+	getCurrentUser    *connect.Client[v1.GetCurrentUserRequest, v1.GetCurrentUserResponse]
+	changePassword    *connect.Client[v1.ChangePasswordRequest, v1.ChangePasswordResponse]
 	logout            *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
 	logoutAllSessions *connect.Client[v1.LogoutAllSessionsRequest, v1.LogoutAllSessionsResponse]
 	listAPIKeys       *connect.Client[v1.ListAPIKeysRequest, v1.ListAPIKeysResponse]
@@ -171,6 +198,16 @@ func (c *identityServiceClient) GetCaptcha(ctx context.Context, req *connect.Req
 // Login calls redmatrix.identity.v1.IdentityService.Login.
 func (c *identityServiceClient) Login(ctx context.Context, req *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error) {
 	return c.login.CallUnary(ctx, req)
+}
+
+// GetCurrentUser calls redmatrix.identity.v1.IdentityService.GetCurrentUser.
+func (c *identityServiceClient) GetCurrentUser(ctx context.Context, req *connect.Request[v1.GetCurrentUserRequest]) (*connect.Response[v1.GetCurrentUserResponse], error) {
+	return c.getCurrentUser.CallUnary(ctx, req)
+}
+
+// ChangePassword calls redmatrix.identity.v1.IdentityService.ChangePassword.
+func (c *identityServiceClient) ChangePassword(ctx context.Context, req *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error) {
+	return c.changePassword.CallUnary(ctx, req)
 }
 
 // Logout calls redmatrix.identity.v1.IdentityService.Logout.
@@ -206,6 +243,13 @@ type IdentityServiceHandler interface {
 	// Login 用户名 / 密码登录。失败统一 AUTH_FAILED 防枚举（LLD 10 §4.3）。
 	// 触发 captcha / lockout / IP-locked / account-locked 时返各自错码。
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
+	// GetCurrentUser 取当前登录用户最新状态（不含 PasswordHash）。
+	// 前端 dashboard 加载时常调；用作 must_change_password 路由判定的真源。
+	GetCurrentUser(context.Context, *connect.Request[v1.GetCurrentUserRequest]) (*connect.Response[v1.GetCurrentUserResponse], error)
+	// ChangePassword 改密。成功后 server 会自动 token_version++ 让所有现存 JWT
+	// 失效（含 caller 自己），client 必须重新登录。
+	// bootstrap admin 首登强制改密（must_change_password=true）的关流程入口。
+	ChangePassword(context.Context, *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error)
 	// Logout 删除当前 session（不动 token_version；JWT 自然过期）。
 	// session_id 由 handler 从 JWT.sid claim 取，不需 client 显式传。
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
@@ -240,6 +284,18 @@ func NewIdentityServiceHandler(svc IdentityServiceHandler, opts ...connect.Handl
 		IdentityServiceLoginProcedure,
 		svc.Login,
 		connect.WithSchema(identityServiceMethods.ByName("Login")),
+		connect.WithHandlerOptions(opts...),
+	)
+	identityServiceGetCurrentUserHandler := connect.NewUnaryHandler(
+		IdentityServiceGetCurrentUserProcedure,
+		svc.GetCurrentUser,
+		connect.WithSchema(identityServiceMethods.ByName("GetCurrentUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	identityServiceChangePasswordHandler := connect.NewUnaryHandler(
+		IdentityServiceChangePasswordProcedure,
+		svc.ChangePassword,
+		connect.WithSchema(identityServiceMethods.ByName("ChangePassword")),
 		connect.WithHandlerOptions(opts...),
 	)
 	identityServiceLogoutHandler := connect.NewUnaryHandler(
@@ -278,6 +334,10 @@ func NewIdentityServiceHandler(svc IdentityServiceHandler, opts ...connect.Handl
 			identityServiceGetCaptchaHandler.ServeHTTP(w, r)
 		case IdentityServiceLoginProcedure:
 			identityServiceLoginHandler.ServeHTTP(w, r)
+		case IdentityServiceGetCurrentUserProcedure:
+			identityServiceGetCurrentUserHandler.ServeHTTP(w, r)
+		case IdentityServiceChangePasswordProcedure:
+			identityServiceChangePasswordHandler.ServeHTTP(w, r)
 		case IdentityServiceLogoutProcedure:
 			identityServiceLogoutHandler.ServeHTTP(w, r)
 		case IdentityServiceLogoutAllSessionsProcedure:
@@ -303,6 +363,14 @@ func (UnimplementedIdentityServiceHandler) GetCaptcha(context.Context, *connect.
 
 func (UnimplementedIdentityServiceHandler) Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.Login is not implemented"))
+}
+
+func (UnimplementedIdentityServiceHandler) GetCurrentUser(context.Context, *connect.Request[v1.GetCurrentUserRequest]) (*connect.Response[v1.GetCurrentUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.GetCurrentUser is not implemented"))
+}
+
+func (UnimplementedIdentityServiceHandler) ChangePassword(context.Context, *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.ChangePassword is not implemented"))
 }
 
 func (UnimplementedIdentityServiceHandler) Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {

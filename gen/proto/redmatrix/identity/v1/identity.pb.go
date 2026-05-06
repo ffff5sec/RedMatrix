@@ -380,6 +380,184 @@ func (x *User) GetLastLoginAt() *timestamppb.Timestamp {
 	return nil
 }
 
+type GetCurrentUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCurrentUserRequest) Reset() {
+	*x = GetCurrentUserRequest{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCurrentUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCurrentUserRequest) ProtoMessage() {}
+
+func (x *GetCurrentUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCurrentUserRequest.ProtoReflect.Descriptor instead.
+func (*GetCurrentUserRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{5}
+}
+
+type GetCurrentUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCurrentUserResponse) Reset() {
+	*x = GetCurrentUserResponse{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCurrentUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCurrentUserResponse) ProtoMessage() {}
+
+func (x *GetCurrentUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCurrentUserResponse.ProtoReflect.Descriptor instead.
+func (*GetCurrentUserResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetCurrentUserResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+type ChangePasswordRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	CurrentPassword string                 `protobuf:"bytes,1,opt,name=current_password,json=currentPassword,proto3" json:"current_password,omitempty"`
+	NewPassword     string                 `protobuf:"bytes,2,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ChangePasswordRequest) Reset() {
+	*x = ChangePasswordRequest{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangePasswordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangePasswordRequest) ProtoMessage() {}
+
+func (x *ChangePasswordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangePasswordRequest.ProtoReflect.Descriptor instead.
+func (*ChangePasswordRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ChangePasswordRequest) GetCurrentPassword() string {
+	if x != nil {
+		return x.CurrentPassword
+	}
+	return ""
+}
+
+func (x *ChangePasswordRequest) GetNewPassword() string {
+	if x != nil {
+		return x.NewPassword
+	}
+	return ""
+}
+
+type ChangePasswordResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// all_sessions_revoked 总是 true：本次实现 token_version++，所有现存 JWT 失效。
+	// 留字段以便后续支持"仅本次会话改密"语义时区分。
+	AllSessionsRevoked bool `protobuf:"varint,1,opt,name=all_sessions_revoked,json=allSessionsRevoked,proto3" json:"all_sessions_revoked,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ChangePasswordResponse) Reset() {
+	*x = ChangePasswordResponse{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangePasswordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangePasswordResponse) ProtoMessage() {}
+
+func (x *ChangePasswordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangePasswordResponse.ProtoReflect.Descriptor instead.
+func (*ChangePasswordResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ChangePasswordResponse) GetAllSessionsRevoked() bool {
+	if x != nil {
+		return x.AllSessionsRevoked
+	}
+	return false
+}
+
 type LogoutRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -388,7 +566,7 @@ type LogoutRequest struct {
 
 func (x *LogoutRequest) Reset() {
 	*x = LogoutRequest{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[5]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -400,7 +578,7 @@ func (x *LogoutRequest) String() string {
 func (*LogoutRequest) ProtoMessage() {}
 
 func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[5]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -413,7 +591,7 @@ func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutRequest.ProtoReflect.Descriptor instead.
 func (*LogoutRequest) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{5}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{9}
 }
 
 type LogoutResponse struct {
@@ -424,7 +602,7 @@ type LogoutResponse struct {
 
 func (x *LogoutResponse) Reset() {
 	*x = LogoutResponse{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[6]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -436,7 +614,7 @@ func (x *LogoutResponse) String() string {
 func (*LogoutResponse) ProtoMessage() {}
 
 func (x *LogoutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[6]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -449,7 +627,7 @@ func (x *LogoutResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutResponse.ProtoReflect.Descriptor instead.
 func (*LogoutResponse) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{6}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{10}
 }
 
 type LogoutAllSessionsRequest struct {
@@ -460,7 +638,7 @@ type LogoutAllSessionsRequest struct {
 
 func (x *LogoutAllSessionsRequest) Reset() {
 	*x = LogoutAllSessionsRequest{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[7]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -472,7 +650,7 @@ func (x *LogoutAllSessionsRequest) String() string {
 func (*LogoutAllSessionsRequest) ProtoMessage() {}
 
 func (x *LogoutAllSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[7]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -485,7 +663,7 @@ func (x *LogoutAllSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutAllSessionsRequest.ProtoReflect.Descriptor instead.
 func (*LogoutAllSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{7}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{11}
 }
 
 type LogoutAllSessionsResponse struct {
@@ -496,7 +674,7 @@ type LogoutAllSessionsResponse struct {
 
 func (x *LogoutAllSessionsResponse) Reset() {
 	*x = LogoutAllSessionsResponse{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[8]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -508,7 +686,7 @@ func (x *LogoutAllSessionsResponse) String() string {
 func (*LogoutAllSessionsResponse) ProtoMessage() {}
 
 func (x *LogoutAllSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[8]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -521,7 +699,7 @@ func (x *LogoutAllSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutAllSessionsResponse.ProtoReflect.Descriptor instead.
 func (*LogoutAllSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{8}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{12}
 }
 
 type APIKey struct {
@@ -542,7 +720,7 @@ type APIKey struct {
 
 func (x *APIKey) Reset() {
 	*x = APIKey{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[9]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -554,7 +732,7 @@ func (x *APIKey) String() string {
 func (*APIKey) ProtoMessage() {}
 
 func (x *APIKey) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[9]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -567,7 +745,7 @@ func (x *APIKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use APIKey.ProtoReflect.Descriptor instead.
 func (*APIKey) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{9}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *APIKey) GetId() string {
@@ -648,7 +826,7 @@ type ListAPIKeysRequest struct {
 
 func (x *ListAPIKeysRequest) Reset() {
 	*x = ListAPIKeysRequest{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[10]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -660,7 +838,7 @@ func (x *ListAPIKeysRequest) String() string {
 func (*ListAPIKeysRequest) ProtoMessage() {}
 
 func (x *ListAPIKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[10]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -673,7 +851,7 @@ func (x *ListAPIKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAPIKeysRequest.ProtoReflect.Descriptor instead.
 func (*ListAPIKeysRequest) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{10}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{14}
 }
 
 type ListAPIKeysResponse struct {
@@ -685,7 +863,7 @@ type ListAPIKeysResponse struct {
 
 func (x *ListAPIKeysResponse) Reset() {
 	*x = ListAPIKeysResponse{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[11]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -697,7 +875,7 @@ func (x *ListAPIKeysResponse) String() string {
 func (*ListAPIKeysResponse) ProtoMessage() {}
 
 func (x *ListAPIKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[11]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -710,7 +888,7 @@ func (x *ListAPIKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAPIKeysResponse.ProtoReflect.Descriptor instead.
 func (*ListAPIKeysResponse) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{11}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListAPIKeysResponse) GetKeys() []*APIKey {
@@ -731,7 +909,7 @@ type CreateAPIKeyRequest struct {
 
 func (x *CreateAPIKeyRequest) Reset() {
 	*x = CreateAPIKeyRequest{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[12]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -743,7 +921,7 @@ func (x *CreateAPIKeyRequest) String() string {
 func (*CreateAPIKeyRequest) ProtoMessage() {}
 
 func (x *CreateAPIKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[12]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -756,7 +934,7 @@ func (x *CreateAPIKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAPIKeyRequest.ProtoReflect.Descriptor instead.
 func (*CreateAPIKeyRequest) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{12}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CreateAPIKeyRequest) GetName() string {
@@ -791,7 +969,7 @@ type CreateAPIKeyResponse struct {
 
 func (x *CreateAPIKeyResponse) Reset() {
 	*x = CreateAPIKeyResponse{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[13]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -803,7 +981,7 @@ func (x *CreateAPIKeyResponse) String() string {
 func (*CreateAPIKeyResponse) ProtoMessage() {}
 
 func (x *CreateAPIKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[13]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -816,7 +994,7 @@ func (x *CreateAPIKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAPIKeyResponse.ProtoReflect.Descriptor instead.
 func (*CreateAPIKeyResponse) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{13}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CreateAPIKeyResponse) GetKey() *APIKey {
@@ -842,7 +1020,7 @@ type RevokeAPIKeyRequest struct {
 
 func (x *RevokeAPIKeyRequest) Reset() {
 	*x = RevokeAPIKeyRequest{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[14]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -854,7 +1032,7 @@ func (x *RevokeAPIKeyRequest) String() string {
 func (*RevokeAPIKeyRequest) ProtoMessage() {}
 
 func (x *RevokeAPIKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[14]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -867,7 +1045,7 @@ func (x *RevokeAPIKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeAPIKeyRequest.ProtoReflect.Descriptor instead.
 func (*RevokeAPIKeyRequest) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{14}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *RevokeAPIKeyRequest) GetId() string {
@@ -885,7 +1063,7 @@ type RevokeAPIKeyResponse struct {
 
 func (x *RevokeAPIKeyResponse) Reset() {
 	*x = RevokeAPIKeyResponse{}
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[15]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -897,7 +1075,7 @@ func (x *RevokeAPIKeyResponse) String() string {
 func (*RevokeAPIKeyResponse) ProtoMessage() {}
 
 func (x *RevokeAPIKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[15]
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -910,7 +1088,7 @@ func (x *RevokeAPIKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeAPIKeyResponse.ProtoReflect.Descriptor instead.
 func (*RevokeAPIKeyResponse) Descriptor() ([]byte, []int) {
-	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{15}
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{19}
 }
 
 var File_redmatrix_identity_v1_identity_proto protoreflect.FileDescriptor
@@ -950,7 +1128,15 @@ const file_redmatrix_identity_v1_identity_proto_rawDesc = "" +
 	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12C\n" +
 	"\rlast_login_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampH\x01R\vlastLoginAt\x88\x01\x01B\b\n" +
 	"\x06_emailB\x10\n" +
-	"\x0e_last_login_at\"\x0f\n" +
+	"\x0e_last_login_at\"\x17\n" +
+	"\x15GetCurrentUserRequest\"I\n" +
+	"\x16GetCurrentUserResponse\x12/\n" +
+	"\x04user\x18\x01 \x01(\v2\x1b.redmatrix.identity.v1.UserR\x04user\"e\n" +
+	"\x15ChangePasswordRequest\x12)\n" +
+	"\x10current_password\x18\x01 \x01(\tR\x0fcurrentPassword\x12!\n" +
+	"\fnew_password\x18\x02 \x01(\tR\vnewPassword\"J\n" +
+	"\x16ChangePasswordResponse\x120\n" +
+	"\x14all_sessions_revoked\x18\x01 \x01(\bR\x12allSessionsRevoked\"\x0f\n" +
 	"\rLogoutRequest\"\x10\n" +
 	"\x0eLogoutResponse\"\x1a\n" +
 	"\x18LogoutAllSessionsRequest\"\x1b\n" +
@@ -989,11 +1175,13 @@ const file_redmatrix_identity_v1_identity_proto_rawDesc = "" +
 	"\x06secret\x18\x02 \x01(\tR\x06secret\"%\n" +
 	"\x13RevokeAPIKeyRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x16\n" +
-	"\x14RevokeAPIKeyResponse2\xcf\x05\n" +
+	"\x14RevokeAPIKeyResponse2\xad\a\n" +
 	"\x0fIdentityService\x12a\n" +
 	"\n" +
 	"GetCaptcha\x12(.redmatrix.identity.v1.GetCaptchaRequest\x1a).redmatrix.identity.v1.GetCaptchaResponse\x12R\n" +
-	"\x05Login\x12#.redmatrix.identity.v1.LoginRequest\x1a$.redmatrix.identity.v1.LoginResponse\x12U\n" +
+	"\x05Login\x12#.redmatrix.identity.v1.LoginRequest\x1a$.redmatrix.identity.v1.LoginResponse\x12m\n" +
+	"\x0eGetCurrentUser\x12,.redmatrix.identity.v1.GetCurrentUserRequest\x1a-.redmatrix.identity.v1.GetCurrentUserResponse\x12m\n" +
+	"\x0eChangePassword\x12,.redmatrix.identity.v1.ChangePasswordRequest\x1a-.redmatrix.identity.v1.ChangePasswordResponse\x12U\n" +
 	"\x06Logout\x12$.redmatrix.identity.v1.LogoutRequest\x1a%.redmatrix.identity.v1.LogoutResponse\x12v\n" +
 	"\x11LogoutAllSessions\x12/.redmatrix.identity.v1.LogoutAllSessionsRequest\x1a0.redmatrix.identity.v1.LogoutAllSessionsResponse\x12d\n" +
 	"\vListAPIKeys\x12).redmatrix.identity.v1.ListAPIKeysRequest\x1a*.redmatrix.identity.v1.ListAPIKeysResponse\x12g\n" +
@@ -1013,57 +1201,66 @@ func file_redmatrix_identity_v1_identity_proto_rawDescGZIP() []byte {
 	return file_redmatrix_identity_v1_identity_proto_rawDescData
 }
 
-var file_redmatrix_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_redmatrix_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_redmatrix_identity_v1_identity_proto_goTypes = []any{
 	(*GetCaptchaRequest)(nil),         // 0: redmatrix.identity.v1.GetCaptchaRequest
 	(*GetCaptchaResponse)(nil),        // 1: redmatrix.identity.v1.GetCaptchaResponse
 	(*LoginRequest)(nil),              // 2: redmatrix.identity.v1.LoginRequest
 	(*LoginResponse)(nil),             // 3: redmatrix.identity.v1.LoginResponse
 	(*User)(nil),                      // 4: redmatrix.identity.v1.User
-	(*LogoutRequest)(nil),             // 5: redmatrix.identity.v1.LogoutRequest
-	(*LogoutResponse)(nil),            // 6: redmatrix.identity.v1.LogoutResponse
-	(*LogoutAllSessionsRequest)(nil),  // 7: redmatrix.identity.v1.LogoutAllSessionsRequest
-	(*LogoutAllSessionsResponse)(nil), // 8: redmatrix.identity.v1.LogoutAllSessionsResponse
-	(*APIKey)(nil),                    // 9: redmatrix.identity.v1.APIKey
-	(*ListAPIKeysRequest)(nil),        // 10: redmatrix.identity.v1.ListAPIKeysRequest
-	(*ListAPIKeysResponse)(nil),       // 11: redmatrix.identity.v1.ListAPIKeysResponse
-	(*CreateAPIKeyRequest)(nil),       // 12: redmatrix.identity.v1.CreateAPIKeyRequest
-	(*CreateAPIKeyResponse)(nil),      // 13: redmatrix.identity.v1.CreateAPIKeyResponse
-	(*RevokeAPIKeyRequest)(nil),       // 14: redmatrix.identity.v1.RevokeAPIKeyRequest
-	(*RevokeAPIKeyResponse)(nil),      // 15: redmatrix.identity.v1.RevokeAPIKeyResponse
-	(*timestamppb.Timestamp)(nil),     // 16: google.protobuf.Timestamp
+	(*GetCurrentUserRequest)(nil),     // 5: redmatrix.identity.v1.GetCurrentUserRequest
+	(*GetCurrentUserResponse)(nil),    // 6: redmatrix.identity.v1.GetCurrentUserResponse
+	(*ChangePasswordRequest)(nil),     // 7: redmatrix.identity.v1.ChangePasswordRequest
+	(*ChangePasswordResponse)(nil),    // 8: redmatrix.identity.v1.ChangePasswordResponse
+	(*LogoutRequest)(nil),             // 9: redmatrix.identity.v1.LogoutRequest
+	(*LogoutResponse)(nil),            // 10: redmatrix.identity.v1.LogoutResponse
+	(*LogoutAllSessionsRequest)(nil),  // 11: redmatrix.identity.v1.LogoutAllSessionsRequest
+	(*LogoutAllSessionsResponse)(nil), // 12: redmatrix.identity.v1.LogoutAllSessionsResponse
+	(*APIKey)(nil),                    // 13: redmatrix.identity.v1.APIKey
+	(*ListAPIKeysRequest)(nil),        // 14: redmatrix.identity.v1.ListAPIKeysRequest
+	(*ListAPIKeysResponse)(nil),       // 15: redmatrix.identity.v1.ListAPIKeysResponse
+	(*CreateAPIKeyRequest)(nil),       // 16: redmatrix.identity.v1.CreateAPIKeyRequest
+	(*CreateAPIKeyResponse)(nil),      // 17: redmatrix.identity.v1.CreateAPIKeyResponse
+	(*RevokeAPIKeyRequest)(nil),       // 18: redmatrix.identity.v1.RevokeAPIKeyRequest
+	(*RevokeAPIKeyResponse)(nil),      // 19: redmatrix.identity.v1.RevokeAPIKeyResponse
+	(*timestamppb.Timestamp)(nil),     // 20: google.protobuf.Timestamp
 }
 var file_redmatrix_identity_v1_identity_proto_depIdxs = []int32{
-	16, // 0: redmatrix.identity.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	20, // 0: redmatrix.identity.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
 	4,  // 1: redmatrix.identity.v1.LoginResponse.user:type_name -> redmatrix.identity.v1.User
-	16, // 2: redmatrix.identity.v1.User.created_at:type_name -> google.protobuf.Timestamp
-	16, // 3: redmatrix.identity.v1.User.last_login_at:type_name -> google.protobuf.Timestamp
-	16, // 4: redmatrix.identity.v1.APIKey.expires_at:type_name -> google.protobuf.Timestamp
-	16, // 5: redmatrix.identity.v1.APIKey.last_used_at:type_name -> google.protobuf.Timestamp
-	16, // 6: redmatrix.identity.v1.APIKey.revoked_at:type_name -> google.protobuf.Timestamp
-	16, // 7: redmatrix.identity.v1.APIKey.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 8: redmatrix.identity.v1.ListAPIKeysResponse.keys:type_name -> redmatrix.identity.v1.APIKey
-	16, // 9: redmatrix.identity.v1.CreateAPIKeyRequest.expires_at:type_name -> google.protobuf.Timestamp
-	9,  // 10: redmatrix.identity.v1.CreateAPIKeyResponse.key:type_name -> redmatrix.identity.v1.APIKey
-	0,  // 11: redmatrix.identity.v1.IdentityService.GetCaptcha:input_type -> redmatrix.identity.v1.GetCaptchaRequest
-	2,  // 12: redmatrix.identity.v1.IdentityService.Login:input_type -> redmatrix.identity.v1.LoginRequest
-	5,  // 13: redmatrix.identity.v1.IdentityService.Logout:input_type -> redmatrix.identity.v1.LogoutRequest
-	7,  // 14: redmatrix.identity.v1.IdentityService.LogoutAllSessions:input_type -> redmatrix.identity.v1.LogoutAllSessionsRequest
-	10, // 15: redmatrix.identity.v1.IdentityService.ListAPIKeys:input_type -> redmatrix.identity.v1.ListAPIKeysRequest
-	12, // 16: redmatrix.identity.v1.IdentityService.CreateAPIKey:input_type -> redmatrix.identity.v1.CreateAPIKeyRequest
-	14, // 17: redmatrix.identity.v1.IdentityService.RevokeAPIKey:input_type -> redmatrix.identity.v1.RevokeAPIKeyRequest
-	1,  // 18: redmatrix.identity.v1.IdentityService.GetCaptcha:output_type -> redmatrix.identity.v1.GetCaptchaResponse
-	3,  // 19: redmatrix.identity.v1.IdentityService.Login:output_type -> redmatrix.identity.v1.LoginResponse
-	6,  // 20: redmatrix.identity.v1.IdentityService.Logout:output_type -> redmatrix.identity.v1.LogoutResponse
-	8,  // 21: redmatrix.identity.v1.IdentityService.LogoutAllSessions:output_type -> redmatrix.identity.v1.LogoutAllSessionsResponse
-	11, // 22: redmatrix.identity.v1.IdentityService.ListAPIKeys:output_type -> redmatrix.identity.v1.ListAPIKeysResponse
-	13, // 23: redmatrix.identity.v1.IdentityService.CreateAPIKey:output_type -> redmatrix.identity.v1.CreateAPIKeyResponse
-	15, // 24: redmatrix.identity.v1.IdentityService.RevokeAPIKey:output_type -> redmatrix.identity.v1.RevokeAPIKeyResponse
-	18, // [18:25] is the sub-list for method output_type
-	11, // [11:18] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	20, // 2: redmatrix.identity.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	20, // 3: redmatrix.identity.v1.User.last_login_at:type_name -> google.protobuf.Timestamp
+	4,  // 4: redmatrix.identity.v1.GetCurrentUserResponse.user:type_name -> redmatrix.identity.v1.User
+	20, // 5: redmatrix.identity.v1.APIKey.expires_at:type_name -> google.protobuf.Timestamp
+	20, // 6: redmatrix.identity.v1.APIKey.last_used_at:type_name -> google.protobuf.Timestamp
+	20, // 7: redmatrix.identity.v1.APIKey.revoked_at:type_name -> google.protobuf.Timestamp
+	20, // 8: redmatrix.identity.v1.APIKey.created_at:type_name -> google.protobuf.Timestamp
+	13, // 9: redmatrix.identity.v1.ListAPIKeysResponse.keys:type_name -> redmatrix.identity.v1.APIKey
+	20, // 10: redmatrix.identity.v1.CreateAPIKeyRequest.expires_at:type_name -> google.protobuf.Timestamp
+	13, // 11: redmatrix.identity.v1.CreateAPIKeyResponse.key:type_name -> redmatrix.identity.v1.APIKey
+	0,  // 12: redmatrix.identity.v1.IdentityService.GetCaptcha:input_type -> redmatrix.identity.v1.GetCaptchaRequest
+	2,  // 13: redmatrix.identity.v1.IdentityService.Login:input_type -> redmatrix.identity.v1.LoginRequest
+	5,  // 14: redmatrix.identity.v1.IdentityService.GetCurrentUser:input_type -> redmatrix.identity.v1.GetCurrentUserRequest
+	7,  // 15: redmatrix.identity.v1.IdentityService.ChangePassword:input_type -> redmatrix.identity.v1.ChangePasswordRequest
+	9,  // 16: redmatrix.identity.v1.IdentityService.Logout:input_type -> redmatrix.identity.v1.LogoutRequest
+	11, // 17: redmatrix.identity.v1.IdentityService.LogoutAllSessions:input_type -> redmatrix.identity.v1.LogoutAllSessionsRequest
+	14, // 18: redmatrix.identity.v1.IdentityService.ListAPIKeys:input_type -> redmatrix.identity.v1.ListAPIKeysRequest
+	16, // 19: redmatrix.identity.v1.IdentityService.CreateAPIKey:input_type -> redmatrix.identity.v1.CreateAPIKeyRequest
+	18, // 20: redmatrix.identity.v1.IdentityService.RevokeAPIKey:input_type -> redmatrix.identity.v1.RevokeAPIKeyRequest
+	1,  // 21: redmatrix.identity.v1.IdentityService.GetCaptcha:output_type -> redmatrix.identity.v1.GetCaptchaResponse
+	3,  // 22: redmatrix.identity.v1.IdentityService.Login:output_type -> redmatrix.identity.v1.LoginResponse
+	6,  // 23: redmatrix.identity.v1.IdentityService.GetCurrentUser:output_type -> redmatrix.identity.v1.GetCurrentUserResponse
+	8,  // 24: redmatrix.identity.v1.IdentityService.ChangePassword:output_type -> redmatrix.identity.v1.ChangePasswordResponse
+	10, // 25: redmatrix.identity.v1.IdentityService.Logout:output_type -> redmatrix.identity.v1.LogoutResponse
+	12, // 26: redmatrix.identity.v1.IdentityService.LogoutAllSessions:output_type -> redmatrix.identity.v1.LogoutAllSessionsResponse
+	15, // 27: redmatrix.identity.v1.IdentityService.ListAPIKeys:output_type -> redmatrix.identity.v1.ListAPIKeysResponse
+	17, // 28: redmatrix.identity.v1.IdentityService.CreateAPIKey:output_type -> redmatrix.identity.v1.CreateAPIKeyResponse
+	19, // 29: redmatrix.identity.v1.IdentityService.RevokeAPIKey:output_type -> redmatrix.identity.v1.RevokeAPIKeyResponse
+	21, // [21:30] is the sub-list for method output_type
+	12, // [12:21] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_redmatrix_identity_v1_identity_proto_init() }
@@ -1073,15 +1270,15 @@ func file_redmatrix_identity_v1_identity_proto_init() {
 	}
 	file_redmatrix_identity_v1_identity_proto_msgTypes[2].OneofWrappers = []any{}
 	file_redmatrix_identity_v1_identity_proto_msgTypes[4].OneofWrappers = []any{}
-	file_redmatrix_identity_v1_identity_proto_msgTypes[9].OneofWrappers = []any{}
-	file_redmatrix_identity_v1_identity_proto_msgTypes[12].OneofWrappers = []any{}
+	file_redmatrix_identity_v1_identity_proto_msgTypes[13].OneofWrappers = []any{}
+	file_redmatrix_identity_v1_identity_proto_msgTypes[16].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redmatrix_identity_v1_identity_proto_rawDesc), len(file_redmatrix_identity_v1_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

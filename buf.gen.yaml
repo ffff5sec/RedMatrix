@@ -21,13 +21,14 @@ plugins:
       - paths=source_relative
 
   # === TypeScript（前端 demo）===
-  # 通过 web/node_modules 里的 protoc-gen-es / protoc-gen-connect-es 生成。
-  # 需先在 web/ 目录跑 pnpm install。
-  - local: ./web/node_modules/.bin/protoc-gen-es
+  # 用 buf 远程插件，无需本地 pnpm install 就能跑（CI / 新机首次拉取友好）。
+  # 版本对齐 web/package.json 的 dependencies/@bufbuild/protobuf
+  # + @connectrpc/connect-web。
+  - remote: buf.build/bufbuild/es:v1.10.0
     out: web/src/gen/proto
     opt:
       - target=ts
-  - local: ./web/node_modules/.bin/protoc-gen-connect-es
+  - remote: buf.build/connectrpc/es:v1.4.0
     out: web/src/gen/proto
     opt:
       - target=ts

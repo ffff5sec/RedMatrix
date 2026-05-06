@@ -84,11 +84,11 @@ jobs:
             exit 1
           fi
 
-      - name: buf generate drift（gen/ 必须与 .proto 同步）
+      - name: buf generate drift（gen/ + web/src/gen/ 必须与 .proto 同步）
         run: |
           buf generate
-          if ! git diff --exit-code -- gen/; then
-            echo "::error::gen/ 与 .proto 不同步；运行 'make proto' 后再提交"
+          if ! git diff --exit-code -- gen/ web/src/gen/; then
+            echo "::error::生成代码与 .proto 不同步；运行 'buf generate' 后再提交"
             exit 1
           fi
 

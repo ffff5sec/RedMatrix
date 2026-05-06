@@ -21,6 +21,8 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.*.example
+# dev 栈共享 env（演示密钥；勿用于生产）
+!dev/.env.dev
 *.pem
 *.key
 !**/testdata/**/*.pem

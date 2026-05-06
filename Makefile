@@ -95,6 +95,26 @@ proto-check:
 	buf generate
 	@git diff --exit-code -- gen/ || { echo "✗ generated code drift; run 'make proto' locally and commit"; exit 1; }
 
+# ============= 本地开发栈 =============
+# dev-up：起 PG + Redis + ES + MinIO + 9 bucket 自动建好
+# dev-down：停容器（保留 volume）
+# dev-reset：停 + 删 volume（回到首启状态，roles 重新初始化）
+# dev-server：source dev/.env.dev 后跑 server
+dev-up:
+	docker compose -f dev/docker-compose.yml up -d
+	@echo "✓ dev stack 启动；首启 ES 需 30s+ 才会 healthy"
+	@echo "  查 bucket 建好: docker compose -f dev/docker-compose.yml logs minio-bootstrap"
+
+dev-down:
+	docker compose -f dev/docker-compose.yml down
+
+dev-reset:
+	docker compose -f dev/docker-compose.yml down -v
+
+dev-server:
+	@command -v bash >/dev/null 2>&1 || { echo "需要 bash"; exit 1; }
+	@bash -c 'set -a && source dev/.env.dev && set +a && go run ./cmd/server'
+
 # ============= 清理 =============
 clean:
 	rm -rf bin/ coverage.out

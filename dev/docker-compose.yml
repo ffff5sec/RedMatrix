@@ -1,0 +1,103 @@
+# RedMatrix 本地开发依赖栈（演示阶段）。
+#
+# 启动 4 服务 + 1 个一次性 minio-bootstrap：
+#   pg     — PostgreSQL 16（含 pgcrypto / pg_trgm / pg_stat_statements，由迁移装）
+#   redis  — Redis 7
+#   es     — Elasticsearch 8（single-node, security off）
+#   minio  — MinIO + 一次性 minio-mc 任务建 9 bucket
+#
+# 用法：
+#   cd dev && docker compose up -d
+#   docker compose logs -f minio-bootstrap   # 看 bucket 建好
+#
+# 用 `dev/.env.dev` 配齐 server env 后可直接 `go run ./cmd/server`。
+# 演示完毕：docker compose down -v 清掉 volume。
+
+name: redmatrix-dev
+
+services:
+  pg:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: redmatrix
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # 首启执行 init-pg/*.sql：建 redmatrix_app / redmatrix_maintenance + 设密码
+      # （生产档由运维 ALTER ROLE 注入，详见 dev/init-pg/01-roles.sql 注释）
+      - ./init-pg:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  es:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "127.0.0.1:9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: minio/minio:RELEASE.2024-08-17T01-24-54Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # 一次性建 9 bucket（与 internal/storage/minio.RequiredBuckets 严格一致）。
+  minio-bootstrap:
+    image: minio/mc:RELEASE.2024-08-17T11-33-50Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 minioadmin minioadmin
+        for b in redmatrix-plugins redmatrix-screenshots redmatrix-response-bodies redmatrix-reports redmatrix-audit-archive redmatrix-es-snapshots redmatrix-logs redmatrix-backups redmatrix-avatars; do
+          mc mb -p "local/$$b" 2>/dev/null || true
+        done
+        echo "redmatrix buckets ready"
+        mc ls local
+
+volumes:
+  pg-data:
+  minio-data:

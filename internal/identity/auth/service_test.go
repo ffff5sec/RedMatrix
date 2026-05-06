@@ -210,6 +210,116 @@ func (m *mockLockout) ResetFailures(_ context.Context, _ netip.Addr, _ string) {
 	m.resetCalls++
 }
 
+// mockAPIKeyRepo 让 AuthService 单测可注入 keys repo 行为。
+type mockAPIKeyRepo struct {
+	rows               map[string]*domain.APIKey
+	byPrefix           map[string]string // prefix → id
+	insertErr          error
+	findErr            error
+	getErr             error
+	revokeErr          error
+	updateLastUsedErr  error
+	insertCalls        int
+	findCalls          int
+	getCalls           int
+	revokeCalls        int
+	listCalls          int
+	updateLastUseCalls int
+}
+
+func newMockAPIKeyRepo() *mockAPIKeyRepo {
+	return &mockAPIKeyRepo{
+		rows:     map[string]*domain.APIKey{},
+		byPrefix: map[string]string{},
+	}
+}
+
+func (m *mockAPIKeyRepo) Insert(_ context.Context, k *domain.APIKey) error {
+	m.insertCalls++
+	if m.insertErr != nil {
+		return m.insertErr
+	}
+	if err := k.ValidateForCreate(); err != nil {
+		return err
+	}
+	if _, dup := m.byPrefix[k.KeyPrefix]; dup {
+		return errx.New(errx.ErrDatabase, "prefix unique violation")
+	}
+	if k.ID == "" {
+		k.ID = "k-" + k.KeyPrefix
+	}
+	if k.CreatedAt.IsZero() {
+		k.CreatedAt = time.Now().UTC()
+	}
+	m.rows[k.ID] = k
+	m.byPrefix[k.KeyPrefix] = k.ID
+	return nil
+}
+
+func (m *mockAPIKeyRepo) GetByID(_ context.Context, id string) (*domain.APIKey, error) {
+	m.getCalls++
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+	k, ok := m.rows[id]
+	if !ok {
+		return nil, errx.New(errx.ErrAPIKeyNotFound, "not found")
+	}
+	return k, nil
+}
+
+func (m *mockAPIKeyRepo) FindByPrefix(_ context.Context, prefix string) (*domain.APIKey, error) {
+	m.findCalls++
+	if m.findErr != nil {
+		return nil, m.findErr
+	}
+	id, ok := m.byPrefix[prefix]
+	if !ok {
+		return nil, errx.New(errx.ErrAPIKeyNotFound, "not found")
+	}
+	return m.rows[id], nil
+}
+
+func (m *mockAPIKeyRepo) ListByUser(_ context.Context, userID string) ([]*domain.APIKey, error) {
+	m.listCalls++
+	var out []*domain.APIKey
+	for _, k := range m.rows {
+		if k.UserID == userID {
+			out = append(out, k)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockAPIKeyRepo) Revoke(_ context.Context, id string) error {
+	m.revokeCalls++
+	if m.revokeErr != nil {
+		return m.revokeErr
+	}
+	k, ok := m.rows[id]
+	if !ok {
+		return errx.New(errx.ErrAPIKeyNotFound, "not found")
+	}
+	if k.RevokedAt == nil {
+		now := time.Now().UTC()
+		k.RevokedAt = &now
+	}
+	return nil
+}
+
+func (m *mockAPIKeyRepo) UpdateLastUsed(_ context.Context, id string) error {
+	m.updateLastUseCalls++
+	if m.updateLastUsedErr != nil {
+		return m.updateLastUsedErr
+	}
+	if k, ok := m.rows[id]; ok {
+		now := time.Now().UTC()
+		k.LastUsedAt = &now
+		return nil
+	}
+	return errx.New(errx.ErrAPIKeyNotFound, "not found")
+}
+
 // mockCaptcha 让 AuthService 单测可控制 IsRequired/Verify 返回。
 type mockCaptcha struct {
 	required     bool
@@ -246,7 +356,7 @@ func setupSvc(t *testing.T) (*service, *mockUserRepo, *mockSessionRepo, *crypto.
 	sessions := newMockSessionRepo()
 	jwt, err := crypto.NewService(testJWTSecret, time.Hour)
 	require.NoError(t, err)
-	svc, err := New(users, sessions, jwt, nil, nil) // lockout=nil + captcha=nil
+	svc, err := New(users, sessions, nil, jwt, nil, nil) // keys/lockout/captcha = nil
 	require.NoError(t, err)
 	return svc.(*service), users, sessions, jwt
 }
@@ -257,7 +367,7 @@ func setupSvcWithLockout(t *testing.T, l *mockLockout) (*service, *mockUserRepo,
 	sessions := newMockSessionRepo()
 	jwt, err := crypto.NewService(testJWTSecret, time.Hour)
 	require.NoError(t, err)
-	svc, err := New(users, sessions, jwt, l, nil)
+	svc, err := New(users, sessions, nil, jwt, l, nil)
 	require.NoError(t, err)
 	return svc.(*service), users, sessions, jwt
 }
@@ -268,7 +378,18 @@ func setupSvcWithCaptcha(t *testing.T, c *mockCaptcha) (*service, *mockUserRepo,
 	sessions := newMockSessionRepo()
 	jwt, err := crypto.NewService(testJWTSecret, time.Hour)
 	require.NoError(t, err)
-	svc, err := New(users, sessions, jwt, nil, c)
+	svc, err := New(users, sessions, nil, jwt, nil, c)
+	require.NoError(t, err)
+	return svc.(*service), users, sessions, jwt
+}
+
+func setupSvcWithKeys(t *testing.T, k *mockAPIKeyRepo) (*service, *mockUserRepo, *mockSessionRepo, *crypto.Service) {
+	t.Helper()
+	users := newMockUserRepo()
+	sessions := newMockSessionRepo()
+	jwt, err := crypto.NewService(testJWTSecret, time.Hour)
+	require.NoError(t, err)
+	svc, err := New(users, sessions, k, jwt, nil, nil)
 	require.NoError(t, err)
 	return svc.(*service), users, sessions, jwt
 }
@@ -297,16 +418,16 @@ func newActiveUser(t *testing.T, username string) *domain.User {
 
 func TestNew_RejectsNilDeps(t *testing.T) {
 	jwt, _ := crypto.NewService(testJWTSecret, time.Hour)
-	_, err := New(nil, nil, jwt, nil, nil)
+	_, err := New(nil, nil, nil, jwt, nil, nil)
 	require.Error(t, err)
 }
 
-func TestNew_AcceptsNilLockoutAndCaptcha(t *testing.T) {
+func TestNew_AcceptsOptionalDeps(t *testing.T) {
 	users := newMockUserRepo()
 	sessions := newMockSessionRepo()
 	jwt, _ := crypto.NewService(testJWTSecret, time.Hour)
-	_, err := New(users, sessions, jwt, nil, nil)
-	require.NoError(t, err, "lockout 与 captcha 均可空（dev / 单测）")
+	_, err := New(users, sessions, nil, jwt, nil, nil)
+	require.NoError(t, err, "keys / lockout / captcha 均可空（dev / 单测）")
 }
 
 // === Login ===
@@ -704,9 +825,363 @@ func TestAuthenticateBearer_Empty(t *testing.T) {
 	assert.Equal(t, errx.ErrAuthTokenInvalid, c)
 }
 
-func TestAuthenticateBearer_APIKeyPrefix_NotImplemented(t *testing.T) {
+// keys nil 时 rmk_ 路径仍返 NOT_IMPLEMENTED（功能开关 OFF）
+func TestAuthenticateBearer_APIKeyPrefix_NotImplementedWhenKeysNil(t *testing.T) {
 	svc, _, _, _ := setupSvc(t)
-	_, err := svc.AuthenticateBearer(context.Background(), "rmk_some_api_key_value")
+	_, err := svc.AuthenticateBearer(context.Background(),
+		"rmk_AB23CDEF"+strings.Repeat("a", 40))
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNotImplemented, c)
+}
+
+// === Login + JWT 已覆盖；下面是 API Key path / CRUD ===
+
+// === AuthenticateBearer rmk_ 路径 ===
+
+// 帮 fixture：插入一条可用的 key 并把 plaintext 也返回
+func insertActiveKey(t *testing.T, svc *service, owner *domain.User, name string) string {
+	t.Helper()
+	res, err := svc.CreateAPIKey(context.Background(), CreateAPIKeyRequest{
+		UserID: owner.ID,
+		Name:   name,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, res.Plaintext)
+	return res.Plaintext
+}
+
+func TestAuthenticateBearer_APIKey_Happy(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+
+	plaintext := insertActiveKey(t, svc, u, "ci-bot")
+
+	p, err := svc.AuthenticateBearer(context.Background(), plaintext)
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, p.UserID)
+	assert.Equal(t, u.TenantID, p.TenantID)
+	assert.Equal(t, u.Username, p.Username)
+	assert.Equal(t, u.Role, p.Role)
+	assert.Equal(t, PrincipalSourceAPIKey, p.Source)
+	assert.NotEmpty(t, p.APIKeyID)
+	assert.Empty(t, p.SessionID, "API Key 路径不应有 SessionID")
+}
+
+func TestAuthenticateBearer_APIKey_BadFormat(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, _, _, _ := setupSvcWithKeys(t, keys)
+
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{"too short", "rmk_short"},
+		{"short by one", "rmk_AB23CDEF" + strings.Repeat("a", 39)},
+		{"prefix has 0", "rmk_0BCDEFGH" + strings.Repeat("a", 40)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := tc.raw
+			_, err := svc.AuthenticateBearer(context.Background(), raw)
+			require.Error(t, err)
+			c, _ := errx.GetCode(err)
+			assert.Equal(t, errx.ErrAuthFailed, c, "解析错混淆为 AUTH_FAILED")
+		})
+	}
+}
+
+func TestAuthenticateBearer_APIKey_PrefixNotFound(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, _, _, _ := setupSvcWithKeys(t, keys)
+
+	// 合法格式但 prefix 不存在
+	_, err := svc.AuthenticateBearer(context.Background(),
+		"rmk_GHOSTABC"+strings.Repeat("z", 40))
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthFailed, c, "prefix 不存在混淆为 AUTH_FAILED")
+}
+
+func TestAuthenticateBearer_APIKey_WrongSecret(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+	plaintext := insertActiveKey(t, svc, u, "ci-bot")
+
+	// 改尾部字符破坏 secret，但保留 prefix
+	wrong := plaintext[:12] + strings.Repeat("X", 40)
+	_, err := svc.AuthenticateBearer(context.Background(), wrong)
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthFailed, c, "secret 错混淆为 AUTH_FAILED")
+}
+
+func TestAuthenticateBearer_APIKey_Revoked(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+	plaintext := insertActiveKey(t, svc, u, "revoke-test")
+
+	// 直接修改 mock 中的 RevokedAt
+	for _, k := range keys.rows {
+		now := time.Now().UTC()
+		k.RevokedAt = &now
+	}
+
+	_, err := svc.AuthenticateBearer(context.Background(), plaintext)
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthAPIKeyRevoked, c)
+}
+
+func TestAuthenticateBearer_APIKey_Expired(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+	plaintext := insertActiveKey(t, svc, u, "exp-test")
+
+	for _, k := range keys.rows {
+		past := time.Now().Add(-time.Hour)
+		k.ExpiresAt = &past
+	}
+
+	_, err := svc.AuthenticateBearer(context.Background(), plaintext)
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthTokenExpired, c)
+}
+
+func TestAuthenticateBearer_APIKey_UserDisabled(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+	plaintext := insertActiveKey(t, svc, u, "user-disabled")
+
+	u.Status = domain.StatusDisabled
+
+	_, err := svc.AuthenticateBearer(context.Background(), plaintext)
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthFailed, c, "user 非 active 混淆为 AUTH_FAILED")
+}
+
+func TestAuthenticateBearer_APIKey_UserGone(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+	plaintext := insertActiveKey(t, svc, u, "user-gone")
+
+	delete(users.users, u.ID)
+	delete(users.byUsername, u.Username)
+
+	_, err := svc.AuthenticateBearer(context.Background(), plaintext)
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthFailed, c)
+}
+
+func TestAuthenticateBearer_APIKey_DBError(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	keys.findErr = errx.New(errx.ErrDatabase, "boom")
+	svc, _, _, _ := setupSvcWithKeys(t, keys)
+
+	_, err := svc.AuthenticateBearer(context.Background(),
+		"rmk_AB23CDEF"+strings.Repeat("a", 40))
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrDatabase, c, "DB 错原样透")
+}
+
+// === CreateAPIKey ===
+
+func TestCreateAPIKey_Happy(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+
+	res, err := svc.CreateAPIKey(context.Background(), CreateAPIKeyRequest{
+		UserID: u.ID,
+		Name:   "ci-bot",
+		Scopes: []string{"scan:read"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res.Key)
+	assert.NotEmpty(t, res.Plaintext)
+	assert.True(t, strings.HasPrefix(res.Plaintext, "rmk_"))
+	assert.Empty(t, res.Key.SecretHash, "返给 caller 的 Key 必须清空 SecretHash")
+	assert.Equal(t, u.ID, res.Key.UserID)
+	assert.Equal(t, u.TenantID, res.Key.TenantID)
+	assert.Equal(t, "ci-bot", res.Key.Name)
+	assert.Equal(t, []string{"scan:read"}, res.Key.Scopes)
+	assert.Equal(t, 1, keys.insertCalls)
+}
+
+func TestCreateAPIKey_KeysNil_NotImplemented(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	users.put(newActiveUser(t, "alice"))
+
+	_, err := svc.CreateAPIKey(context.Background(), CreateAPIKeyRequest{
+		UserID: "u-alice", Name: "x",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNotImplemented, c)
+}
+
+func TestCreateAPIKey_EmptyInputs(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	users.put(newActiveUser(t, "alice"))
+
+	for _, tc := range []CreateAPIKeyRequest{
+		{UserID: "", Name: "ci"},
+		{UserID: "u-alice", Name: ""},
+		{UserID: "u-alice", Name: "  "},
+	} {
+		_, err := svc.CreateAPIKey(context.Background(), tc)
+		require.Error(t, err)
+		c, _ := errx.GetCode(err)
+		assert.Equal(t, errx.ErrInvalidInput, c)
+	}
+}
+
+func TestCreateAPIKey_UserNotFound(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, _, _, _ := setupSvcWithKeys(t, keys)
+
+	_, err := svc.CreateAPIKey(context.Background(), CreateAPIKeyRequest{
+		UserID: "u-ghost", Name: "ci",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrUserNotFound, c)
+}
+
+func TestCreateAPIKey_DisabledUser(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	u.Status = domain.StatusDisabled
+	users.put(u)
+
+	_, err := svc.CreateAPIKey(context.Background(), CreateAPIKeyRequest{
+		UserID: u.ID, Name: "ci",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInvalidInput, c, "disabled 用户禁创 key")
+}
+
+// === ListAPIKeys ===
+
+func TestListAPIKeys_SanitizesSecretHash(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+
+	for i := 0; i < 3; i++ {
+		_, err := svc.CreateAPIKey(context.Background(), CreateAPIKeyRequest{
+			UserID: u.ID, Name: "k" + string(rune('a'+i)),
+		})
+		require.NoError(t, err)
+	}
+
+	got, err := svc.ListAPIKeys(context.Background(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+	for _, k := range got {
+		assert.Empty(t, k.SecretHash, "List 返回必须清空 SecretHash")
+	}
+}
+
+func TestListAPIKeys_KeysNil(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+	_, err := svc.ListAPIKeys(context.Background(), "u-1")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNotImplemented, c)
+}
+
+// === RevokeAPIKey ===
+
+func TestRevokeAPIKey_Happy(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+
+	res, err := svc.CreateAPIKey(context.Background(), CreateAPIKeyRequest{
+		UserID: u.ID, Name: "to-revoke",
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.RevokeAPIKey(context.Background(), u.ID, res.Key.ID))
+	assert.Equal(t, 1, keys.revokeCalls)
+
+	// 后续 Bearer 应返 REVOKED
+	_, err = svc.AuthenticateBearer(context.Background(), res.Plaintext)
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthAPIKeyRevoked, c)
+}
+
+func TestRevokeAPIKey_OwnerMismatch(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	alice := newActiveUser(t, "alice")
+	bob := newActiveUser(t, "bob")
+	users.put(alice)
+	users.put(bob)
+
+	res, err := svc.CreateAPIKey(context.Background(), CreateAPIKeyRequest{
+		UserID: alice.ID, Name: "alice-key",
+	})
+	require.NoError(t, err)
+
+	// bob 试图撤 alice 的 key → 防 ID 枚举返 NotFound
+	err = svc.RevokeAPIKey(context.Background(), bob.ID, res.Key.ID)
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAPIKeyNotFound, c)
+	assert.Equal(t, 0, keys.revokeCalls, "owner mismatch 不应调 Revoke")
+}
+
+func TestRevokeAPIKey_NotFound(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, users, _, _ := setupSvcWithKeys(t, keys)
+	users.put(newActiveUser(t, "alice"))
+
+	err := svc.RevokeAPIKey(context.Background(), "u-alice", "k-ghost")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAPIKeyNotFound, c)
+}
+
+func TestRevokeAPIKey_EmptyInputs(t *testing.T) {
+	keys := newMockAPIKeyRepo()
+	svc, _, _, _ := setupSvcWithKeys(t, keys)
+
+	for _, tc := range [][2]string{{"", "k-1"}, {"u-1", ""}} {
+		err := svc.RevokeAPIKey(context.Background(), tc[0], tc[1])
+		require.Error(t, err)
+		c, _ := errx.GetCode(err)
+		assert.Equal(t, errx.ErrInvalidInput, c)
+	}
+}
+
+func TestRevokeAPIKey_KeysNil(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+	err := svc.RevokeAPIKey(context.Background(), "u-1", "k-1")
 	require.Error(t, err)
 	c, _ := errx.GetCode(err)
 	assert.Equal(t, errx.ErrNotImplemented, c)

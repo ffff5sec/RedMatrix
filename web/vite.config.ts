@@ -18,6 +18,10 @@ export default defineConfig({
         target: apiTarget,
         changeOrigin: true,
       },
+      '/redmatrix.tenancy.v1.TenancyService': {
+        target: apiTarget,
+        changeOrigin: true,
+      },
       // 后续 service 在此追加
     },
   },

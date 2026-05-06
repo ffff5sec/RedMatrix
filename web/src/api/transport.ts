@@ -1,6 +1,7 @@
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { createPromiseClient, type Interceptor } from '@connectrpc/connect';
 import { IdentityService } from '@/gen/proto/redmatrix/identity/v1/identity_connect';
+import { TenancyService } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_connect';
 import { authStore } from '@/store/auth';
 
 // 自动附 Authorization: Bearer <jwt>。
@@ -38,3 +39,4 @@ export const transport = createConnectTransport({
 });
 
 export const identityClient = createPromiseClient(IdentityService, transport);
+export const tenancyClient = createPromiseClient(TenancyService, transport);

@@ -19,7 +19,10 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	rmredis "github.com/ffff5sec/RedMatrix/internal/storage/redis"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy"
+	tenancyhandler "github.com/ffff5sec/RedMatrix/internal/tenancy/handler"
 	tenancyrepo "github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
+
+	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
 )
 
 // identityHandlerMount 是 buildIdentityMount 返回的挂载信息：path + http.Handler。
@@ -28,7 +31,9 @@ type identityHandlerMount struct {
 	handler http.Handler
 }
 
-// buildIdentityMount 装配 identity 模块全栈，返回 ConnectRPC mount。
+// buildIdentityMount 装配 identity 模块全栈，返回 ConnectRPC mount + AuthService。
+//
+// 返 authSvc 让 buildTenancyMount 等下游模块复用，避免重建 lockout/captcha 等依赖。
 //
 // 依赖（按顺序构造）：
 //  1. Repos（pgxpool.App 池；后续 RLS 落地后由 tenancy interceptor 注入 session var）
@@ -38,14 +43,12 @@ type identityHandlerMount struct {
 //  5. AuthService（组合 1-4）
 //  6. handler.Handler（适配 ConnectRPC）
 //  7. identityv1connect.NewIdentityServiceHandler 产出 (path, http.Handler)
-//
-// 失败：任何构造步出错（密钥过短 / 配置非法等）→ 直接返错。
-func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*identityHandlerMount, error) {
+func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*identityHandlerMount, auth.Service, error) {
 	if pool == nil || pool.App == nil {
-		return nil, errx.New(errx.ErrInternal, "buildIdentityMount: pg.Pool.App 不能为 nil")
+		return nil, nil, errx.New(errx.ErrInternal, "buildIdentityMount: pg.Pool.App 不能为 nil")
 	}
 	if rds == nil || rds.Client == nil {
-		return nil, errx.New(errx.ErrInternal, "buildIdentityMount: redis client 不能为 nil")
+		return nil, nil, errx.New(errx.ErrInternal, "buildIdentityMount: redis client 不能为 nil")
 	}
 
 	users := repo.NewPG(pool.App)
@@ -54,31 +57,55 @@ func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*
 
 	jwtSvc, err := crypto.NewService(jwtSecret, 0) // 0 = 默认 12h
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	lockout, err := policy.NewRedis(rds.Client, policy.DefaultConfig())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	captcha, err := policy.NewRedisCaptcha(rds.Client, policy.DefaultCaptchaConfig())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	authSvc, err := auth.New(users, sessions, keys, jwtSvc, lockout, captcha)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	idHandler, err := handler.New(authSvc, captcha)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	path, h := identityv1connect.NewIdentityServiceHandler(idHandler)
-	return &identityHandlerMount{path: path, handler: h}, nil
+	return &identityHandlerMount{path: path, handler: h}, authSvc, nil
+}
+
+// buildTenancyMount 装配 tenancy 模块（Project CRUD），返回 ConnectRPC mount。
+//
+// 依赖：pgxpool.App（projects 表读写）+ identity Auth Service（共享 RequireAuth）。
+func buildTenancyMount(pool *pg.Pool, authSvc auth.Service) (*identityHandlerMount, error) {
+	if pool == nil || pool.App == nil {
+		return nil, errx.New(errx.ErrInternal, "buildTenancyMount: pg.Pool.App 不能为 nil")
+	}
+	if authSvc == nil {
+		return nil, errx.New(errx.ErrInternal, "buildTenancyMount: authSvc 不能为 nil")
+	}
+
+	projects := tenancyrepo.NewProjectPG(pool.App)
+	svc, err := tenancy.NewService(projects)
+	if err != nil {
+		return nil, err
+	}
+	h, err := tenancyhandler.New(svc, authSvc)
+	if err != nil {
+		return nil, err
+	}
+	path, hh := tenancyv1connect.NewTenancyServiceHandler(h)
+	return &identityHandlerMount{path: path, handler: hh}, nil
 }
 
 // runTenancyBootstrap 启动期落地默认 account（幂等）。

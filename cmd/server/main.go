@@ -331,7 +331,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle("/metrics", metricsReg.Handler())
 
 		// === 8a. IdentityService（ConnectRPC）===
-		idMount, err := buildIdentityMount(pool, rds, cfg.Crypto.JWTSecret)
+		idMount, authSvc, err := buildIdentityMount(pool, rds, cfg.Crypto.JWTSecret)
 		if err != nil {
 			logger.LogError(ctx, "identity stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -339,6 +339,16 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		mux.Handle(idMount.path, idMount.handler)
 		logger.Info("identity service mounted", "path", idMount.path)
+
+		// === 8a₁. TenancyService（ConnectRPC）===
+		tnMount, err := buildTenancyMount(pool, authSvc)
+		if err != nil {
+			logger.LogError(ctx, "tenancy stack init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(tnMount.path, tnMount.handler)
+		logger.Info("tenancy service mounted", "path", tnMount.path)
 
 		// === 8a₂. Bootstrap tenancy（默认 account，幂等）===
 		// 必须在 identity bootstrap 之前；后续创建非 SA 用户的 tenant_id 来自此处。
@@ -394,7 +404,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		logger.Info("http server listening",
 			"addr", actualAddr,
-			"endpoints", []string{"/health", "/ready", "/metrics", idMount.path},
+			"endpoints", []string{"/health", "/ready", "/metrics", idMount.path, tnMount.path},
 		)
 
 		serverErr := make(chan error, 1)

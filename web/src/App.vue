@@ -5,14 +5,16 @@ import LoginPanel from '@/views/LoginPanel.vue';
 import ProfilePanel from '@/views/ProfilePanel.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
 import UsersPanel from '@/views/UsersPanel.vue';
+import ProjectsPanel from '@/views/ProjectsPanel.vue';
 
-type Tab = 'login' | 'profile' | 'apikeys' | 'users';
+type Tab = 'login' | 'profile' | 'apikeys' | 'users' | 'projects';
 const active = ref<Tab>(authStore.isAuthed() ? 'profile' : 'login');
 
 const tabs = computed(() => [
   { key: 'login', label: '登录', enabled: !authStore.isAuthed() },
   { key: 'profile', label: '个人', enabled: authStore.isAuthed() },
   { key: 'apikeys', label: 'API Keys', enabled: authStore.isAuthed() },
+  { key: 'projects', label: '项目', enabled: authStore.isSuperAdmin() || authStore.isAuditor() },
   { key: 'users', label: '用户管理', enabled: authStore.isSuperAdmin() || authStore.isAuditor() },
 ]);
 
@@ -50,6 +52,7 @@ function onLoggedOut() {
     <LoginPanel v-if="active === 'login'" @logged-in="onLoggedIn" />
     <ProfilePanel v-else-if="active === 'profile'" @logged-out="onLoggedOut" />
     <APIKeysPanel v-else-if="active === 'apikeys'" />
+    <ProjectsPanel v-else-if="active === 'projects'" />
     <UsersPanel v-else-if="active === 'users'" />
   </div>
 </template>

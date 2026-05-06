@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+// TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
+// 成员 / 节点 / 白名单 / 注册流程）。
+package redmatrix.tenancy.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// TenancyService 租户与项目核心 RPC（PR-T2 仅 Project）。
+service TenancyService {
+  // CreateProject 创建项目（SA only）。name 在租户内唯一。
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+
+  // ListProjects 列项目（SA / TA 全部；PA 限自己加入的——PA 过滤待 PR-T3
+  // ProjectMember 落地后实现）。
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
+
+  // GetProject 取单个项目详情。
+  rpc GetProject(GetProjectRequest) returns (GetProjectResponse);
+
+  // ArchiveProject 归档（幂等）。归档项目不可变（仅 unarchive / delete / read）。
+  rpc ArchiveProject(ArchiveProjectRequest) returns (ArchiveProjectResponse);
+
+  // UnarchiveProject 取消归档（幂等）。
+  rpc UnarchiveProject(UnarchiveProjectRequest) returns (UnarchiveProjectResponse);
+
+  // DeleteProject 软删（MVP 不级联资产 / 任务，由 LLD 11 §4.4 后续 PR 接）。
+  rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
+}
+
+// ===== Project =====
+
+message Project {
+  string id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string description = 4;
+  string status = 5; // active / archived
+  string created_by = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  optional google.protobuf.Timestamp archived_at = 9;
+  // settings + stats_cache 在 MVP 不暴露字段细节，前端按 status 渲染即可
+}
+
+// ===== CRUD =====
+
+message CreateProjectRequest {
+  // tenant_id 留空 = 用 caller principal.tenant_id；SA 跨租户时显式指定。
+  string tenant_id = 1;
+  string name = 2;
+  string description = 3;
+}
+message CreateProjectResponse {
+  Project project = 1;
+}
+
+message ListProjectsRequest {
+  optional string tenant_id = 1;
+  optional string status = 2; // active / archived
+  optional string keyword = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+message ListProjectsResponse {
+  repeated Project projects = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetProjectRequest {
+  string id = 1;
+}
+message GetProjectResponse {
+  Project project = 1;
+}
+
+message ArchiveProjectRequest {
+  string id = 1;
+}
+message ArchiveProjectResponse {}
+
+message UnarchiveProjectRequest {
+  string id = 1;
+}
+message UnarchiveProjectResponse {}
+
+message DeleteProjectRequest {
+  string id = 1;
+}
+message DeleteProjectResponse {}

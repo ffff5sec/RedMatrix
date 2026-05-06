@@ -70,6 +70,8 @@ const (
 	ErrUserAccountExpired             Code = "USER_ACCOUNT_EXPIRED"
 	ErrSessionNotFound                Code = "SESSION_NOT_FOUND"
 	ErrAPIKeyNotFound                 Code = "API_KEY_NOT_FOUND"
+	ErrAccountNotFound                Code = "ACCOUNT_NOT_FOUND"
+	ErrAccountSlugExists              Code = "ACCOUNT_SLUG_EXISTS"
 )
 
 // === 3.5 项目 PROJECT ===
@@ -227,6 +229,7 @@ var AllCodes = []Code{
 	ErrUserNotFound, ErrUserUsernameExists, ErrUserEmailExists, ErrUserCannotDeleteSelf,
 	ErrUserCannotDeleteLastSuperAdmin, ErrUserRoleImmutable, ErrUserUsernameImmutable,
 	ErrUserAccountExpired, ErrSessionNotFound, ErrAPIKeyNotFound,
+	ErrAccountNotFound, ErrAccountSlugExists,
 	// PROJECT
 	ErrProjectNotFound, ErrProjectNameExists, ErrProjectAccessDenied, ErrProjectArchived,
 	ErrProjectHasRunningTasks, ErrProjectNoAvailableNodes,

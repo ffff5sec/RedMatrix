@@ -340,7 +340,14 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle(idMount.path, idMount.handler)
 		logger.Info("identity service mounted", "path", idMount.path)
 
-		// === 8a₂. Bootstrap admin（首启幂等）===
+		// === 8a₂. Bootstrap tenancy（默认 account，幂等）===
+		// 必须在 identity bootstrap 之前；后续创建非 SA 用户的 tenant_id 来自此处。
+		if err := runTenancyBootstrap(ctx, logger, pool); err != nil {
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+
+		// === 8a₃. Bootstrap admin（首启幂等）===
 		// 用 maintenance 池：SuperAdmin tenant_id=NULL，绕开 RLS（待 tenancy 模块落地）
 		if err := runBootstrap(ctx, logger, stdout, pool, cfg); err != nil {
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

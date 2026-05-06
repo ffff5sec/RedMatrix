@@ -119,12 +119,46 @@ func TestDown_RollsBackOne(t *testing.T) {
 
 	assert.Less(t, vDown, vUp, "Down 后版本号应下降")
 
-	// 0006（最新）已被回滚 → api_keys 表应不存在
-	var hasAPIKeys bool
+	// 0007（最新）已被回滚 → accounts 表应不存在
+	var hasAccounts bool
 	require.NoError(t, db.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='api_keys')`,
-	).Scan(&hasAPIKeys))
-	assert.False(t, hasAPIKeys, "Down 应移除 0006 创建的 api_keys 表")
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='accounts')`,
+	).Scan(&hasAccounts))
+	assert.False(t, hasAccounts, "Down 应移除 0007 创建的 accounts 表")
+}
+
+// 验证 0007 accounts 表 schema
+func TestUp_AccountsTableExists(t *testing.T) {
+	h := pgharness.Start(t)
+
+	db, err := sql.Open("pgx", h.AdminDSN)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	require.NoError(t, Up(ctx, db))
+
+	for _, col := range []string{"id", "slug", "display_name", "plan", "status",
+		"quota_users", "quota_projects", "quota_assets", "settings",
+		"created_at", "updated_at", "deleted_at"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.columns
+			                WHERE table_name='accounts' AND column_name=$1)`,
+			col).Scan(&exists))
+		assert.Truef(t, exists, "列 accounts.%s 应存在", col)
+	}
+
+	for _, c := range []string{"accounts_slug_uniq", "accounts_slug_format",
+		"accounts_status_valid", "accounts_settings_is_object"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname=$1)`,
+			c).Scan(&exists))
+		assert.Truef(t, exists, "约束 %s 应存在", c)
+	}
 }
 
 // 验证 0006 api_keys 表 schema

@@ -411,7 +411,8 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 		saJWT := saLogin.Msg.GetAccessToken()
 
 		// CreateUser：服务端生成临时密码
-		const tenantID = "11111111-1111-1111-1111-111111111111"
+		// 与 tenancy.DefaultAccountID 保持一致：bootstrap 期 ensure 的默认 account
+		const tenantID = "00000000-0000-0000-0000-000000000001"
 		cuReq := connect.NewRequest(&identityv1.CreateUserRequest{
 			Username: "alice_pa",
 			Email:    "alice@example.com",

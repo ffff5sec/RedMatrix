@@ -40,8 +40,9 @@ async function refresh() {
 onMounted(refresh);
 
 // === CreateUser ===
-// 默认 tenant UUID：tenancy 模块上线前的占位（任何合法 UUID 都被 schema 接受）。
-const DEFAULT_TENANT_ID = '11111111-1111-1111-1111-111111111111';
+// 默认 tenant UUID：tenancy.Bootstrap 在 server 启动期 ensure 的 default account ID
+// （internal/tenancy/bootstrap.go DefaultAccountID）。
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 const showCreate = ref(false);
 const newU = ref({

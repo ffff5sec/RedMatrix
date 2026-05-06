@@ -199,6 +199,8 @@ var codeToConnect = map[Code]connect.Code{
 	ErrUserAccountExpired:             connect.CodeUnauthenticated,
 	ErrSessionNotFound:                connect.CodeNotFound,
 	ErrAPIKeyNotFound:                 connect.CodeNotFound,
+	ErrAccountNotFound:                connect.CodeNotFound,
+	ErrAccountSlugExists:              connect.CodeAlreadyExists,
 
 	// PROJECT
 	ErrProjectNotFound:         connect.CodeNotFound,

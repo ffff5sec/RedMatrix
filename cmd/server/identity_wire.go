@@ -18,6 +18,8 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	rmredis "github.com/ffff5sec/RedMatrix/internal/storage/redis"
+	"github.com/ffff5sec/RedMatrix/internal/tenancy"
+	tenancyrepo "github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
 )
 
 // identityHandlerMount 是 buildIdentityMount 返回的挂载信息：path + http.Handler。
@@ -77,6 +79,40 @@ func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*
 
 	path, h := identityv1connect.NewIdentityServiceHandler(idHandler)
 	return &identityHandlerMount{path: path, handler: h}, nil
+}
+
+// runTenancyBootstrap 启动期落地默认 account（幂等）。
+//
+// 必须在 runBootstrap（identity admin）之前调：identity 首启 SA 与 tenant 无关
+// （tenant_id=NULL），但创建后续 PA/TA 用户时 caller 需要默认 account ID
+// （前端 / API 用 tenancy.DefaultAccountID 硬编码）。
+func runTenancyBootstrap(
+	ctx context.Context,
+	logger *log.Logger,
+	pool *pg.Pool,
+) error {
+	if pool == nil || pool.Maintenance == nil {
+		return errx.New(errx.ErrInternal, "runTenancyBootstrap: pool.Maintenance 不能为 nil")
+	}
+	accounts := tenancyrepo.NewAccountPG(pool.Maintenance)
+
+	res, err := tenancy.Bootstrap(ctx, accounts, tenancy.BootstrapConfig{})
+	if err != nil {
+		logger.LogError(ctx, "tenancy bootstrap failed", err)
+		return err
+	}
+	if res.Created {
+		logger.Info("tenancy bootstrap created default account",
+			"id", res.Account.ID,
+			"slug", res.Account.Slug,
+		)
+	} else {
+		logger.Info("tenancy bootstrap skipped (default account exists)",
+			"id", res.Account.ID,
+			"slug", res.Account.Slug,
+		)
+	}
+	return nil
 }
 
 // runBootstrap 在 HTTP server 启动前落地首个 SuperAdmin（幂等）。

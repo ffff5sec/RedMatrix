@@ -1,0 +1,156 @@
+syntax = "proto3";
+
+// IdentityService（LLD 02 §3）—— PR5-A scope：暴露 AuthService 已实现的子集。
+//
+// 本 PR 暴露：
+//   - GetCaptcha（公开，用于登录表单）
+//   - Login（公开）
+//   - Logout / LogoutAllSessions（需 JWT）
+//   - ListAPIKeys / CreateAPIKey / RevokeAPIKey（需 JWT）
+//
+// 暂未暴露（后续 PR）：
+//   - 用户 CRUD（ListUsers/CreateUser/...）
+//   - GetCurrentUser / ChangePassword / UpdateProfile
+//   - ListSessions
+//   - 账户删除审批流（PR4）
+//   - RefreshToken（Phase 2）
+//
+// 注解（allowed_roles / audit / sensitive 等）暂不挂——authz interceptor
+// 与 audit 模块未落地；handler 内部用 RequireAuth helper 做最小授权检查。
+package redmatrix.identity.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// IdentityService 身份与会话核心 RPC。
+service IdentityService {
+  // ===== 公开（无需登录） =====
+
+  // GetCaptcha 拉一次性图片验证码。Server 端启用 captcha 时登录表单先调本接口，
+  // 把 captcha_id + 用户作答提交给 Login。返 PNG 字节 + captcha_id。
+  rpc GetCaptcha(GetCaptchaRequest) returns (GetCaptchaResponse);
+
+  // Login 用户名 / 密码登录。失败统一 AUTH_FAILED 防枚举（LLD 10 §4.3）。
+  // 触发 captcha / lockout / IP-locked / account-locked 时返各自错码。
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // ===== 需 JWT =====
+
+  // Logout 删除当前 session（不动 token_version；JWT 自然过期）。
+  // session_id 由 handler 从 JWT.sid claim 取，不需 client 显式传。
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+
+  // LogoutAllSessions 用户主动登出全部设备：tv++ + 所有 session 即时过期。
+  // 影响所有现存 JWT 立即失效。
+  rpc LogoutAllSessions(LogoutAllSessionsRequest) returns (LogoutAllSessionsResponse);
+
+  // ListAPIKeys 列出当前用户的所有 API Key（含已撤销 / 已过期）。
+  // 不返回 secret_hash。
+  rpc ListAPIKeys(ListAPIKeysRequest) returns (ListAPIKeysResponse);
+
+  // CreateAPIKey 生成新 API Key。返回的 secret 字段是完整明文长令牌
+  // （rmk_<prefix><secret>），**仅创建时一次性返回**；后续无法找回。
+  rpc CreateAPIKey(CreateAPIKeyRequest) returns (CreateAPIKeyResponse);
+
+  // RevokeAPIKey 撤销自己的 API Key（owner 校验：不属于本人时返 NOT_FOUND
+  // 防 ID 枚举）。已撤销的再调一遍仍返成功（幂等）。
+  rpc RevokeAPIKey(RevokeAPIKeyRequest) returns (RevokeAPIKeyResponse);
+}
+
+// ===== Captcha =====
+
+message GetCaptchaRequest {}
+message GetCaptchaResponse {
+  // captcha_id 提交 Login 时回传。
+  string captcha_id = 1;
+
+  // PNG 图片字节流。前端可用 data:image/png;base64,... 直接渲染。
+  bytes image_png = 2;
+}
+
+// ===== Login =====
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+
+  // captcha_id / captcha_answer 仅当 server 启用且要求 captcha 时必填。
+  // 详见 LLD 10 §4.6 always_show 配置。
+  optional string captcha_id = 3;
+  optional string captcha_answer = 4;
+}
+
+message LoginResponse {
+  // access_token JWT（HS256），放 Authorization: Bearer <token> 调后续 RPC。
+  string access_token = 1;
+
+  // expires_at JWT 过期时刻；client 据此安排刷新（MVP 无 RefreshToken，到点重登）。
+  google.protobuf.Timestamp expires_at = 2;
+
+  User user = 3;
+
+  // must_change_password = true 时前端应跳转改密页（bootstrap admin 首登 / 临时密码）。
+  bool must_change_password = 4;
+
+  // landing_url 按角色推荐落地（PR5 暂返空，后续 PR 接 tenancy 模块计算）。
+  string landing_url = 5;
+}
+
+// ===== User（精简版；完整版后续 PR） =====
+
+message User {
+  string id = 1;
+  string tenant_id = 2;       // SuperAdmin 跨租户时为空
+  string username = 3;
+  optional string email = 4;
+  string role = 5;            // SUPER_ADMIN / PROJECT_ADMIN / TENANT_AUDITOR / PLATFORM_AUDITOR
+  string status = 6;          // active / disabled / pending_deletion
+  google.protobuf.Timestamp created_at = 7;
+  optional google.protobuf.Timestamp last_login_at = 8;
+}
+
+// ===== Logout =====
+
+message LogoutRequest {}
+message LogoutResponse {}
+
+message LogoutAllSessionsRequest {}
+message LogoutAllSessionsResponse {}
+
+// ===== API Key =====
+
+message APIKey {
+  string id = 1;
+  string user_id = 2;
+  string tenant_id = 3;
+  string name = 4;
+  string key_prefix = 5;                       // 8 字符明文，UI 可见
+  repeated string scopes = 6;
+  optional google.protobuf.Timestamp expires_at = 7;
+  optional google.protobuf.Timestamp last_used_at = 8;
+  optional google.protobuf.Timestamp revoked_at = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListAPIKeysRequest {}
+message ListAPIKeysResponse {
+  repeated APIKey keys = 1;
+}
+
+message CreateAPIKeyRequest {
+  string name = 1;
+  repeated string scopes = 2;
+  optional google.protobuf.Timestamp expires_at = 3;
+}
+
+message CreateAPIKeyResponse {
+  APIKey key = 1;
+
+  // secret 是 rmk_<prefix><secret> 完整明文，**仅一次性返回**。
+  string secret = 2;
+}
+
+message RevokeAPIKeyRequest {
+  string id = 1;
+}
+
+message RevokeAPIKeyResponse {}

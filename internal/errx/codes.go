@@ -69,6 +69,7 @@ const (
 	ErrUserUsernameImmutable          Code = "USER_USERNAME_IMMUTABLE"
 	ErrUserAccountExpired             Code = "USER_ACCOUNT_EXPIRED"
 	ErrSessionNotFound                Code = "SESSION_NOT_FOUND"
+	ErrAPIKeyNotFound                 Code = "API_KEY_NOT_FOUND"
 )
 
 // === 3.5 项目 PROJECT ===
@@ -225,7 +226,7 @@ var AllCodes = []Code{
 	// USER
 	ErrUserNotFound, ErrUserUsernameExists, ErrUserEmailExists, ErrUserCannotDeleteSelf,
 	ErrUserCannotDeleteLastSuperAdmin, ErrUserRoleImmutable, ErrUserUsernameImmutable,
-	ErrUserAccountExpired, ErrSessionNotFound,
+	ErrUserAccountExpired, ErrSessionNotFound, ErrAPIKeyNotFound,
 	// PROJECT
 	ErrProjectNotFound, ErrProjectNameExists, ErrProjectAccessDenied, ErrProjectArchived,
 	ErrProjectHasRunningTasks, ErrProjectNoAvailableNodes,

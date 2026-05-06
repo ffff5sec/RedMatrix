@@ -119,12 +119,53 @@ func TestDown_RollsBackOne(t *testing.T) {
 
 	assert.Less(t, vDown, vUp, "Down 后版本号应下降")
 
-	// 0005（最新）已被回滚 → user_sessions 表应不存在
-	var hasSessions bool
+	// 0006（最新）已被回滚 → api_keys 表应不存在
+	var hasAPIKeys bool
 	require.NoError(t, db.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='user_sessions')`,
-	).Scan(&hasSessions))
-	assert.False(t, hasSessions, "Down 应移除 0005 创建的 user_sessions 表")
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='api_keys')`,
+	).Scan(&hasAPIKeys))
+	assert.False(t, hasAPIKeys, "Down 应移除 0006 创建的 api_keys 表")
+}
+
+// 验证 0006 api_keys 表 schema
+func TestUp_APIKeysTableExists(t *testing.T) {
+	h := pgharness.Start(t)
+
+	db, err := sql.Open("pgx", h.AdminDSN)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	require.NoError(t, Up(ctx, db))
+
+	for _, col := range []string{"id", "tenant_id", "user_id", "name", "key_prefix",
+		"secret_hash", "scopes", "expires_at", "last_used_at", "revoked_at", "created_at"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.columns
+			                WHERE table_name='api_keys' AND column_name=$1)`,
+			col).Scan(&exists))
+		assert.Truef(t, exists, "列 api_keys.%s 应存在", col)
+	}
+
+	for _, c := range []string{"api_keys_prefix_uniq", "api_keys_name_nonempty",
+		"api_keys_secret_hex", "api_keys_scopes_is_array"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname=$1)`,
+			c).Scan(&exists))
+		assert.Truef(t, exists, "约束 %s 应存在", c)
+	}
+
+	for _, idx := range []string{"idx_api_keys_user", "idx_api_keys_tenant"} {
+		var exists bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname=$1)`,
+			idx).Scan(&exists))
+		assert.Truef(t, exists, "索引 %s 应存在", idx)
+	}
 }
 
 // 验证 0005 user_sessions 表 schema

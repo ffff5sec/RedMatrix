@@ -14,6 +14,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/crypto"
 	"github.com/ffff5sec/RedMatrix/internal/identity/domain"
+	"github.com/ffff5sec/RedMatrix/internal/identity/policy"
 )
 
 // === mocks ===
@@ -209,6 +210,29 @@ func (m *mockLockout) ResetFailures(_ context.Context, _ netip.Addr, _ string) {
 	m.resetCalls++
 }
 
+// mockCaptcha 让 AuthService 单测可控制 IsRequired/Verify 返回。
+type mockCaptcha struct {
+	required     bool
+	verifyOK     bool
+	verifyErr    error
+	verifyCalls  int
+	requireCalls int
+}
+
+func (m *mockCaptcha) Generate(_ context.Context) (policy.CaptchaChallenge, error) {
+	return policy.CaptchaChallenge{ID: "c-1", Image: []byte{0x89, 'P', 'N', 'G'}}, nil
+}
+
+func (m *mockCaptcha) Verify(_ context.Context, _, _ string) (bool, error) {
+	m.verifyCalls++
+	return m.verifyOK, m.verifyErr
+}
+
+func (m *mockCaptcha) IsRequired(_ context.Context, _ netip.Addr, _ string) bool {
+	m.requireCalls++
+	return m.required
+}
+
 // === fixtures ===
 
 const (
@@ -222,7 +246,7 @@ func setupSvc(t *testing.T) (*service, *mockUserRepo, *mockSessionRepo, *crypto.
 	sessions := newMockSessionRepo()
 	jwt, err := crypto.NewService(testJWTSecret, time.Hour)
 	require.NoError(t, err)
-	svc, err := New(users, sessions, jwt, nil) // lockout=nil → 现有用例不受影响
+	svc, err := New(users, sessions, jwt, nil, nil) // lockout=nil + captcha=nil
 	require.NoError(t, err)
 	return svc.(*service), users, sessions, jwt
 }
@@ -233,7 +257,18 @@ func setupSvcWithLockout(t *testing.T, l *mockLockout) (*service, *mockUserRepo,
 	sessions := newMockSessionRepo()
 	jwt, err := crypto.NewService(testJWTSecret, time.Hour)
 	require.NoError(t, err)
-	svc, err := New(users, sessions, jwt, l)
+	svc, err := New(users, sessions, jwt, l, nil)
+	require.NoError(t, err)
+	return svc.(*service), users, sessions, jwt
+}
+
+func setupSvcWithCaptcha(t *testing.T, c *mockCaptcha) (*service, *mockUserRepo, *mockSessionRepo, *crypto.Service) {
+	t.Helper()
+	users := newMockUserRepo()
+	sessions := newMockSessionRepo()
+	jwt, err := crypto.NewService(testJWTSecret, time.Hour)
+	require.NoError(t, err)
+	svc, err := New(users, sessions, jwt, nil, c)
 	require.NoError(t, err)
 	return svc.(*service), users, sessions, jwt
 }
@@ -262,16 +297,16 @@ func newActiveUser(t *testing.T, username string) *domain.User {
 
 func TestNew_RejectsNilDeps(t *testing.T) {
 	jwt, _ := crypto.NewService(testJWTSecret, time.Hour)
-	_, err := New(nil, nil, jwt, nil)
+	_, err := New(nil, nil, jwt, nil, nil)
 	require.Error(t, err)
 }
 
-func TestNew_AcceptsNilLockout(t *testing.T) {
+func TestNew_AcceptsNilLockoutAndCaptcha(t *testing.T) {
 	users := newMockUserRepo()
 	sessions := newMockSessionRepo()
 	jwt, _ := crypto.NewService(testJWTSecret, time.Hour)
-	_, err := New(users, sessions, jwt, nil)
-	require.NoError(t, err, "lockout 可空（dev / 单测）")
+	_, err := New(users, sessions, jwt, nil, nil)
+	require.NoError(t, err, "lockout 与 captcha 均可空（dev / 单测）")
 }
 
 // === Login ===
@@ -504,6 +539,87 @@ func TestLogin_DBError_DoesNotCountFailure(t *testing.T) {
 	c, _ := errx.GetCode(err)
 	assert.Equal(t, errx.ErrDatabase, c)
 	assert.Equal(t, 0, lock.recordCalls, "DB 故障不应当作登录失败计")
+}
+
+// === Login + Captcha ===
+
+func TestLogin_CaptchaNotRequired_NoVerifyCalled(t *testing.T) {
+	cap := &mockCaptcha{required: false}
+	svc, users, _, _ := setupSvcWithCaptcha(t, cap)
+	users.put(newActiveUser(t, "alice"))
+
+	res, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: knownPlain,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, 1, cap.requireCalls)
+	assert.Equal(t, 0, cap.verifyCalls, "IsRequired=false → 不应调 Verify")
+}
+
+func TestLogin_CaptchaRequired_MissingFields(t *testing.T) {
+	cap := &mockCaptcha{required: true}
+	svc, users, sessions, _ := setupSvcWithCaptcha(t, cap)
+	users.put(newActiveUser(t, "alice"))
+
+	_, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: knownPlain,
+		// 不填 CaptchaID / CaptchaAnswer
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthCaptchaRequired, c)
+	assert.Equal(t, 0, cap.verifyCalls, "缺字段不应调 Verify")
+	assert.Equal(t, 0, sessions.createCalls)
+}
+
+func TestLogin_CaptchaRequired_WrongAnswer(t *testing.T) {
+	cap := &mockCaptcha{required: true, verifyOK: false}
+	svc, users, sessions, _ := setupSvcWithCaptcha(t, cap)
+	users.put(newActiveUser(t, "alice"))
+
+	_, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: knownPlain,
+		CaptchaID: "c-1", CaptchaAnswer: "wrong",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthCaptchaInvalid, c)
+	assert.Equal(t, 1, cap.verifyCalls)
+	assert.Equal(t, 0, sessions.createCalls)
+}
+
+func TestLogin_CaptchaRequired_Correct_ContinuesToPasswordCheck(t *testing.T) {
+	cap := &mockCaptcha{required: true, verifyOK: true}
+	svc, users, sessions, _ := setupSvcWithCaptcha(t, cap)
+	users.put(newActiveUser(t, "alice"))
+
+	res, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: knownPlain,
+		CaptchaID: "c-1", CaptchaAnswer: "right",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, 1, cap.verifyCalls)
+	assert.Equal(t, 1, sessions.createCalls)
+}
+
+func TestLogin_CaptchaRedisFailure_BubblesUp(t *testing.T) {
+	cap := &mockCaptcha{
+		required:  true,
+		verifyErr: errx.New(errx.ErrInternal, "redis down"),
+	}
+	svc, users, sessions, _ := setupSvcWithCaptcha(t, cap)
+	users.put(newActiveUser(t, "alice"))
+
+	_, err := svc.Login(context.Background(), LoginRequest{
+		Username: "alice", Password: knownPlain,
+		CaptchaID: "c-1", CaptchaAnswer: "abc",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInternal, c, "Redis 故障透传 internal（不是 INVALID）")
+	assert.Equal(t, 0, sessions.createCalls)
 }
 
 // === AuthenticateBearer ===

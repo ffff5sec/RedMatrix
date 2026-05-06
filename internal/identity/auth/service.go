@@ -1,13 +1,13 @@
 // Package auth 是 identity 模块的业务流层（Login/Logout/AuthenticateBearer）。
 //
-// 范围（PR2-B 现状）：
-//   - Login：密码校验 + 写 session + 签 JWT；失败统一 AUTH_FAILED 防枚举
+// 范围（PR2-C₂ 现状）：
+//   - Login：captcha 校验 + 密码校验 + lockout 检查 + 写 session + 签 JWT；失败统一
+//     AUTH_FAILED 防枚举（lockout / captcha 错码独立暴露）
 //   - AuthenticateBearer：JWT 路径（API Key 路径在 PR3 后挂上 "rmk_" 前缀分支）
 //   - Logout：单 session 删除（不动 tv，JWT 自然过期）
 //   - LogoutAllSessions：tv++ + sessions.expires_at=now() 单事务
 //
 // 不在本 PR 范围：
-//   - lockout policy / captcha（PR2-C，Redis 集成）
 //   - API Key 鉴权（PR3）
 //   - LandingURL 计算（依赖 tenancy 模块，后续 PR）
 //   - outbox 事件发布（auth.login.succeeded 等，后续 PR）
@@ -37,10 +37,12 @@ const (
 
 // LoginRequest 是登录请求的内部参数（与 RPC 层解耦）。
 type LoginRequest struct {
-	Username  string
-	Password  string
-	ClientIP  netip.Addr
-	UserAgent string
+	Username      string
+	Password      string
+	ClientIP      netip.Addr
+	UserAgent     string
+	CaptchaID     string // 仅当服务端启用 captcha 时必填
+	CaptchaAnswer string
 }
 
 // LoginResult 是登录成功时返回给上层的结果。
@@ -93,6 +95,7 @@ type service struct {
 	sessions repo.SessionRepository
 	jwt      *crypto.Service
 	lockout  policy.Lockout // 可空：nil 时跳过所有锁定逻辑（dev / 单测）
+	captcha  policy.Captcha // 可空：nil 时跳过 captcha 检查
 	now      func() time.Time
 
 	// dummyHash 启动时一次性生成；用户不存在时也跑 VerifyPassword 保耗时一致。
@@ -105,6 +108,7 @@ type service struct {
 //   - users / sessions：持久层
 //   - jwt：JWT 服务（PR2-A）
 //   - lockout：失败计数 / IP+账号锁定（可空，nil 表示禁用）
+//   - captcha：图片验证码策略（可空，nil 表示禁用）
 //
 // 副作用：构造时跑一次 HashPassword 生成 dummy hash（约 1 次 argon2id 计算）。
 func New(
@@ -112,6 +116,7 @@ func New(
 	sessions repo.SessionRepository,
 	jwt *crypto.Service,
 	lockout policy.Lockout,
+	captcha policy.Captcha,
 ) (Service, error) {
 	if users == nil || sessions == nil || jwt == nil {
 		return nil, errx.New(errx.ErrInternal, "auth.New: 依赖不能为 nil")
@@ -125,6 +130,7 @@ func New(
 		sessions:  sessions,
 		jwt:       jwt,
 		lockout:   lockout,
+		captcha:   captcha,
 		now:       time.Now,
 		dummyHash: dummy,
 	}, nil
@@ -132,15 +138,16 @@ func New(
 
 // === Login ===
 
-// Login 实现 LLD 10 §4.3 关键伪代码（含 lockout，不含 captcha — PR2-C₂）。
+// Login 实现 LLD 10 §4.3 关键伪代码（含 lockout + captcha）。
 //
 // 流程：
 //  1. IP 锁定 check（早退；暴露 AUTH_IP_LOCKED 给本人）
-//  2. 加载用户；不存在也走 dummy verify 保恒定耗时（防账号枚举）
-//  3. argon2id 密码比对（恒定耗时；不论何种失败原因都跑）
-//  4. 密码错 / 用户不存在 / 状态非 active → 记失败 + AUTH_FAILED（混淆）
-//  5. 密码对 + 账号已锁定 → AUTH_ACCOUNT_LOCKED（不计失败；本人能感知）
-//  6. 全通过 → 重置失败计数 + 写 session + 签 JWT + 刷 last_login
+//  2. captcha check（IsRequired→ 必须通过，否则 AUTH_CAPTCHA_REQUIRED/INVALID）
+//  3. 加载用户；不存在也走 dummy verify 保恒定耗时（防账号枚举）
+//  4. argon2id 密码比对（恒定耗时；不论何种失败原因都跑）
+//  5. 密码错 / 用户不存在 / 状态非 active → 记失败 + AUTH_FAILED（混淆）
+//  6. 密码对 + 账号已锁定 → AUTH_ACCOUNT_LOCKED（不计失败；本人能感知）
+//  7. 全通过 → 重置失败计数 + 写 session + 签 JWT + 刷 last_login
 func (s *service) Login(ctx context.Context, req LoginRequest) (*LoginResult, error) {
 	if strings.TrimSpace(req.Username) == "" || req.Password == "" {
 		return nil, errx.New(errx.ErrAuthFailed, "用户名或密码错误")
@@ -151,6 +158,21 @@ func (s *service) Login(ctx context.Context, req LoginRequest) (*LoginResult, er
 		if locked, until := s.lockout.IsIPLocked(ctx, req.ClientIP); locked {
 			return nil, errx.New(errx.ErrAuthIPLocked, "请稍后再试").
 				WithFields("until", until.UTC().Format(time.RFC3339))
+		}
+	}
+
+	// 2. Captcha check（在密码校验前；防对齐密码爆破耗 CPU）
+	if s.captcha != nil && s.captcha.IsRequired(ctx, req.ClientIP, "") {
+		if req.CaptchaID == "" || req.CaptchaAnswer == "" {
+			return nil, errx.New(errx.ErrAuthCaptchaRequired, "请完成验证码")
+		}
+		ok, err := s.captcha.Verify(ctx, req.CaptchaID, req.CaptchaAnswer)
+		if err != nil {
+			// Redis 故障：透传 internal 错（caller 看到 Internal 而非可绕过的 INVALID）
+			return nil, err
+		}
+		if !ok {
+			return nil, errx.New(errx.ErrAuthCaptchaInvalid, "验证码错误或已过期")
 		}
 	}
 

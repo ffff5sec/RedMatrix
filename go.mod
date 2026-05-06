@@ -4,6 +4,7 @@ go 1.25.8
 
 require (
 	connectrpc.com/connect v1.19.2
+	github.com/dchest/captcha v1.1.0
 	github.com/elastic/go-elasticsearch/v8 v8.19.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0

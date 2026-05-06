@@ -99,11 +99,11 @@ message LoginResponse {
 
 message User {
   string id = 1;
-  string tenant_id = 2;       // SuperAdmin 跨租户时为空
+  string tenant_id = 2; // SuperAdmin 跨租户时为空
   string username = 3;
   optional string email = 4;
-  string role = 5;            // SUPER_ADMIN / PROJECT_ADMIN / TENANT_AUDITOR / PLATFORM_AUDITOR
-  string status = 6;          // active / disabled / pending_deletion
+  string role = 5; // SUPER_ADMIN / PROJECT_ADMIN / TENANT_AUDITOR / PLATFORM_AUDITOR
+  string status = 6; // active / disabled / pending_deletion
   google.protobuf.Timestamp created_at = 7;
   optional google.protobuf.Timestamp last_login_at = 8;
 }
@@ -123,7 +123,7 @@ message APIKey {
   string user_id = 2;
   string tenant_id = 3;
   string name = 4;
-  string key_prefix = 5;                       // 8 字符明文，UI 可见
+  string key_prefix = 5; // 8 字符明文，UI 可见
   repeated string scopes = 6;
   optional google.protobuf.Timestamp expires_at = 7;
   optional google.protobuf.Timestamp last_used_at = 8;

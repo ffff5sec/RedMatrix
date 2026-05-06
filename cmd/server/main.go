@@ -330,7 +330,17 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle("/ready", aggregator.ReadinessHandler())
 		mux.Handle("/metrics", metricsReg.Handler())
 
-		// === 8a. Async eventbus Relay ===
+		// === 8a. IdentityService（ConnectRPC）===
+		idMount, err := buildIdentityMount(pool, rds, cfg.Crypto.JWTSecret)
+		if err != nil {
+			logger.LogError(ctx, "identity stack init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(idMount.path, idMount.handler)
+		logger.Info("identity service mounted", "path", idMount.path)
+
+		// === 8b. Async eventbus Relay ===
 		// Relay 跑在独立 goroutine，与 HTTP server 共用 ctx；ctx 取消时同步退出。
 		// Bus + Registry 在 boot 时为空 — 业务模块（待落）会调 RegisterType[T] +
 		// Subscribe[T] 自管。空 Registry 时 Relay 遇到事件会标 failed（unknown topic），
@@ -349,7 +359,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			}
 		}()
 
-		// === 8b. HTTP server ===
+		// === 8c. HTTP server ===
 		listener, err := net.Listen("tcp", opts.httpBindAddr)
 		if err != nil {
 			logger.LogError(ctx, "http listen failed", err,
@@ -370,7 +380,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		logger.Info("http server listening",
 			"addr", actualAddr,
-			"endpoints", []string{"/health", "/ready", "/metrics"},
+			"endpoints", []string{"/health", "/ready", "/metrics", idMount.path},
 		)
 
 		serverErr := make(chan error, 1)

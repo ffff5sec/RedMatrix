@@ -1,0 +1,74 @@
+package main
+
+import (
+	"net/http"
+
+	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/identity/v1/identityv1connect"
+	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
+	"github.com/ffff5sec/RedMatrix/internal/identity/crypto"
+	"github.com/ffff5sec/RedMatrix/internal/identity/handler"
+	"github.com/ffff5sec/RedMatrix/internal/identity/policy"
+	"github.com/ffff5sec/RedMatrix/internal/identity/repo"
+	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
+	rmredis "github.com/ffff5sec/RedMatrix/internal/storage/redis"
+)
+
+// identityHandlerMount 是 buildIdentityMount 返回的挂载信息：path + http.Handler。
+type identityHandlerMount struct {
+	path    string
+	handler http.Handler
+}
+
+// buildIdentityMount 装配 identity 模块全栈，返回 ConnectRPC mount。
+//
+// 依赖（按顺序构造）：
+//  1. Repos（pgxpool.App 池；后续 RLS 落地后由 tenancy interceptor 注入 session var）
+//  2. JWT 服务（HS256 + cfg.Crypto.JWTSecret）
+//  3. Lockout（Redis 滑窗；fail-open）
+//  4. Captcha（Redis；MVP always_show=true）
+//  5. AuthService（组合 1-4）
+//  6. handler.Handler（适配 ConnectRPC）
+//  7. identityv1connect.NewIdentityServiceHandler 产出 (path, http.Handler)
+//
+// 失败：任何构造步出错（密钥过短 / 配置非法等）→ 直接返错。
+func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*identityHandlerMount, error) {
+	if pool == nil || pool.App == nil {
+		return nil, errx.New(errx.ErrInternal, "buildIdentityMount: pg.Pool.App 不能为 nil")
+	}
+	if rds == nil || rds.Client == nil {
+		return nil, errx.New(errx.ErrInternal, "buildIdentityMount: redis client 不能为 nil")
+	}
+
+	users := repo.NewPG(pool.App)
+	sessions := repo.NewSessionPG(pool.App)
+	keys := repo.NewAPIKeyPG(pool.App)
+
+	jwtSvc, err := crypto.NewService(jwtSecret, 0) // 0 = 默认 12h
+	if err != nil {
+		return nil, err
+	}
+
+	lockout, err := policy.NewRedis(rds.Client, policy.DefaultConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	captcha, err := policy.NewRedisCaptcha(rds.Client, policy.DefaultCaptchaConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	authSvc, err := auth.New(users, sessions, keys, jwtSvc, lockout, captcha)
+	if err != nil {
+		return nil, err
+	}
+
+	idHandler, err := handler.New(authSvc, captcha)
+	if err != nil {
+		return nil, err
+	}
+
+	path, h := identityv1connect.NewIdentityServiceHandler(idHandler)
+	return &identityHandlerMount{path: path, handler: h}, nil
+}

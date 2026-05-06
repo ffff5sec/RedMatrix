@@ -13,10 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	identityv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/identity/v1"
+	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/identity/v1/identityv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/platform/health"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
 	rmminio "github.com/ffff5sec/RedMatrix/internal/storage/minio"
@@ -253,6 +256,26 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 		assert.Contains(t, body, "redmatrix_build_info")
 		assert.Contains(t, body, "go_goroutines")
 		assert.Contains(t, body, "process_resident_memory_bytes")
+	})
+
+	// IdentityService.GetCaptcha smoke：调真实 ConnectRPC，验 RPC 路径接通
+	// + Captcha policy 真访问 Redis（生产闭环路径）
+	t.Run("identity_get_captcha", func(t *testing.T) {
+		client := identityv1connect.NewIdentityServiceClient(
+			http.DefaultClient,
+			"http://"+addr,
+		)
+		res, err := client.GetCaptcha(context.Background(),
+			connect.NewRequest(&identityv1.GetCaptchaRequest{}))
+		require.NoError(t, err)
+		assert.NotEmpty(t, res.Msg.GetCaptchaId())
+		require.NotEmpty(t, res.Msg.GetImagePng())
+
+		// PNG magic header
+		png := res.Msg.GetImagePng()
+		require.True(t, len(png) > 8)
+		assert.Equal(t, byte(0x89), png[0])
+		assert.Equal(t, byte(0x50), png[1])
 	})
 
 	// 触发优雅退出

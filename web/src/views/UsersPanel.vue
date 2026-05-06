@@ -40,19 +40,38 @@ async function refresh() {
 onMounted(refresh);
 
 // === CreateUser ===
+// 默认 tenant UUID：tenancy 模块上线前的占位（任何合法 UUID 都被 schema 接受）。
+const DEFAULT_TENANT_ID = '11111111-1111-1111-1111-111111111111';
+
 const showCreate = ref(false);
 const newU = ref({
   username: '',
   email: '',
   role: 'PROJECT_ADMIN',
-  tenantId: '',
+  tenantId: DEFAULT_TENANT_ID,
   initialPassword: '',
 });
 const submitting = ref(false);
 const lastTempPwd = ref<{ username: string; password: string } | null>(null);
 
 function resetCreate() {
-  newU.value = { username: '', email: '', role: 'PROJECT_ADMIN', tenantId: '', initialPassword: '' };
+  newU.value = {
+    username: '',
+    email: '',
+    role: 'PROJECT_ADMIN',
+    tenantId: DEFAULT_TENANT_ID,
+    initialPassword: '',
+  };
+}
+
+// 当角色切到跨租户时，tenant_id 必须空；切回则恢复默认 UUID
+function onRoleChange() {
+  const isCross = newU.value.role === 'SUPER_ADMIN' || newU.value.role === 'PLATFORM_AUDITOR';
+  if (isCross) {
+    newU.value.tenantId = '';
+  } else if (!newU.value.tenantId) {
+    newU.value.tenantId = DEFAULT_TENANT_ID;
+  }
 }
 
 async function create() {
@@ -236,7 +255,7 @@ function copyText(s: string) {
           </div>
           <div class="row">
             <span class="label">角色</span>
-            <select v-model="newU.role" :disabled="submitting">
+            <select v-model="newU.role" :disabled="submitting" @change="onRoleChange">
               <option value="PROJECT_ADMIN">PROJECT_ADMIN</option>
               <option value="TENANT_AUDITOR">TENANT_AUDITOR</option>
               <option value="SUPER_ADMIN">SUPER_ADMIN</option>
@@ -247,10 +266,13 @@ function copyText(s: string) {
             <input
               v-model="newU.tenantId"
               placeholder="跨租户角色（SUPER_ADMIN）留空"
-              :disabled="submitting"
+              :disabled="submitting || newU.role === 'SUPER_ADMIN'"
               style="width: 320px"
             />
           </div>
+          <p class="muted">
+            tenancy 模块上线前 tenant_id 用占位 UUID；切到 SUPER_ADMIN 自动清空。
+          </p>
           <div class="row">
             <span class="label">初始密码</span>
             <input

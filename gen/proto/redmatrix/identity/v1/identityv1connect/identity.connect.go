@@ -75,6 +75,26 @@ const (
 	// IdentityServiceRevokeAPIKeyProcedure is the fully-qualified name of the IdentityService's
 	// RevokeAPIKey RPC.
 	IdentityServiceRevokeAPIKeyProcedure = "/redmatrix.identity.v1.IdentityService/RevokeAPIKey"
+	// IdentityServiceCreateUserProcedure is the fully-qualified name of the IdentityService's
+	// CreateUser RPC.
+	IdentityServiceCreateUserProcedure = "/redmatrix.identity.v1.IdentityService/CreateUser"
+	// IdentityServiceListUsersProcedure is the fully-qualified name of the IdentityService's ListUsers
+	// RPC.
+	IdentityServiceListUsersProcedure = "/redmatrix.identity.v1.IdentityService/ListUsers"
+	// IdentityServiceGetUserProcedure is the fully-qualified name of the IdentityService's GetUser RPC.
+	IdentityServiceGetUserProcedure = "/redmatrix.identity.v1.IdentityService/GetUser"
+	// IdentityServiceEnableUserProcedure is the fully-qualified name of the IdentityService's
+	// EnableUser RPC.
+	IdentityServiceEnableUserProcedure = "/redmatrix.identity.v1.IdentityService/EnableUser"
+	// IdentityServiceDisableUserProcedure is the fully-qualified name of the IdentityService's
+	// DisableUser RPC.
+	IdentityServiceDisableUserProcedure = "/redmatrix.identity.v1.IdentityService/DisableUser"
+	// IdentityServiceResetPasswordProcedure is the fully-qualified name of the IdentityService's
+	// ResetPassword RPC.
+	IdentityServiceResetPasswordProcedure = "/redmatrix.identity.v1.IdentityService/ResetPassword"
+	// IdentityServiceForceLogoutProcedure is the fully-qualified name of the IdentityService's
+	// ForceLogout RPC.
+	IdentityServiceForceLogoutProcedure = "/redmatrix.identity.v1.IdentityService/ForceLogout"
 )
 
 // IdentityServiceClient is a client for the redmatrix.identity.v1.IdentityService service.
@@ -107,6 +127,23 @@ type IdentityServiceClient interface {
 	// RevokeAPIKey 撤销自己的 API Key（owner 校验：不属于本人时返 NOT_FOUND
 	// 防 ID 枚举）。已撤销的再调一遍仍返成功（幂等）。
 	RevokeAPIKey(context.Context, *connect.Request[v1.RevokeAPIKeyRequest]) (*connect.Response[v1.RevokeAPIKeyResponse], error)
+	// CreateUser 创建新用户。InitialPassword 留空 → 服务端生成 16 字符强随机临时密码
+	// （仅一次性返回）。新用户 must_change_password=true 强制首登改密。
+	CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error)
+	// ListUsers 列用户（分页 + status/role/keyword 过滤）。SA + TA 可读。
+	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
+	// GetUser 取单个用户详情。SA + TA 可读。
+	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	// EnableUser 状态置 active（幂等）。
+	EnableUser(context.Context, *connect.Request[v1.EnableUserRequest]) (*connect.Response[v1.EnableUserResponse], error)
+	// DisableUser 状态置 disabled + tv++（让所有现存 JWT 立即失效）。
+	DisableUser(context.Context, *connect.Request[v1.DisableUserRequest]) (*connect.Response[v1.DisableUserResponse], error)
+	// ResetPassword 服务端生成临时密码并返一次性明文 + tv++ + must_change=true。
+	// 该用户所有现存 JWT 立即失效；首次用临时密码登录后必须改密。
+	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
+	// ForceLogout tv++（不改 status）。让该用户所有现存 JWT 立即失效，
+	// 但用户下次仍可正常登录。
+	ForceLogout(context.Context, *connect.Request[v1.ForceLogoutRequest]) (*connect.Response[v1.ForceLogoutResponse], error)
 }
 
 // NewIdentityServiceClient constructs a client for the redmatrix.identity.v1.IdentityService
@@ -174,6 +211,48 @@ func NewIdentityServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(identityServiceMethods.ByName("RevokeAPIKey")),
 			connect.WithClientOptions(opts...),
 		),
+		createUser: connect.NewClient[v1.CreateUserRequest, v1.CreateUserResponse](
+			httpClient,
+			baseURL+IdentityServiceCreateUserProcedure,
+			connect.WithSchema(identityServiceMethods.ByName("CreateUser")),
+			connect.WithClientOptions(opts...),
+		),
+		listUsers: connect.NewClient[v1.ListUsersRequest, v1.ListUsersResponse](
+			httpClient,
+			baseURL+IdentityServiceListUsersProcedure,
+			connect.WithSchema(identityServiceMethods.ByName("ListUsers")),
+			connect.WithClientOptions(opts...),
+		),
+		getUser: connect.NewClient[v1.GetUserRequest, v1.GetUserResponse](
+			httpClient,
+			baseURL+IdentityServiceGetUserProcedure,
+			connect.WithSchema(identityServiceMethods.ByName("GetUser")),
+			connect.WithClientOptions(opts...),
+		),
+		enableUser: connect.NewClient[v1.EnableUserRequest, v1.EnableUserResponse](
+			httpClient,
+			baseURL+IdentityServiceEnableUserProcedure,
+			connect.WithSchema(identityServiceMethods.ByName("EnableUser")),
+			connect.WithClientOptions(opts...),
+		),
+		disableUser: connect.NewClient[v1.DisableUserRequest, v1.DisableUserResponse](
+			httpClient,
+			baseURL+IdentityServiceDisableUserProcedure,
+			connect.WithSchema(identityServiceMethods.ByName("DisableUser")),
+			connect.WithClientOptions(opts...),
+		),
+		resetPassword: connect.NewClient[v1.ResetPasswordRequest, v1.ResetPasswordResponse](
+			httpClient,
+			baseURL+IdentityServiceResetPasswordProcedure,
+			connect.WithSchema(identityServiceMethods.ByName("ResetPassword")),
+			connect.WithClientOptions(opts...),
+		),
+		forceLogout: connect.NewClient[v1.ForceLogoutRequest, v1.ForceLogoutResponse](
+			httpClient,
+			baseURL+IdentityServiceForceLogoutProcedure,
+			connect.WithSchema(identityServiceMethods.ByName("ForceLogout")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -188,6 +267,13 @@ type identityServiceClient struct {
 	listAPIKeys       *connect.Client[v1.ListAPIKeysRequest, v1.ListAPIKeysResponse]
 	createAPIKey      *connect.Client[v1.CreateAPIKeyRequest, v1.CreateAPIKeyResponse]
 	revokeAPIKey      *connect.Client[v1.RevokeAPIKeyRequest, v1.RevokeAPIKeyResponse]
+	createUser        *connect.Client[v1.CreateUserRequest, v1.CreateUserResponse]
+	listUsers         *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
+	getUser           *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
+	enableUser        *connect.Client[v1.EnableUserRequest, v1.EnableUserResponse]
+	disableUser       *connect.Client[v1.DisableUserRequest, v1.DisableUserResponse]
+	resetPassword     *connect.Client[v1.ResetPasswordRequest, v1.ResetPasswordResponse]
+	forceLogout       *connect.Client[v1.ForceLogoutRequest, v1.ForceLogoutResponse]
 }
 
 // GetCaptcha calls redmatrix.identity.v1.IdentityService.GetCaptcha.
@@ -235,6 +321,41 @@ func (c *identityServiceClient) RevokeAPIKey(ctx context.Context, req *connect.R
 	return c.revokeAPIKey.CallUnary(ctx, req)
 }
 
+// CreateUser calls redmatrix.identity.v1.IdentityService.CreateUser.
+func (c *identityServiceClient) CreateUser(ctx context.Context, req *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error) {
+	return c.createUser.CallUnary(ctx, req)
+}
+
+// ListUsers calls redmatrix.identity.v1.IdentityService.ListUsers.
+func (c *identityServiceClient) ListUsers(ctx context.Context, req *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error) {
+	return c.listUsers.CallUnary(ctx, req)
+}
+
+// GetUser calls redmatrix.identity.v1.IdentityService.GetUser.
+func (c *identityServiceClient) GetUser(ctx context.Context, req *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
+	return c.getUser.CallUnary(ctx, req)
+}
+
+// EnableUser calls redmatrix.identity.v1.IdentityService.EnableUser.
+func (c *identityServiceClient) EnableUser(ctx context.Context, req *connect.Request[v1.EnableUserRequest]) (*connect.Response[v1.EnableUserResponse], error) {
+	return c.enableUser.CallUnary(ctx, req)
+}
+
+// DisableUser calls redmatrix.identity.v1.IdentityService.DisableUser.
+func (c *identityServiceClient) DisableUser(ctx context.Context, req *connect.Request[v1.DisableUserRequest]) (*connect.Response[v1.DisableUserResponse], error) {
+	return c.disableUser.CallUnary(ctx, req)
+}
+
+// ResetPassword calls redmatrix.identity.v1.IdentityService.ResetPassword.
+func (c *identityServiceClient) ResetPassword(ctx context.Context, req *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error) {
+	return c.resetPassword.CallUnary(ctx, req)
+}
+
+// ForceLogout calls redmatrix.identity.v1.IdentityService.ForceLogout.
+func (c *identityServiceClient) ForceLogout(ctx context.Context, req *connect.Request[v1.ForceLogoutRequest]) (*connect.Response[v1.ForceLogoutResponse], error) {
+	return c.forceLogout.CallUnary(ctx, req)
+}
+
 // IdentityServiceHandler is an implementation of the redmatrix.identity.v1.IdentityService service.
 type IdentityServiceHandler interface {
 	// GetCaptcha 拉一次性图片验证码。Server 端启用 captcha 时登录表单先调本接口，
@@ -265,6 +386,23 @@ type IdentityServiceHandler interface {
 	// RevokeAPIKey 撤销自己的 API Key（owner 校验：不属于本人时返 NOT_FOUND
 	// 防 ID 枚举）。已撤销的再调一遍仍返成功（幂等）。
 	RevokeAPIKey(context.Context, *connect.Request[v1.RevokeAPIKeyRequest]) (*connect.Response[v1.RevokeAPIKeyResponse], error)
+	// CreateUser 创建新用户。InitialPassword 留空 → 服务端生成 16 字符强随机临时密码
+	// （仅一次性返回）。新用户 must_change_password=true 强制首登改密。
+	CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error)
+	// ListUsers 列用户（分页 + status/role/keyword 过滤）。SA + TA 可读。
+	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
+	// GetUser 取单个用户详情。SA + TA 可读。
+	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	// EnableUser 状态置 active（幂等）。
+	EnableUser(context.Context, *connect.Request[v1.EnableUserRequest]) (*connect.Response[v1.EnableUserResponse], error)
+	// DisableUser 状态置 disabled + tv++（让所有现存 JWT 立即失效）。
+	DisableUser(context.Context, *connect.Request[v1.DisableUserRequest]) (*connect.Response[v1.DisableUserResponse], error)
+	// ResetPassword 服务端生成临时密码并返一次性明文 + tv++ + must_change=true。
+	// 该用户所有现存 JWT 立即失效；首次用临时密码登录后必须改密。
+	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
+	// ForceLogout tv++（不改 status）。让该用户所有现存 JWT 立即失效，
+	// 但用户下次仍可正常登录。
+	ForceLogout(context.Context, *connect.Request[v1.ForceLogoutRequest]) (*connect.Response[v1.ForceLogoutResponse], error)
 }
 
 // NewIdentityServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -328,6 +466,48 @@ func NewIdentityServiceHandler(svc IdentityServiceHandler, opts ...connect.Handl
 		connect.WithSchema(identityServiceMethods.ByName("RevokeAPIKey")),
 		connect.WithHandlerOptions(opts...),
 	)
+	identityServiceCreateUserHandler := connect.NewUnaryHandler(
+		IdentityServiceCreateUserProcedure,
+		svc.CreateUser,
+		connect.WithSchema(identityServiceMethods.ByName("CreateUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	identityServiceListUsersHandler := connect.NewUnaryHandler(
+		IdentityServiceListUsersProcedure,
+		svc.ListUsers,
+		connect.WithSchema(identityServiceMethods.ByName("ListUsers")),
+		connect.WithHandlerOptions(opts...),
+	)
+	identityServiceGetUserHandler := connect.NewUnaryHandler(
+		IdentityServiceGetUserProcedure,
+		svc.GetUser,
+		connect.WithSchema(identityServiceMethods.ByName("GetUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	identityServiceEnableUserHandler := connect.NewUnaryHandler(
+		IdentityServiceEnableUserProcedure,
+		svc.EnableUser,
+		connect.WithSchema(identityServiceMethods.ByName("EnableUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	identityServiceDisableUserHandler := connect.NewUnaryHandler(
+		IdentityServiceDisableUserProcedure,
+		svc.DisableUser,
+		connect.WithSchema(identityServiceMethods.ByName("DisableUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	identityServiceResetPasswordHandler := connect.NewUnaryHandler(
+		IdentityServiceResetPasswordProcedure,
+		svc.ResetPassword,
+		connect.WithSchema(identityServiceMethods.ByName("ResetPassword")),
+		connect.WithHandlerOptions(opts...),
+	)
+	identityServiceForceLogoutHandler := connect.NewUnaryHandler(
+		IdentityServiceForceLogoutProcedure,
+		svc.ForceLogout,
+		connect.WithSchema(identityServiceMethods.ByName("ForceLogout")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.identity.v1.IdentityService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case IdentityServiceGetCaptchaProcedure:
@@ -348,6 +528,20 @@ func NewIdentityServiceHandler(svc IdentityServiceHandler, opts ...connect.Handl
 			identityServiceCreateAPIKeyHandler.ServeHTTP(w, r)
 		case IdentityServiceRevokeAPIKeyProcedure:
 			identityServiceRevokeAPIKeyHandler.ServeHTTP(w, r)
+		case IdentityServiceCreateUserProcedure:
+			identityServiceCreateUserHandler.ServeHTTP(w, r)
+		case IdentityServiceListUsersProcedure:
+			identityServiceListUsersHandler.ServeHTTP(w, r)
+		case IdentityServiceGetUserProcedure:
+			identityServiceGetUserHandler.ServeHTTP(w, r)
+		case IdentityServiceEnableUserProcedure:
+			identityServiceEnableUserHandler.ServeHTTP(w, r)
+		case IdentityServiceDisableUserProcedure:
+			identityServiceDisableUserHandler.ServeHTTP(w, r)
+		case IdentityServiceResetPasswordProcedure:
+			identityServiceResetPasswordHandler.ServeHTTP(w, r)
+		case IdentityServiceForceLogoutProcedure:
+			identityServiceForceLogoutHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -391,4 +585,32 @@ func (UnimplementedIdentityServiceHandler) CreateAPIKey(context.Context, *connec
 
 func (UnimplementedIdentityServiceHandler) RevokeAPIKey(context.Context, *connect.Request[v1.RevokeAPIKeyRequest]) (*connect.Response[v1.RevokeAPIKeyResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.RevokeAPIKey is not implemented"))
+}
+
+func (UnimplementedIdentityServiceHandler) CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.CreateUser is not implemented"))
+}
+
+func (UnimplementedIdentityServiceHandler) ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.ListUsers is not implemented"))
+}
+
+func (UnimplementedIdentityServiceHandler) GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.GetUser is not implemented"))
+}
+
+func (UnimplementedIdentityServiceHandler) EnableUser(context.Context, *connect.Request[v1.EnableUserRequest]) (*connect.Response[v1.EnableUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.EnableUser is not implemented"))
+}
+
+func (UnimplementedIdentityServiceHandler) DisableUser(context.Context, *connect.Request[v1.DisableUserRequest]) (*connect.Response[v1.DisableUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.DisableUser is not implemented"))
+}
+
+func (UnimplementedIdentityServiceHandler) ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.ResetPassword is not implemented"))
+}
+
+func (UnimplementedIdentityServiceHandler) ForceLogout(context.Context, *connect.Request[v1.ForceLogoutRequest]) (*connect.Response[v1.ForceLogoutResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.identity.v1.IdentityService.ForceLogout is not implemented"))
 }

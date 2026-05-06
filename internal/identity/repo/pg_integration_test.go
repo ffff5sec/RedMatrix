@@ -304,3 +304,97 @@ func TestCreate_MultiUsersUniqueID(t *testing.T) {
 		ids[u.ID] = true
 	}
 }
+
+// === List ===
+
+func TestList_FilterByStatusAndRole(t *testing.T) {
+	r := setupRepo(t)
+	ctx := context.Background()
+
+	// 3 PA active + 1 SA + 1 PA disabled
+	for _, n := range []string{"alice", "bob", "carol"} {
+		require.NoError(t, r.Create(ctx, newProjectAdmin(n)))
+	}
+	require.NoError(t, r.Create(ctx, newSuperAdmin("root")))
+	dis := newProjectAdmin("dave")
+	dis.Status = domain.StatusDisabled
+	require.NoError(t, r.Create(ctx, dis))
+
+	got, total, err := r.List(ctx,
+		ListFilter{Status: domain.StatusActive, Role: domain.RoleProjectAdmin},
+		Page{Page: 1, PageSize: 50})
+	require.NoError(t, err)
+	assert.Equal(t, 3, total, "active + ProjectAdmin = 3")
+	assert.Len(t, got, 3)
+	for _, u := range got {
+		assert.Equal(t, domain.RoleProjectAdmin, u.Role)
+		assert.Equal(t, domain.StatusActive, u.Status)
+	}
+}
+
+func TestList_KeywordILIKE(t *testing.T) {
+	r := setupRepo(t)
+	ctx := context.Background()
+
+	require.NoError(t, r.Create(ctx, newProjectAdmin("alice_dev")))
+	require.NoError(t, r.Create(ctx, newProjectAdmin("bob_qa")))
+	require.NoError(t, r.Create(ctx, newProjectAdmin("alicia_devops")))
+
+	got, total, err := r.List(ctx,
+		ListFilter{Keyword: "ali"},
+		Page{Page: 1, PageSize: 50})
+	require.NoError(t, err)
+	assert.Equal(t, 2, total, "ali → alice_dev + alicia_devops")
+	assert.Len(t, got, 2)
+}
+
+func TestList_Pagination(t *testing.T) {
+	r := setupRepo(t)
+	ctx := context.Background()
+
+	for i := 0; i < 12; i++ {
+		require.NoError(t, r.Create(ctx, newProjectAdmin("user_"+string(rune('a'+i)))))
+	}
+
+	page1, total, err := r.List(ctx, ListFilter{}, Page{Page: 1, PageSize: 5})
+	require.NoError(t, err)
+	assert.Equal(t, 12, total)
+	require.Len(t, page1, 5)
+
+	page3, _, err := r.List(ctx, ListFilter{}, Page{Page: 3, PageSize: 5})
+	require.NoError(t, err)
+	require.Len(t, page3, 2, "12 行 / 5 大小 → 第 3 页 2 条")
+}
+
+func TestList_Empty(t *testing.T) {
+	r := setupRepo(t)
+	got, total, err := r.List(context.Background(), ListFilter{},
+		Page{Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	assert.Equal(t, 0, total)
+	assert.Empty(t, got)
+}
+
+// === UpdateEmail ===
+
+func TestUpdateEmail_RoundTrip(t *testing.T) {
+	r := setupRepo(t)
+	ctx := context.Background()
+	u := newProjectAdmin("eve")
+	require.NoError(t, r.Create(ctx, u))
+
+	require.NoError(t, r.UpdateEmail(ctx, u.ID, "eve@example.org"))
+
+	got, err := r.GetByID(ctx, u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "eve@example.org", got.Email)
+}
+
+func TestUpdateEmail_NotFound(t *testing.T) {
+	r := setupRepo(t)
+	err := r.UpdateEmail(context.Background(),
+		"00000000-0000-0000-0000-000000000000", "nope@example.com")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrUserNotFound, c)
+}

@@ -14,6 +14,7 @@ package auth
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"net/netip"
 	"strings"
 	"time"
@@ -126,6 +127,64 @@ type Service interface {
 	//   - 用户不存在 → AUTH_FAILED（混淆）
 	//   - DB 故障 → 透传
 	ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error
+
+	// CreateUser 创建新用户。actor 由 handler 校角色（SA only），service 不查。
+	// 密码：req.InitialPassword 空 → 服务端生成 16 字符强密码（一次性返）。
+	// must_change_password 默认 true（首登强制改密）。
+	CreateUser(ctx context.Context, req CreateUserRequest) (*CreateUserResult, error)
+
+	// ListUsers 列用户（分页 + 过滤）。authz 由 handler 做（SA + TA 可读）。
+	ListUsers(ctx context.Context, req ListUsersRequest) (*ListUsersResult, error)
+
+	// GetUser 按 id 取单条；不存在 → ErrUserNotFound。
+	GetUser(ctx context.Context, id string) (*domain.User, error)
+
+	// EnableUser 把状态置 active；幂等。
+	EnableUser(ctx context.Context, id string) error
+
+	// DisableUser 把状态置 disabled + tv++（让所有现存 JWT 失效）。
+	DisableUser(ctx context.Context, id string) error
+
+	// ResetPassword 服务端生成临时密码（16 字符强随机）+ 自动 tv++ + must_change=true。
+	// 返一次性明文（caller 负责回吐给 SA 让 TA 转交用户）。
+	ResetPassword(ctx context.Context, id string) (string, error)
+
+	// ForceLogout 仅 tv++（不改 status）。让该用户所有现存 JWT 立即失效。
+	ForceLogout(ctx context.Context, id string) error
+}
+
+// CreateUserRequest 是 CreateUser 入参（与 RPC 解耦）。
+type CreateUserRequest struct {
+	Username        string
+	Email           string
+	Role            domain.Role
+	TenantID        string // 非跨租户角色必填（domain.ValidateTenantConsistency 强制）
+	InitialPassword string // 空 → 服务端生成
+}
+
+// CreateUserResult 是 CreateUser 返回。
+//
+// TemporaryPassword 仅创建时一次性返回；后续靠 ResetPassword 重置。
+type CreateUserResult struct {
+	User              *domain.User
+	TemporaryPassword string // 始终非空（明文 / 服务端生成均回吐）
+}
+
+// ListUsersRequest 是 ListUsers 入参。
+type ListUsersRequest struct {
+	Status   domain.Status // 空 = 不过滤
+	Role     domain.Role   // 空 = 不过滤
+	Keyword  string        // 空 = 不过滤
+	Page     int
+	PageSize int
+}
+
+// ListUsersResult 是 ListUsers 返回。
+type ListUsersResult struct {
+	Users    []*domain.User
+	Total    int
+	Page     int
+	PageSize int
 }
 
 // dummyPlaintext 用于生成 dummy hash；实际值不重要——只要不可猜中即可。
@@ -477,9 +536,10 @@ func (s *service) GetCurrentUser(ctx context.Context, userID string) (*domain.Us
 	if err != nil {
 		return nil, err
 	}
-	// 不返 PasswordHash —— handler/conv 也不应输出，但这里清空给上层多一层防御
-	u.PasswordHash = ""
-	return u, nil
+	// 返副本：清空 hash 不污染 repo 内部状态
+	out := *u
+	out.PasswordHash = ""
+	return &out, nil
 }
 
 // ChangePassword 改密流程（LLD 10 §6 / §5.4）。
@@ -530,6 +590,194 @@ func (s *service) ChangePassword(ctx context.Context, userID, currentPassword, n
 
 	// repo.UpdatePassword 自动 tv++（让旧 JWT 全失效；首登强制改密也借此关流程）
 	return s.users.UpdatePassword(ctx, u.ID, hash, false)
+}
+
+// === User CRUD ===
+
+// listUsersDefaultPageSize / Max 是分页参数兜底/上限。
+const (
+	listUsersDefaultPageSize = 20
+	listUsersMaxPageSize     = 200
+)
+
+// generatedTempPasswordLen 临时密码长度（与 bootstrap 同 16）。
+const generatedTempPasswordLen = 16
+
+// tempPasswordAlphabet 临时密码字母表（72 字符；与 bootstrap 同思路：终端友好）。
+const tempPasswordAlphabet = "" +
+	"ABCDEFGHJKLMNPQRSTUVWXYZ" +
+	"abcdefghijkmnpqrstuvwxyz" +
+	"23456789" +
+	"!#$%&*+-=?@^_~"
+
+// CreateUser 创建新用户。
+//
+// 流程：
+//  1. 校 username 规则（domain.ValidateForCreate 内部跑）+ 角色 + tenant 一致性
+//  2. 决定密码：req.InitialPassword 空 → 16 字符强随机
+//  3. argon2id hash → repo.Create
+//  4. 返回明文（一次性）+ User
+func (s *service) CreateUser(ctx context.Context, req CreateUserRequest) (*CreateUserResult, error) {
+	// 决定密码（在 ValidateForCreate 之前；valid 也校 hash 非空）
+	plain := req.InitialPassword
+	generated := false
+	if plain == "" {
+		gen, err := randomFromAlphabetUnbiased(tempPasswordAlphabet, generatedTempPasswordLen)
+		if err != nil {
+			return nil, errx.Wrap(errx.ErrCryptoEncryptionFailed, err,
+				"CreateUser: 生成临时密码失败")
+		}
+		plain = gen
+		generated = true
+	} else if len(plain) < minNewPasswordLen {
+		return nil, errx.New(errx.ErrAuthPasswordTooWeak, "密码至少 12 字符")
+	}
+
+	hash, err := domain.HashPassword(plain)
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrInternal, err, "CreateUser: 哈希失败")
+	}
+
+	u := &domain.User{
+		TenantID:           req.TenantID,
+		Username:           req.Username,
+		Email:              req.Email,
+		PasswordHash:       hash,
+		Role:               req.Role,
+		Status:             domain.StatusActive,
+		MustChangePassword: true,
+	}
+	if err := s.users.Create(ctx, u); err != nil {
+		return nil, err
+	}
+	_ = generated // 保留语义；caller 通过 TemporaryPassword 即可知
+
+	// 返一份副本：清空 hash 防泄露，但不能动 repo 持有的同一指针
+	sanitized := *u
+	sanitized.PasswordHash = ""
+	return &CreateUserResult{
+		User:              &sanitized,
+		TemporaryPassword: plain,
+	}, nil
+}
+
+// ListUsers 列用户。
+func (s *service) ListUsers(ctx context.Context, req ListUsersRequest) (*ListUsersResult, error) {
+	if req.PageSize <= 0 {
+		req.PageSize = listUsersDefaultPageSize
+	}
+	if req.PageSize > listUsersMaxPageSize {
+		req.PageSize = listUsersMaxPageSize
+	}
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	users, total, err := s.users.List(ctx,
+		repo.ListFilter{Status: req.Status, Role: req.Role, Keyword: req.Keyword},
+		repo.Page{Page: req.Page, PageSize: req.PageSize})
+	if err != nil {
+		return nil, err
+	}
+	// 返副本（防 in-memory repo 共享底层对象时清 hash 影响其他读路径）
+	out := make([]*domain.User, 0, len(users))
+	for _, u := range users {
+		dup := *u
+		dup.PasswordHash = ""
+		out = append(out, &dup)
+	}
+	return &ListUsersResult{
+		Users:    out,
+		Total:    total,
+		Page:     req.Page,
+		PageSize: req.PageSize,
+	}, nil
+}
+
+// GetUser 按 id 取单条（清空 PasswordHash）。
+//
+// 返副本：避免清空动作污染 repo 内部状态（pg repo 每 Scan 出新指针无影响，
+// 但 in-memory mock / 缓存层会共享底层对象，明确语义防误用）。
+func (s *service) GetUser(ctx context.Context, id string) (*domain.User, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "id 不能为空")
+	}
+	u, err := s.users.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := *u
+	out.PasswordHash = ""
+	return &out, nil
+}
+
+// EnableUser 状态置 active（幂等）。
+func (s *service) EnableUser(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return errx.New(errx.ErrInvalidInput, "id 不能为空")
+	}
+	return s.users.UpdateStatus(ctx, id, domain.StatusActive)
+}
+
+// DisableUser 状态置 disabled + tv++ 让所有现存 JWT 失效。
+func (s *service) DisableUser(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return errx.New(errx.ErrInvalidInput, "id 不能为空")
+	}
+	if err := s.users.UpdateStatus(ctx, id, domain.StatusDisabled); err != nil {
+		return err
+	}
+	// 不阻塞主流程：tv++ 失败不视为 disable 失败（status 已改）；caller 可见
+	return s.users.IncrementTokenVersion(ctx, id)
+}
+
+// ResetPassword 生成临时密码 + UpdatePassword（自动 tv++ + must_change=true）。
+func (s *service) ResetPassword(ctx context.Context, id string) (string, error) {
+	if strings.TrimSpace(id) == "" {
+		return "", errx.New(errx.ErrInvalidInput, "id 不能为空")
+	}
+	plain, err := randomFromAlphabetUnbiased(tempPasswordAlphabet, generatedTempPasswordLen)
+	if err != nil {
+		return "", errx.Wrap(errx.ErrCryptoEncryptionFailed, err,
+			"ResetPassword: 生成临时密码失败")
+	}
+	hash, err := domain.HashPassword(plain)
+	if err != nil {
+		return "", errx.Wrap(errx.ErrInternal, err, "ResetPassword: 哈希失败")
+	}
+	if err := s.users.UpdatePassword(ctx, id, hash, true); err != nil {
+		return "", err
+	}
+	return plain, nil
+}
+
+// ForceLogout tv++（让该用户所有现存 JWT 立即失效）；不改 status。
+func (s *service) ForceLogout(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return errx.New(errx.ErrInvalidInput, "id 不能为空")
+	}
+	return s.users.IncrementTokenVersion(ctx, id)
+}
+
+// randomFromAlphabetUnbiased crypto/rand 拒绝采样防 mod 偏置。alphabet 大小 ≤ 256。
+func randomFromAlphabetUnbiased(alphabet string, n int) (string, error) {
+	abLen := len(alphabet)
+	if abLen == 0 || abLen > 256 {
+		return "", errx.New(errx.ErrInternal, "alphabet 长度非法")
+	}
+	maxAcceptable := 256 - (256 % abLen)
+	out := make([]byte, n)
+	buf := make([]byte, 1)
+	for i := 0; i < n; {
+		if _, err := cryptorand.Read(buf); err != nil {
+			return "", err
+		}
+		if int(buf[0]) >= maxAcceptable {
+			continue
+		}
+		out[i] = alphabet[int(buf[0])%abLen]
+		i++
+	}
+	return string(out), nil
 }
 
 // === API Key CRUD ===

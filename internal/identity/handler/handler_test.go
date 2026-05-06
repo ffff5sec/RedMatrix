@@ -54,6 +54,28 @@ type mockAuthSvc struct {
 	changePwdUser    string
 	changePwdCurrent string
 	changePwdNew     string
+
+	createUserRes *auth.CreateUserResult
+	createUserErr error
+	createUserReq auth.CreateUserRequest
+
+	listUsersRes *auth.ListUsersResult
+	listUsersErr error
+	listUsersReq auth.ListUsersRequest
+
+	getUserRes *domain.User
+	getUserErr error
+	getUserID  string
+
+	enableErr      error
+	disableErr     error
+	resetPwdRes    string
+	resetPwdErr    error
+	forceLogoutErr error
+	enableID       string
+	disableID      string
+	resetPwdID     string
+	forceLogoutID  string
 }
 
 func (m *mockAuthSvc) Login(_ context.Context, req auth.LoginRequest) (*auth.LoginResult, error) {
@@ -119,6 +141,53 @@ func (m *mockAuthSvc) ChangePassword(_ context.Context, userID, current, newPwd 
 	return m.changePwdErr
 }
 
+func (m *mockAuthSvc) CreateUser(_ context.Context, req auth.CreateUserRequest) (*auth.CreateUserResult, error) {
+	m.createUserReq = req
+	if m.createUserErr != nil {
+		return nil, m.createUserErr
+	}
+	return m.createUserRes, nil
+}
+
+func (m *mockAuthSvc) ListUsers(_ context.Context, req auth.ListUsersRequest) (*auth.ListUsersResult, error) {
+	m.listUsersReq = req
+	if m.listUsersErr != nil {
+		return nil, m.listUsersErr
+	}
+	return m.listUsersRes, nil
+}
+
+func (m *mockAuthSvc) GetUser(_ context.Context, id string) (*domain.User, error) {
+	m.getUserID = id
+	if m.getUserErr != nil {
+		return nil, m.getUserErr
+	}
+	return m.getUserRes, nil
+}
+
+func (m *mockAuthSvc) EnableUser(_ context.Context, id string) error {
+	m.enableID = id
+	return m.enableErr
+}
+
+func (m *mockAuthSvc) DisableUser(_ context.Context, id string) error {
+	m.disableID = id
+	return m.disableErr
+}
+
+func (m *mockAuthSvc) ResetPassword(_ context.Context, id string) (string, error) {
+	m.resetPwdID = id
+	if m.resetPwdErr != nil {
+		return "", m.resetPwdErr
+	}
+	return m.resetPwdRes, nil
+}
+
+func (m *mockAuthSvc) ForceLogout(_ context.Context, id string) error {
+	m.forceLogoutID = id
+	return m.forceLogoutErr
+}
+
 // === mock captcha ===
 
 type mockCaptcha struct {
@@ -153,6 +222,27 @@ func authedPrincipal() *auth.UserPrincipal {
 		Username:  "alice",
 		Role:      domain.RoleProjectAdmin,
 		SessionID: "sess-1",
+		Source:    auth.PrincipalSourceJWT,
+	}
+}
+
+func superAdminPrincipal() *auth.UserPrincipal {
+	return &auth.UserPrincipal{
+		UserID:    "u-sa",
+		Username:  "admin",
+		Role:      domain.RoleSuperAdmin,
+		SessionID: "sess-sa",
+		Source:    auth.PrincipalSourceJWT,
+	}
+}
+
+func auditorPrincipal() *auth.UserPrincipal {
+	return &auth.UserPrincipal{
+		UserID:    "u-ta",
+		TenantID:  "t-1",
+		Username:  "auditor",
+		Role:      domain.RoleTenantAuditor,
+		SessionID: "sess-ta",
 		Source:    auth.PrincipalSourceJWT,
 	}
 }
@@ -632,4 +722,197 @@ func TestChangePassword_NoAuth(t *testing.T) {
 	_, err := h.ChangePassword(context.Background(), req)
 	require.Error(t, err)
 	assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+}
+
+// === User CRUD ===
+
+// withSAAuth 给 req 设 Bearer header（同 fake JWT；mock 直接返 SA principal）
+func withSAAuth(req interface{ Header() http.Header }) {
+	req.Header().Set("Authorization", "Bearer fake-jwt")
+}
+
+// === CreateUser ===
+
+func TestCreateUser_Happy_AsSA(t *testing.T) {
+	now := time.Now().UTC()
+	svc := &mockAuthSvc{
+		authBearerRes: superAdminPrincipal(),
+		createUserRes: &auth.CreateUserResult{
+			TemporaryPassword: "TempPwd123!@#$%^",
+			User: &domain.User{
+				ID: "u-new", Username: "newbie",
+				Role: domain.RoleProjectAdmin, Status: domain.StatusActive,
+				TenantID: "t-1", CreatedAt: now,
+			},
+		},
+	}
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.CreateUserRequest{
+		Username: "newbie", Email: "newbie@example.com",
+		Role: "PROJECT_ADMIN", TenantId: "t-1",
+	})
+	withSAAuth(req)
+
+	res, err := h.CreateUser(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, "TempPwd123!@#$%^", res.Msg.GetTemporaryPassword())
+	require.NotNil(t, res.Msg.GetUser())
+	assert.Equal(t, "newbie", res.Msg.GetUser().GetUsername())
+
+	// service 收到正确入参
+	assert.Equal(t, "newbie", svc.createUserReq.Username)
+	assert.Equal(t, domain.RoleProjectAdmin, svc.createUserReq.Role)
+	assert.Equal(t, "t-1", svc.createUserReq.TenantID)
+}
+
+func TestCreateUser_NonSA_Forbidden(t *testing.T) {
+	svc := &mockAuthSvc{authBearerRes: authedPrincipal()} // ProjectAdmin
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.CreateUserRequest{
+		Username: "x", Email: "x@example.com", Role: "PROJECT_ADMIN",
+	})
+	withSAAuth(req)
+
+	_, err := h.CreateUser(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+}
+
+func TestCreateUser_NoAuth(t *testing.T) {
+	svc := &mockAuthSvc{}
+	h, _ := New(svc, nil)
+
+	req := connect.NewRequest(&identityv1.CreateUserRequest{Username: "x"})
+	_, err := h.CreateUser(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+}
+
+// === ListUsers ===
+
+func TestListUsers_AsSAOrAuditor(t *testing.T) {
+	for _, p := range []*auth.UserPrincipal{superAdminPrincipal(), auditorPrincipal()} {
+		svc := &mockAuthSvc{
+			authBearerRes: p,
+			listUsersRes: &auth.ListUsersResult{
+				Users:    []*domain.User{{ID: "u-1", Username: "alice", Role: domain.RoleProjectAdmin}},
+				Total:    1,
+				Page:     1,
+				PageSize: 20,
+			},
+		}
+		h, _ := New(svc, nil)
+
+		req := connect.NewRequest(&identityv1.ListUsersRequest{Page: 1, PageSize: 20})
+		withSAAuth(req)
+		res, err := h.ListUsers(context.Background(), req)
+		require.NoError(t, err, "role=%s 应可读", p.Role)
+		assert.Equal(t, int32(1), res.Msg.GetTotal())
+	}
+}
+
+func TestListUsers_PA_Forbidden(t *testing.T) {
+	svc := &mockAuthSvc{authBearerRes: authedPrincipal()}
+	h, _ := New(svc, nil)
+	req := connect.NewRequest(&identityv1.ListUsersRequest{})
+	withSAAuth(req)
+	_, err := h.ListUsers(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+}
+
+// === GetUser ===
+
+func TestGetUser_Happy(t *testing.T) {
+	svc := &mockAuthSvc{
+		authBearerRes: superAdminPrincipal(),
+		getUserRes: &domain.User{
+			ID: "u-x", Username: "x", Role: domain.RoleProjectAdmin,
+			Status: domain.StatusActive, CreatedAt: time.Now(),
+		},
+	}
+	h, _ := New(svc, nil)
+	req := connect.NewRequest(&identityv1.GetUserRequest{Id: "u-x"})
+	withSAAuth(req)
+	res, err := h.GetUser(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, "u-x", res.Msg.GetUser().GetId())
+	assert.Equal(t, "u-x", svc.getUserID)
+}
+
+// === EnableUser / DisableUser ===
+
+func TestEnableUser_Happy(t *testing.T) {
+	svc := &mockAuthSvc{authBearerRes: superAdminPrincipal()}
+	h, _ := New(svc, nil)
+	req := connect.NewRequest(&identityv1.EnableUserRequest{Id: "u-x"})
+	withSAAuth(req)
+	_, err := h.EnableUser(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, "u-x", svc.enableID)
+}
+
+func TestDisableUser_NonSA_Forbidden(t *testing.T) {
+	svc := &mockAuthSvc{authBearerRes: authedPrincipal()}
+	h, _ := New(svc, nil)
+	req := connect.NewRequest(&identityv1.DisableUserRequest{Id: "u-x"})
+	withSAAuth(req)
+	_, err := h.DisableUser(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+}
+
+// === ResetPassword ===
+
+func TestResetPassword_ReturnsTempPlaintext(t *testing.T) {
+	svc := &mockAuthSvc{
+		authBearerRes: superAdminPrincipal(),
+		resetPwdRes:   "ResetTempPwd1!XY",
+	}
+	h, _ := New(svc, nil)
+	req := connect.NewRequest(&identityv1.ResetPasswordRequest{Id: "u-x"})
+	withSAAuth(req)
+	res, err := h.ResetPassword(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, "ResetTempPwd1!XY", res.Msg.GetTemporaryPassword())
+}
+
+// === ForceLogout ===
+
+func TestForceLogout_Happy(t *testing.T) {
+	svc := &mockAuthSvc{authBearerRes: superAdminPrincipal()}
+	h, _ := New(svc, nil)
+	req := connect.NewRequest(&identityv1.ForceLogoutRequest{Id: "u-x"})
+	withSAAuth(req)
+	_, err := h.ForceLogout(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, "u-x", svc.forceLogoutID)
+}
+
+// === RequireRole 单测 ===
+
+func TestRequireRole(t *testing.T) {
+	cases := []struct {
+		name    string
+		p       *auth.UserPrincipal
+		allowed []domain.Role
+		ok      bool
+	}{
+		{"nil principal", nil, nil, false},
+		{"empty allowed → 任何登录通过", &auth.UserPrincipal{Role: domain.RoleProjectAdmin}, nil, true},
+		{"角色匹配", &auth.UserPrincipal{Role: domain.RoleSuperAdmin}, []domain.Role{domain.RoleSuperAdmin}, true},
+		{"角色不匹配", &auth.UserPrincipal{Role: domain.RoleProjectAdmin}, []domain.Role{domain.RoleSuperAdmin}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := RequireRole(tc.p, tc.allowed...)
+			if tc.ok {
+				assert.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
 }

@@ -15,6 +15,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"connectrpc.com/connect"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/identity/v1/identityv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
+	"github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	"github.com/ffff5sec/RedMatrix/internal/identity/policy"
 )
 
@@ -237,6 +239,166 @@ func (h *Handler) RevokeAPIKey(
 		return nil, toConnectError(err)
 	}
 	return connect.NewResponse(&identityv1.RevokeAPIKeyResponse{}), nil
+}
+
+// === User CRUD ===
+
+// adminOnly 列出 SA-only RPC 的允许角色（即只有 SuperAdmin）。
+var adminOnly = []domain.Role{domain.RoleSuperAdmin}
+
+// adminAndAuditor 是 SA + TenantAuditor 可调（只读 / 列表场景）。
+var adminAndAuditor = []domain.Role{domain.RoleSuperAdmin, domain.RoleTenantAuditor}
+
+func (h *Handler) CreateUser(
+	ctx context.Context,
+	req *connect.Request[identityv1.CreateUserRequest],
+) (*connect.Response[identityv1.CreateUserResponse], error) {
+	p, err := RequireAuth(ctx, h.svc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := RequireRole(p, adminOnly...); err != nil {
+		return nil, toConnectError(err)
+	}
+	in := req.Msg
+
+	createReq := auth.CreateUserRequest{
+		Username: in.GetUsername(),
+		Email:    in.GetEmail(),
+		Role:     domain.Role(in.GetRole()),
+		TenantID: in.GetTenantId(),
+	}
+	if v := in.GetInitialPassword(); v != "" {
+		createReq.InitialPassword = v
+	}
+
+	res, err := h.svc.CreateUser(ctx, createReq)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&identityv1.CreateUserResponse{
+		User:              userToProto(res.User),
+		TemporaryPassword: res.TemporaryPassword,
+	}), nil
+}
+
+func (h *Handler) ListUsers(
+	ctx context.Context,
+	req *connect.Request[identityv1.ListUsersRequest],
+) (*connect.Response[identityv1.ListUsersResponse], error) {
+	p, err := RequireAuth(ctx, h.svc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := RequireRole(p, adminAndAuditor...); err != nil {
+		return nil, toConnectError(err)
+	}
+
+	in := req.Msg
+	res, err := h.svc.ListUsers(ctx, auth.ListUsersRequest{
+		Status:   domain.Status(in.GetStatus()),
+		Role:     domain.Role(in.GetRole()),
+		Keyword:  in.GetKeyword(),
+		Page:     int(in.GetPage()),
+		PageSize: int(in.GetPageSize()),
+	})
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+
+	pbUsers := make([]*identityv1.User, 0, len(res.Users))
+	for _, u := range res.Users {
+		pbUsers = append(pbUsers, userToProto(u))
+	}
+	//nolint:gosec // total/page/pagesize 经分页钳制，溢出 int32 不可能
+	return connect.NewResponse(&identityv1.ListUsersResponse{
+		Users:    pbUsers,
+		Total:    int32(res.Total),
+		Page:     int32(res.Page),
+		PageSize: int32(res.PageSize),
+	}), nil
+}
+
+func (h *Handler) GetUser(
+	ctx context.Context,
+	req *connect.Request[identityv1.GetUserRequest],
+) (*connect.Response[identityv1.GetUserResponse], error) {
+	p, err := RequireAuth(ctx, h.svc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := RequireRole(p, adminAndAuditor...); err != nil {
+		return nil, toConnectError(err)
+	}
+	u, err := h.svc.GetUser(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&identityv1.GetUserResponse{User: userToProto(u)}), nil
+}
+
+func (h *Handler) EnableUser(
+	ctx context.Context,
+	req *connect.Request[identityv1.EnableUserRequest],
+) (*connect.Response[identityv1.EnableUserResponse], error) {
+	if err := h.requireSA(ctx, req.Header()); err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.EnableUser(ctx, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&identityv1.EnableUserResponse{}), nil
+}
+
+func (h *Handler) DisableUser(
+	ctx context.Context,
+	req *connect.Request[identityv1.DisableUserRequest],
+) (*connect.Response[identityv1.DisableUserResponse], error) {
+	if err := h.requireSA(ctx, req.Header()); err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.DisableUser(ctx, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&identityv1.DisableUserResponse{}), nil
+}
+
+func (h *Handler) ResetPassword(
+	ctx context.Context,
+	req *connect.Request[identityv1.ResetPasswordRequest],
+) (*connect.Response[identityv1.ResetPasswordResponse], error) {
+	if err := h.requireSA(ctx, req.Header()); err != nil {
+		return nil, toConnectError(err)
+	}
+	plain, err := h.svc.ResetPassword(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&identityv1.ResetPasswordResponse{
+		TemporaryPassword: plain,
+	}), nil
+}
+
+func (h *Handler) ForceLogout(
+	ctx context.Context,
+	req *connect.Request[identityv1.ForceLogoutRequest],
+) (*connect.Response[identityv1.ForceLogoutResponse], error) {
+	if err := h.requireSA(ctx, req.Header()); err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.ForceLogout(ctx, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&identityv1.ForceLogoutResponse{}), nil
+}
+
+// requireSA 是 SA-only RPC 的 auth+authz 简写。
+func (h *Handler) requireSA(ctx context.Context, header http.Header) error {
+	p, err := RequireAuth(ctx, h.svc, header)
+	if err != nil {
+		return err
+	}
+	return RequireRole(p, adminOnly...)
 }
 
 // === error mapping ===

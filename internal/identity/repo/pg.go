@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -198,6 +200,115 @@ func (r *pgRepo) UpdateStatus(ctx context.Context, id string, status domain.Stat
 		return errx.New(errx.ErrUserNotFound, "用户不存在").WithFields("id", id)
 	}
 	return nil
+}
+
+// List 列出 users 行，按 filter + page；返回 (rows, total, err)。
+//
+// total 是匹配 filter 的总数（不受 page/pagesize 影响）；caller 据此渲染分页 UI。
+// 排序：created_at DESC（最新优先）。
+func (r *pgRepo) List(ctx context.Context, filter ListFilter, page Page) ([]*domain.User, int, error) {
+	if r == nil || r.pool == nil {
+		return nil, 0, errx.New(errx.ErrInternal, "identity.repo: nil pool")
+	}
+	if page.Page < 1 {
+		page.Page = 1
+	}
+	if page.PageSize <= 0 {
+		page.PageSize = 20
+	}
+
+	// 动态拼 WHERE：用占位符顺序与 args 对齐
+	conds := []string{"1=1"}
+	args := []any{}
+	if filter.Status != "" {
+		args = append(args, string(filter.Status))
+		conds = append(conds, "status = $"+itoa(len(args)))
+	}
+	if filter.Role != "" {
+		args = append(args, string(filter.Role))
+		conds = append(conds, "role = $"+itoa(len(args)))
+	}
+	if kw := strings.TrimSpace(filter.Keyword); kw != "" {
+		// ILIKE %kw%；保护 %_ 元字符
+		args = append(args, "%"+escapeLike(kw)+"%")
+		i := itoa(len(args))
+		conds = append(conds,
+			"(username ILIKE $"+i+" OR COALESCE(email,'') ILIKE $"+i+")")
+	}
+	where := strings.Join(conds, " AND ")
+
+	// total
+	var total int
+	if err := r.pool.QueryRow(ctx,
+		`SELECT count(*) FROM users WHERE `+where, args...,
+	).Scan(&total); err != nil {
+		return nil, 0, errx.Wrap(errx.ErrDatabase, err, "identity.repo: list users count")
+	}
+
+	// rows
+	args = append(args, page.PageSize, (page.Page-1)*page.PageSize)
+	limitIdx := itoa(len(args) - 1)
+	offsetIdx := itoa(len(args))
+	rows, err := r.pool.Query(ctx,
+		selectUserSQL+` WHERE `+where+
+			` ORDER BY created_at DESC LIMIT $`+limitIdx+` OFFSET $`+offsetIdx,
+		args...)
+	if err != nil {
+		return nil, 0, errx.Wrap(errx.ErrDatabase, err, "identity.repo: list users")
+	}
+	defer rows.Close()
+
+	out := make([]*domain.User, 0, page.PageSize)
+	for rows.Next() {
+		u := &domain.User{}
+		var role, status string
+		var lastLogin *time.Time
+		if err := rows.Scan(
+			&u.ID, &u.TenantID, &u.Username, &u.PasswordHash,
+			&u.Email, &role, &status, &u.TokenVersion, &u.MustChangePassword,
+			&lastLogin, &u.CreatedAt, &u.UpdatedAt,
+		); err != nil {
+			return nil, 0, errx.Wrap(errx.ErrDatabase, err, "identity.repo: scan user list")
+		}
+		u.Role = domain.Role(role)
+		u.Status = domain.Status(status)
+		if lastLogin != nil {
+			u.LastLoginAt = *lastLogin
+		}
+		// PasswordHash 不返给上层（service 层会按需用，否则清掉）
+		out = append(out, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, errx.Wrap(errx.ErrDatabase, err, "identity.repo: list users iter")
+	}
+	return out, total, nil
+}
+
+// UpdateEmail 更新单条 users.email。空字串 = SET NULL；不动 token_version。
+func (r *pgRepo) UpdateEmail(ctx context.Context, id, email string) error {
+	if r == nil || r.pool == nil {
+		return errx.New(errx.ErrInternal, "identity.repo: nil pool")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE users SET email = $2, updated_at = now() WHERE id = $1::uuid
+	`, id, nullableString(email))
+	if err != nil {
+		return errx.Wrap(errx.ErrDatabase, err, "identity.repo: update email").
+			WithFields("id", id)
+	}
+	if tag.RowsAffected() == 0 {
+		return errx.New(errx.ErrUserNotFound, "用户不存在").WithFields("id", id)
+	}
+	return nil
+}
+
+// itoa 简写 strconv.Itoa（List 内多次拼占位符）。
+func itoa(n int) string { return strconv.Itoa(n) }
+
+// escapeLike 转义 LIKE/ILIKE 元字符（% _ \）。
+func escapeLike(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
 }
 
 // CountByRole 数 users 表中指定角色的行数。

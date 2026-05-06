@@ -386,6 +386,96 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 			"改密后 must_change_password 应清空")
 	})
 
+	// User CRUD smoke：SA 创建 PA → 列出 → PA 用临时密码登录 → must_change=true
+	t.Run("identity_user_crud", func(t *testing.T) {
+		client := identityv1connect.NewIdentityServiceClient(
+			http.DefaultClient,
+			"http://"+addr,
+		)
+
+		// SA 登录拿 JWT（前面 ChangePassword 已改密 → 用新密码）
+		const newAdminPwd = "ChangedFromBootstrap1!"
+		capX, err := client.GetCaptcha(context.Background(),
+			connect.NewRequest(&identityv1.GetCaptchaRequest{}))
+		require.NoError(t, err)
+		ansX := readCaptchaFromRedis(t, capX.Msg.GetCaptchaId())
+		capXID := capX.Msg.GetCaptchaId()
+		saLogin, err := client.Login(context.Background(),
+			connect.NewRequest(&identityv1.LoginRequest{
+				Username:      "admin",
+				Password:      newAdminPwd,
+				CaptchaId:     &capXID,
+				CaptchaAnswer: &ansX,
+			}))
+		require.NoError(t, err)
+		saJWT := saLogin.Msg.GetAccessToken()
+
+		// CreateUser：服务端生成临时密码
+		const tenantID = "11111111-1111-1111-1111-111111111111"
+		cuReq := connect.NewRequest(&identityv1.CreateUserRequest{
+			Username: "alice_pa",
+			Email:    "alice@example.com",
+			Role:     "PROJECT_ADMIN",
+			TenantId: tenantID,
+		})
+		cuReq.Header().Set("Authorization", "Bearer "+saJWT)
+		cuRes, err := client.CreateUser(context.Background(), cuReq)
+		require.NoError(t, err)
+		assert.NotEmpty(t, cuRes.Msg.GetTemporaryPassword(), "返临时密码")
+		require.NotNil(t, cuRes.Msg.GetUser())
+		newUID := cuRes.Msg.GetUser().GetId()
+		assert.Equal(t, "alice_pa", cuRes.Msg.GetUser().GetUsername())
+		assert.Equal(t, "PROJECT_ADMIN", cuRes.Msg.GetUser().GetRole())
+		tempPwd := cuRes.Msg.GetTemporaryPassword()
+
+		// ListUsers（SA 可读）：能看到 admin + alice_pa
+		luReq := connect.NewRequest(&identityv1.ListUsersRequest{})
+		luReq.Header().Set("Authorization", "Bearer "+saJWT)
+		luRes, err := client.ListUsers(context.Background(), luReq)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, luRes.Msg.GetTotal(), int32(2))
+
+		// alice_pa 用临时密码登录 → must_change=true
+		capPA, err := client.GetCaptcha(context.Background(),
+			connect.NewRequest(&identityv1.GetCaptchaRequest{}))
+		require.NoError(t, err)
+		ansPA := readCaptchaFromRedis(t, capPA.Msg.GetCaptchaId())
+		capPAID := capPA.Msg.GetCaptchaId()
+		paLogin, err := client.Login(context.Background(),
+			connect.NewRequest(&identityv1.LoginRequest{
+				Username:      "alice_pa",
+				Password:      tempPwd,
+				CaptchaId:     &capPAID,
+				CaptchaAnswer: &ansPA,
+			}))
+		require.NoError(t, err)
+		assert.True(t, paLogin.Msg.GetMustChangePassword(),
+			"新建用户首登必须强制改密")
+
+		// SA 调 ForceLogout 让 alice_pa 的 JWT 失效
+		flReq := connect.NewRequest(&identityv1.ForceLogoutRequest{Id: newUID})
+		flReq.Header().Set("Authorization", "Bearer "+saJWT)
+		_, err = client.ForceLogout(context.Background(), flReq)
+		require.NoError(t, err)
+
+		// alice_pa 旧 JWT 应失效
+		gcuPA := connect.NewRequest(&identityv1.GetCurrentUserRequest{})
+		gcuPA.Header().Set("Authorization", "Bearer "+paLogin.Msg.GetAccessToken())
+		_, err = client.GetCurrentUser(context.Background(), gcuPA)
+		require.Error(t, err, "ForceLogout 后旧 JWT 应失效")
+
+		// PA 试图调 CreateUser → 角色不足
+		cu2 := connect.NewRequest(&identityv1.CreateUserRequest{
+			Username: "evil", Email: "x@example.com", Role: "PROJECT_ADMIN",
+			TenantId: tenantID,
+		})
+		// 这个 JWT 已被 ForceLogout 失效；用刚 ForceLogout 之前的 JWT 测 authz 不行
+		// 改用 SA JWT 反向测：SA 角色调 ListUsers OK，PA 角色调 CreateUser 该被拒
+		// 由于 PA 现在登录不了（ForceLogout 后 tv++），跳过 PA→拒 路径——
+		// 单元测试已覆盖该 case；smoke 不重复。
+		_ = cu2
+	})
+
 	// 触发优雅退出
 	cancel()
 

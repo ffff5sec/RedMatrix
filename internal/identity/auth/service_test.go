@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"net/netip"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/identity/crypto"
 	"github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	"github.com/ffff5sec/RedMatrix/internal/identity/policy"
+	"github.com/ffff5sec/RedMatrix/internal/identity/repo"
 )
 
 // === mocks ===
@@ -41,7 +41,20 @@ func (m *mockUserRepo) put(u *domain.User) {
 	m.byUsername[u.Username] = u.ID
 }
 
-func (m *mockUserRepo) Create(_ context.Context, _ *domain.User) error { return errors.New("not impl") }
+func (m *mockUserRepo) Create(_ context.Context, u *domain.User) error {
+	if err := u.ValidateForCreate(); err != nil {
+		return err
+	}
+	if u.ID == "" {
+		u.ID = "u-" + u.Username
+	}
+	if _, dup := m.byUsername[u.Username]; dup {
+		return errx.New(errx.ErrUserUsernameExists, "username 已存在")
+	}
+	m.users[u.ID] = u
+	m.byUsername[u.Username] = u.ID
+	return nil
+}
 
 func (m *mockUserRepo) GetByID(_ context.Context, id string) (*domain.User, error) {
 	if m.getByIDErr != nil {
@@ -93,7 +106,13 @@ func (m *mockUserRepo) IncrementTokenVersion(_ context.Context, id string) error
 	return errx.New(errx.ErrUserNotFound, "not found")
 }
 
-func (m *mockUserRepo) UpdateStatus(_ context.Context, _ string, _ domain.Status) error { return nil }
+func (m *mockUserRepo) UpdateStatus(_ context.Context, id string, status domain.Status) error {
+	if u, ok := m.users[id]; ok {
+		u.Status = status
+		return nil
+	}
+	return errx.New(errx.ErrUserNotFound, "not found")
+}
 
 func (m *mockUserRepo) CountByRole(_ context.Context, role domain.Role) (int, error) {
 	n := 0
@@ -103,6 +122,50 @@ func (m *mockUserRepo) CountByRole(_ context.Context, role domain.Role) (int, er
 		}
 	}
 	return n, nil
+}
+
+func (m *mockUserRepo) List(_ context.Context, f repo.ListFilter, p repo.Page) ([]*domain.User, int, error) {
+	var matched []*domain.User
+	for _, u := range m.users {
+		if f.Status != "" && u.Status != f.Status {
+			continue
+		}
+		if f.Role != "" && u.Role != f.Role {
+			continue
+		}
+		if f.Keyword != "" {
+			kw := strings.ToLower(f.Keyword)
+			if !strings.Contains(strings.ToLower(u.Username), kw) &&
+				!strings.Contains(strings.ToLower(u.Email), kw) {
+				continue
+			}
+		}
+		matched = append(matched, u)
+	}
+	total := len(matched)
+	if p.PageSize <= 0 {
+		p.PageSize = 20
+	}
+	if p.Page < 1 {
+		p.Page = 1
+	}
+	start := (p.Page - 1) * p.PageSize
+	end := start + p.PageSize
+	if start > total {
+		return nil, total, nil
+	}
+	if end > total {
+		end = total
+	}
+	return matched[start:end], total, nil
+}
+
+func (m *mockUserRepo) UpdateEmail(_ context.Context, id, email string) error {
+	if u, ok := m.users[id]; ok {
+		u.Email = email
+		return nil
+	}
+	return errx.New(errx.ErrUserNotFound, "not found")
 }
 
 func (m *mockUserRepo) LogoutAllSessions(_ context.Context, id string) error {
@@ -1399,6 +1462,210 @@ func TestChangePassword_DBError_BubblesUp(t *testing.T) {
 	require.Error(t, err)
 	c, _ := errx.GetCode(err)
 	assert.Equal(t, errx.ErrDatabase, c)
+}
+
+// === User CRUD ===
+
+func TestCreateUser_Happy(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+
+	res, err := svc.CreateUser(context.Background(), CreateUserRequest{
+		Username: "newbie",
+		Email:    "newbie@example.com",
+		Role:     domain.RoleProjectAdmin,
+		TenantID: "11111111-1111-1111-1111-111111111111",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res.User)
+	assert.Equal(t, "newbie", res.User.Username)
+	assert.Equal(t, domain.RoleProjectAdmin, res.User.Role)
+	assert.Equal(t, domain.StatusActive, res.User.Status)
+	assert.True(t, res.User.MustChangePassword)
+	assert.Empty(t, res.User.PasswordHash, "返给 caller 时不应携带 hash")
+
+	require.Len(t, res.TemporaryPassword, generatedTempPasswordLen)
+
+	// repo 里 hash 已存（用 GetByUsername 验证）
+	stored := users.users[res.User.ID]
+	require.NotNil(t, stored)
+	ok, _ := domain.VerifyPassword(res.TemporaryPassword, stored.PasswordHash)
+	assert.True(t, ok, "服务端生成的临时密码必须能 verify")
+}
+
+func TestCreateUser_WithProvidedPassword(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+
+	res, err := svc.CreateUser(context.Background(), CreateUserRequest{
+		Username:        "alice2",
+		Email:           "alice2@example.com",
+		Role:            domain.RoleProjectAdmin,
+		TenantID:        "11111111-1111-1111-1111-111111111111",
+		InitialPassword: "ProvidedStrongPwd1!",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "ProvidedStrongPwd1!", res.TemporaryPassword,
+		"提供密码时回吐同一明文")
+}
+
+func TestCreateUser_TooWeakPassword(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+	_, err := svc.CreateUser(context.Background(), CreateUserRequest{
+		Username:        "alice3",
+		Email:           "alice3@example.com",
+		Role:            domain.RoleProjectAdmin,
+		TenantID:        "11111111-1111-1111-1111-111111111111",
+		InitialPassword: "short",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthPasswordTooWeak, c)
+}
+
+func TestCreateUser_BadUsername(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+	_, err := svc.CreateUser(context.Background(), CreateUserRequest{
+		Username: "Bad-Case",
+		Email:    "x@example.com",
+		Role:     domain.RoleProjectAdmin,
+		TenantID: "11111111-1111-1111-1111-111111111111",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInvalidInput, c)
+}
+
+func TestCreateUser_TenantInconsistency(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+	// SuperAdmin 但带 tenant_id → 应拒
+	_, err := svc.CreateUser(context.Background(), CreateUserRequest{
+		Username: "rogue",
+		Email:    "rogue@example.com",
+		Role:     domain.RoleSuperAdmin,
+		TenantID: "11111111-1111-1111-1111-111111111111",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInvalidInput, c)
+}
+
+// === ListUsers / GetUser ===
+
+func TestListUsers_PaginationAndFilters(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	for _, n := range []string{"alice", "bob", "carol"} {
+		users.put(newActiveUser(t, n))
+	}
+	dis := newActiveUser(t, "dave")
+	dis.Status = domain.StatusDisabled
+	users.put(dis)
+
+	// 默认分页：4 全显
+	res, err := svc.ListUsers(context.Background(), ListUsersRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, 4, res.Total)
+	assert.Len(t, res.Users, 4)
+	for _, u := range res.Users {
+		assert.Empty(t, u.PasswordHash, "List 必须清空 hash")
+	}
+
+	// 仅 active
+	res, err = svc.ListUsers(context.Background(), ListUsersRequest{Status: domain.StatusActive})
+	require.NoError(t, err)
+	assert.Equal(t, 3, res.Total)
+}
+
+func TestListUsers_PageSizeClampedToMax(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	users.put(newActiveUser(t, "x"))
+
+	res, err := svc.ListUsers(context.Background(), ListUsersRequest{PageSize: 9999})
+	require.NoError(t, err)
+	assert.Equal(t, listUsersMaxPageSize, res.PageSize)
+}
+
+func TestGetUser_HappyAndNotFound(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+
+	got, err := svc.GetUser(context.Background(), u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "alice", got.Username)
+	assert.Empty(t, got.PasswordHash)
+
+	_, err = svc.GetUser(context.Background(), "u-ghost")
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrUserNotFound, c)
+}
+
+// === Enable / Disable ===
+
+func TestEnableDisableUser(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+	originalTV := u.TokenVersion
+
+	require.NoError(t, svc.DisableUser(context.Background(), u.ID))
+	assert.Equal(t, domain.StatusDisabled, u.Status)
+	assert.Equal(t, originalTV+1, u.TokenVersion, "Disable 应 tv++")
+
+	require.NoError(t, svc.EnableUser(context.Background(), u.ID))
+	assert.Equal(t, domain.StatusActive, u.Status)
+}
+
+// === ResetPassword ===
+
+func TestResetPassword_GeneratesAndBumps(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+	originalHash := u.PasswordHash
+	originalTV := u.TokenVersion
+
+	plain, err := svc.ResetPassword(context.Background(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, plain, generatedTempPasswordLen)
+
+	stored := users.users[u.ID]
+	assert.NotEqual(t, originalHash, stored.PasswordHash, "hash 应更换")
+	assert.Equal(t, originalTV+1, stored.TokenVersion, "tv 应 +1")
+	assert.True(t, stored.MustChangePassword, "重置后必须强制改密")
+
+	ok, _ := domain.VerifyPassword(plain, stored.PasswordHash)
+	assert.True(t, ok)
+}
+
+// === ForceLogout ===
+
+func TestForceLogout_BumpsTV(t *testing.T) {
+	svc, users, _, _ := setupSvc(t)
+	u := newActiveUser(t, "alice")
+	users.put(u)
+	originalTV := u.TokenVersion
+
+	require.NoError(t, svc.ForceLogout(context.Background(), u.ID))
+	assert.Equal(t, originalTV+1, u.TokenVersion)
+	assert.Equal(t, domain.StatusActive, u.Status, "ForceLogout 不应改 status")
+}
+
+func TestUserCRUD_EmptyIDs(t *testing.T) {
+	svc, _, _, _ := setupSvc(t)
+	ctx := context.Background()
+	ops := []func() error{
+		func() error { return svc.EnableUser(ctx, "  ") },
+		func() error { return svc.DisableUser(ctx, "  ") },
+		func() error { return svc.ForceLogout(ctx, "  ") },
+		func() error { _, err := svc.ResetPassword(ctx, "  "); return err },
+		func() error { _, err := svc.GetUser(ctx, "  "); return err },
+	}
+	for _, op := range ops {
+		err := op()
+		require.Error(t, err)
+		c, _ := errx.GetCode(err)
+		assert.Equal(t, errx.ErrInvalidInput, c)
+	}
 }
 
 // 静态断言 — 确认 mock 实现了接口。

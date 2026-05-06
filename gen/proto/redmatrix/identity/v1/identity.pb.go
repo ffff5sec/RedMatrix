@@ -1091,6 +1091,704 @@ func (*RevokeAPIKeyResponse) Descriptor() ([]byte, []int) {
 	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{19}
 }
 
+type CreateUserRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Username string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Email    string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	// role 必须是合法值：SUPER_ADMIN / PROJECT_ADMIN / TENANT_AUDITOR /
+	// PLATFORM_AUDITOR。
+	Role string `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
+	// tenant_id 非跨租户角色（PROJECT_ADMIN / TENANT_AUDITOR）必填；
+	// 跨租户角色（SUPER_ADMIN / PLATFORM_AUDITOR）必空。
+	TenantId string `protobuf:"bytes,4,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	// initial_password 留空 → 服务端生成 16 字符强随机；非空必须 ≥ 12 字符。
+	InitialPassword *string `protobuf:"bytes,5,opt,name=initial_password,json=initialPassword,proto3,oneof" json:"initial_password,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CreateUserRequest) Reset() {
+	*x = CreateUserRequest{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateUserRequest) ProtoMessage() {}
+
+func (x *CreateUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateUserRequest.ProtoReflect.Descriptor instead.
+func (*CreateUserRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *CreateUserRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *CreateUserRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *CreateUserRequest) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *CreateUserRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *CreateUserRequest) GetInitialPassword() string {
+	if x != nil && x.InitialPassword != nil {
+		return *x.InitialPassword
+	}
+	return ""
+}
+
+type CreateUserResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	User  *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	// temporary_password 始终非空：服务端生成时是新明文，client 提供时回吐同一明文。
+	// **仅一次性返回**；丢失需 ResetPassword 重置。
+	TemporaryPassword string `protobuf:"bytes,2,opt,name=temporary_password,json=temporaryPassword,proto3" json:"temporary_password,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *CreateUserResponse) Reset() {
+	*x = CreateUserResponse{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateUserResponse) ProtoMessage() {}
+
+func (x *CreateUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateUserResponse.ProtoReflect.Descriptor instead.
+func (*CreateUserResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *CreateUserResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *CreateUserResponse) GetTemporaryPassword() string {
+	if x != nil {
+		return x.TemporaryPassword
+	}
+	return ""
+}
+
+type ListUsersRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 过滤；空 = 不过滤
+	Status  *string `protobuf:"bytes,1,opt,name=status,proto3,oneof" json:"status,omitempty"`
+	Role    *string `protobuf:"bytes,2,opt,name=role,proto3,oneof" json:"role,omitempty"`
+	Keyword *string `protobuf:"bytes,3,opt,name=keyword,proto3,oneof" json:"keyword,omitempty"`
+	// 分页：page 1-based 默认 1；page_size 默认 20，上限 200
+	Page          int32 `protobuf:"varint,4,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32 `protobuf:"varint,5,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUsersRequest) Reset() {
+	*x = ListUsersRequest{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUsersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUsersRequest) ProtoMessage() {}
+
+func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUsersRequest.ProtoReflect.Descriptor instead.
+func (*ListUsersRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ListUsersRequest) GetStatus() string {
+	if x != nil && x.Status != nil {
+		return *x.Status
+	}
+	return ""
+}
+
+func (x *ListUsersRequest) GetRole() string {
+	if x != nil && x.Role != nil {
+		return *x.Role
+	}
+	return ""
+}
+
+func (x *ListUsersRequest) GetKeyword() string {
+	if x != nil && x.Keyword != nil {
+		return *x.Keyword
+	}
+	return ""
+}
+
+func (x *ListUsersRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListUsersRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListUsersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUsersResponse) Reset() {
+	*x = ListUsersResponse{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUsersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUsersResponse) ProtoMessage() {}
+
+func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUsersResponse.ProtoReflect.Descriptor instead.
+func (*ListUsersResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ListUsersResponse) GetUsers() []*User {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+func (x *ListUsersResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListUsersResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListUsersResponse) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type GetUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserRequest) Reset() {
+	*x = GetUserRequest{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserRequest) ProtoMessage() {}
+
+func (x *GetUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserRequest.ProtoReflect.Descriptor instead.
+func (*GetUserRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *GetUserRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserResponse) Reset() {
+	*x = GetUserResponse{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserResponse) ProtoMessage() {}
+
+func (x *GetUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserResponse.ProtoReflect.Descriptor instead.
+func (*GetUserResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GetUserResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+type EnableUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnableUserRequest) Reset() {
+	*x = EnableUserRequest{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnableUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnableUserRequest) ProtoMessage() {}
+
+func (x *EnableUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnableUserRequest.ProtoReflect.Descriptor instead.
+func (*EnableUserRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *EnableUserRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type EnableUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnableUserResponse) Reset() {
+	*x = EnableUserResponse{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnableUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnableUserResponse) ProtoMessage() {}
+
+func (x *EnableUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnableUserResponse.ProtoReflect.Descriptor instead.
+func (*EnableUserResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{27}
+}
+
+type DisableUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisableUserRequest) Reset() {
+	*x = DisableUserRequest{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisableUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisableUserRequest) ProtoMessage() {}
+
+func (x *DisableUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisableUserRequest.ProtoReflect.Descriptor instead.
+func (*DisableUserRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *DisableUserRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type DisableUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisableUserResponse) Reset() {
+	*x = DisableUserResponse{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisableUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisableUserResponse) ProtoMessage() {}
+
+func (x *DisableUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisableUserResponse.ProtoReflect.Descriptor instead.
+func (*DisableUserResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{29}
+}
+
+type ResetPasswordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetPasswordRequest) Reset() {
+	*x = ResetPasswordRequest{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetPasswordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetPasswordRequest) ProtoMessage() {}
+
+func (x *ResetPasswordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetPasswordRequest.ProtoReflect.Descriptor instead.
+func (*ResetPasswordRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ResetPasswordRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type ResetPasswordResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 一次性明文临时密码（rmk_ 前缀仅 API Key 用；普通密码无前缀）。
+	TemporaryPassword string `protobuf:"bytes,1,opt,name=temporary_password,json=temporaryPassword,proto3" json:"temporary_password,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ResetPasswordResponse) Reset() {
+	*x = ResetPasswordResponse{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetPasswordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetPasswordResponse) ProtoMessage() {}
+
+func (x *ResetPasswordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetPasswordResponse.ProtoReflect.Descriptor instead.
+func (*ResetPasswordResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *ResetPasswordResponse) GetTemporaryPassword() string {
+	if x != nil {
+		return x.TemporaryPassword
+	}
+	return ""
+}
+
+type ForceLogoutRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ForceLogoutRequest) Reset() {
+	*x = ForceLogoutRequest{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ForceLogoutRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ForceLogoutRequest) ProtoMessage() {}
+
+func (x *ForceLogoutRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ForceLogoutRequest.ProtoReflect.Descriptor instead.
+func (*ForceLogoutRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *ForceLogoutRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type ForceLogoutResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ForceLogoutResponse) Reset() {
+	*x = ForceLogoutResponse{}
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ForceLogoutResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ForceLogoutResponse) ProtoMessage() {}
+
+func (x *ForceLogoutResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_identity_v1_identity_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ForceLogoutResponse.ProtoReflect.Descriptor instead.
+func (*ForceLogoutResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_identity_v1_identity_proto_rawDescGZIP(), []int{33}
+}
+
 var File_redmatrix_identity_v1_identity_proto protoreflect.FileDescriptor
 
 const file_redmatrix_identity_v1_identity_proto_rawDesc = "" +
@@ -1175,7 +1873,49 @@ const file_redmatrix_identity_v1_identity_proto_rawDesc = "" +
 	"\x06secret\x18\x02 \x01(\tR\x06secret\"%\n" +
 	"\x13RevokeAPIKeyRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x16\n" +
-	"\x14RevokeAPIKeyResponse2\xad\a\n" +
+	"\x14RevokeAPIKeyResponse\"\xbb\x01\n" +
+	"\x11CreateUserRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12\x12\n" +
+	"\x04role\x18\x03 \x01(\tR\x04role\x12\x1b\n" +
+	"\ttenant_id\x18\x04 \x01(\tR\btenantId\x12.\n" +
+	"\x10initial_password\x18\x05 \x01(\tH\x00R\x0finitialPassword\x88\x01\x01B\x13\n" +
+	"\x11_initial_password\"t\n" +
+	"\x12CreateUserResponse\x12/\n" +
+	"\x04user\x18\x01 \x01(\v2\x1b.redmatrix.identity.v1.UserR\x04user\x12-\n" +
+	"\x12temporary_password\x18\x02 \x01(\tR\x11temporaryPassword\"\xb8\x01\n" +
+	"\x10ListUsersRequest\x12\x1b\n" +
+	"\x06status\x18\x01 \x01(\tH\x00R\x06status\x88\x01\x01\x12\x17\n" +
+	"\x04role\x18\x02 \x01(\tH\x01R\x04role\x88\x01\x01\x12\x1d\n" +
+	"\akeyword\x18\x03 \x01(\tH\x02R\akeyword\x88\x01\x01\x12\x12\n" +
+	"\x04page\x18\x04 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x05 \x01(\x05R\bpageSizeB\t\n" +
+	"\a_statusB\a\n" +
+	"\x05_roleB\n" +
+	"\n" +
+	"\b_keyword\"\x8d\x01\n" +
+	"\x11ListUsersResponse\x121\n" +
+	"\x05users\x18\x01 \x03(\v2\x1b.redmatrix.identity.v1.UserR\x05users\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\" \n" +
+	"\x0eGetUserRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"B\n" +
+	"\x0fGetUserResponse\x12/\n" +
+	"\x04user\x18\x01 \x01(\v2\x1b.redmatrix.identity.v1.UserR\x04user\"#\n" +
+	"\x11EnableUserRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x14\n" +
+	"\x12EnableUserResponse\"$\n" +
+	"\x12DisableUserRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x15\n" +
+	"\x13DisableUserResponse\"&\n" +
+	"\x14ResetPasswordRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"F\n" +
+	"\x15ResetPasswordResponse\x12-\n" +
+	"\x12temporary_password\x18\x01 \x01(\tR\x11temporaryPassword\"$\n" +
+	"\x12ForceLogoutRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x15\n" +
+	"\x13ForceLogoutResponse2\xe5\f\n" +
 	"\x0fIdentityService\x12a\n" +
 	"\n" +
 	"GetCaptcha\x12(.redmatrix.identity.v1.GetCaptchaRequest\x1a).redmatrix.identity.v1.GetCaptchaResponse\x12R\n" +
@@ -1186,7 +1926,16 @@ const file_redmatrix_identity_v1_identity_proto_rawDesc = "" +
 	"\x11LogoutAllSessions\x12/.redmatrix.identity.v1.LogoutAllSessionsRequest\x1a0.redmatrix.identity.v1.LogoutAllSessionsResponse\x12d\n" +
 	"\vListAPIKeys\x12).redmatrix.identity.v1.ListAPIKeysRequest\x1a*.redmatrix.identity.v1.ListAPIKeysResponse\x12g\n" +
 	"\fCreateAPIKey\x12*.redmatrix.identity.v1.CreateAPIKeyRequest\x1a+.redmatrix.identity.v1.CreateAPIKeyResponse\x12g\n" +
-	"\fRevokeAPIKey\x12*.redmatrix.identity.v1.RevokeAPIKeyRequest\x1a+.redmatrix.identity.v1.RevokeAPIKeyResponseB\xea\x01\n" +
+	"\fRevokeAPIKey\x12*.redmatrix.identity.v1.RevokeAPIKeyRequest\x1a+.redmatrix.identity.v1.RevokeAPIKeyResponse\x12a\n" +
+	"\n" +
+	"CreateUser\x12(.redmatrix.identity.v1.CreateUserRequest\x1a).redmatrix.identity.v1.CreateUserResponse\x12^\n" +
+	"\tListUsers\x12'.redmatrix.identity.v1.ListUsersRequest\x1a(.redmatrix.identity.v1.ListUsersResponse\x12X\n" +
+	"\aGetUser\x12%.redmatrix.identity.v1.GetUserRequest\x1a&.redmatrix.identity.v1.GetUserResponse\x12a\n" +
+	"\n" +
+	"EnableUser\x12(.redmatrix.identity.v1.EnableUserRequest\x1a).redmatrix.identity.v1.EnableUserResponse\x12d\n" +
+	"\vDisableUser\x12).redmatrix.identity.v1.DisableUserRequest\x1a*.redmatrix.identity.v1.DisableUserResponse\x12j\n" +
+	"\rResetPassword\x12+.redmatrix.identity.v1.ResetPasswordRequest\x1a,.redmatrix.identity.v1.ResetPasswordResponse\x12d\n" +
+	"\vForceLogout\x12).redmatrix.identity.v1.ForceLogoutRequest\x1a*.redmatrix.identity.v1.ForceLogoutResponseB\xea\x01\n" +
 	"\x19com.redmatrix.identity.v1B\rIdentityProtoP\x01ZHgithub.com/ffff5sec/RedMatrix/gen/proto/redmatrix/identity/v1;identityv1\xa2\x02\x03RIX\xaa\x02\x15Redmatrix.Identity.V1\xca\x02\x15Redmatrix\\Identity\\V1\xe2\x02!Redmatrix\\Identity\\V1\\GPBMetadata\xea\x02\x17Redmatrix::Identity::V1b\x06proto3"
 
 var (
@@ -1201,7 +1950,7 @@ func file_redmatrix_identity_v1_identity_proto_rawDescGZIP() []byte {
 	return file_redmatrix_identity_v1_identity_proto_rawDescData
 }
 
-var file_redmatrix_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_redmatrix_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_redmatrix_identity_v1_identity_proto_goTypes = []any{
 	(*GetCaptchaRequest)(nil),         // 0: redmatrix.identity.v1.GetCaptchaRequest
 	(*GetCaptchaResponse)(nil),        // 1: redmatrix.identity.v1.GetCaptchaResponse
@@ -1223,44 +1972,75 @@ var file_redmatrix_identity_v1_identity_proto_goTypes = []any{
 	(*CreateAPIKeyResponse)(nil),      // 17: redmatrix.identity.v1.CreateAPIKeyResponse
 	(*RevokeAPIKeyRequest)(nil),       // 18: redmatrix.identity.v1.RevokeAPIKeyRequest
 	(*RevokeAPIKeyResponse)(nil),      // 19: redmatrix.identity.v1.RevokeAPIKeyResponse
-	(*timestamppb.Timestamp)(nil),     // 20: google.protobuf.Timestamp
+	(*CreateUserRequest)(nil),         // 20: redmatrix.identity.v1.CreateUserRequest
+	(*CreateUserResponse)(nil),        // 21: redmatrix.identity.v1.CreateUserResponse
+	(*ListUsersRequest)(nil),          // 22: redmatrix.identity.v1.ListUsersRequest
+	(*ListUsersResponse)(nil),         // 23: redmatrix.identity.v1.ListUsersResponse
+	(*GetUserRequest)(nil),            // 24: redmatrix.identity.v1.GetUserRequest
+	(*GetUserResponse)(nil),           // 25: redmatrix.identity.v1.GetUserResponse
+	(*EnableUserRequest)(nil),         // 26: redmatrix.identity.v1.EnableUserRequest
+	(*EnableUserResponse)(nil),        // 27: redmatrix.identity.v1.EnableUserResponse
+	(*DisableUserRequest)(nil),        // 28: redmatrix.identity.v1.DisableUserRequest
+	(*DisableUserResponse)(nil),       // 29: redmatrix.identity.v1.DisableUserResponse
+	(*ResetPasswordRequest)(nil),      // 30: redmatrix.identity.v1.ResetPasswordRequest
+	(*ResetPasswordResponse)(nil),     // 31: redmatrix.identity.v1.ResetPasswordResponse
+	(*ForceLogoutRequest)(nil),        // 32: redmatrix.identity.v1.ForceLogoutRequest
+	(*ForceLogoutResponse)(nil),       // 33: redmatrix.identity.v1.ForceLogoutResponse
+	(*timestamppb.Timestamp)(nil),     // 34: google.protobuf.Timestamp
 }
 var file_redmatrix_identity_v1_identity_proto_depIdxs = []int32{
-	20, // 0: redmatrix.identity.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	34, // 0: redmatrix.identity.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
 	4,  // 1: redmatrix.identity.v1.LoginResponse.user:type_name -> redmatrix.identity.v1.User
-	20, // 2: redmatrix.identity.v1.User.created_at:type_name -> google.protobuf.Timestamp
-	20, // 3: redmatrix.identity.v1.User.last_login_at:type_name -> google.protobuf.Timestamp
+	34, // 2: redmatrix.identity.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	34, // 3: redmatrix.identity.v1.User.last_login_at:type_name -> google.protobuf.Timestamp
 	4,  // 4: redmatrix.identity.v1.GetCurrentUserResponse.user:type_name -> redmatrix.identity.v1.User
-	20, // 5: redmatrix.identity.v1.APIKey.expires_at:type_name -> google.protobuf.Timestamp
-	20, // 6: redmatrix.identity.v1.APIKey.last_used_at:type_name -> google.protobuf.Timestamp
-	20, // 7: redmatrix.identity.v1.APIKey.revoked_at:type_name -> google.protobuf.Timestamp
-	20, // 8: redmatrix.identity.v1.APIKey.created_at:type_name -> google.protobuf.Timestamp
+	34, // 5: redmatrix.identity.v1.APIKey.expires_at:type_name -> google.protobuf.Timestamp
+	34, // 6: redmatrix.identity.v1.APIKey.last_used_at:type_name -> google.protobuf.Timestamp
+	34, // 7: redmatrix.identity.v1.APIKey.revoked_at:type_name -> google.protobuf.Timestamp
+	34, // 8: redmatrix.identity.v1.APIKey.created_at:type_name -> google.protobuf.Timestamp
 	13, // 9: redmatrix.identity.v1.ListAPIKeysResponse.keys:type_name -> redmatrix.identity.v1.APIKey
-	20, // 10: redmatrix.identity.v1.CreateAPIKeyRequest.expires_at:type_name -> google.protobuf.Timestamp
+	34, // 10: redmatrix.identity.v1.CreateAPIKeyRequest.expires_at:type_name -> google.protobuf.Timestamp
 	13, // 11: redmatrix.identity.v1.CreateAPIKeyResponse.key:type_name -> redmatrix.identity.v1.APIKey
-	0,  // 12: redmatrix.identity.v1.IdentityService.GetCaptcha:input_type -> redmatrix.identity.v1.GetCaptchaRequest
-	2,  // 13: redmatrix.identity.v1.IdentityService.Login:input_type -> redmatrix.identity.v1.LoginRequest
-	5,  // 14: redmatrix.identity.v1.IdentityService.GetCurrentUser:input_type -> redmatrix.identity.v1.GetCurrentUserRequest
-	7,  // 15: redmatrix.identity.v1.IdentityService.ChangePassword:input_type -> redmatrix.identity.v1.ChangePasswordRequest
-	9,  // 16: redmatrix.identity.v1.IdentityService.Logout:input_type -> redmatrix.identity.v1.LogoutRequest
-	11, // 17: redmatrix.identity.v1.IdentityService.LogoutAllSessions:input_type -> redmatrix.identity.v1.LogoutAllSessionsRequest
-	14, // 18: redmatrix.identity.v1.IdentityService.ListAPIKeys:input_type -> redmatrix.identity.v1.ListAPIKeysRequest
-	16, // 19: redmatrix.identity.v1.IdentityService.CreateAPIKey:input_type -> redmatrix.identity.v1.CreateAPIKeyRequest
-	18, // 20: redmatrix.identity.v1.IdentityService.RevokeAPIKey:input_type -> redmatrix.identity.v1.RevokeAPIKeyRequest
-	1,  // 21: redmatrix.identity.v1.IdentityService.GetCaptcha:output_type -> redmatrix.identity.v1.GetCaptchaResponse
-	3,  // 22: redmatrix.identity.v1.IdentityService.Login:output_type -> redmatrix.identity.v1.LoginResponse
-	6,  // 23: redmatrix.identity.v1.IdentityService.GetCurrentUser:output_type -> redmatrix.identity.v1.GetCurrentUserResponse
-	8,  // 24: redmatrix.identity.v1.IdentityService.ChangePassword:output_type -> redmatrix.identity.v1.ChangePasswordResponse
-	10, // 25: redmatrix.identity.v1.IdentityService.Logout:output_type -> redmatrix.identity.v1.LogoutResponse
-	12, // 26: redmatrix.identity.v1.IdentityService.LogoutAllSessions:output_type -> redmatrix.identity.v1.LogoutAllSessionsResponse
-	15, // 27: redmatrix.identity.v1.IdentityService.ListAPIKeys:output_type -> redmatrix.identity.v1.ListAPIKeysResponse
-	17, // 28: redmatrix.identity.v1.IdentityService.CreateAPIKey:output_type -> redmatrix.identity.v1.CreateAPIKeyResponse
-	19, // 29: redmatrix.identity.v1.IdentityService.RevokeAPIKey:output_type -> redmatrix.identity.v1.RevokeAPIKeyResponse
-	21, // [21:30] is the sub-list for method output_type
-	12, // [12:21] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	4,  // 12: redmatrix.identity.v1.CreateUserResponse.user:type_name -> redmatrix.identity.v1.User
+	4,  // 13: redmatrix.identity.v1.ListUsersResponse.users:type_name -> redmatrix.identity.v1.User
+	4,  // 14: redmatrix.identity.v1.GetUserResponse.user:type_name -> redmatrix.identity.v1.User
+	0,  // 15: redmatrix.identity.v1.IdentityService.GetCaptcha:input_type -> redmatrix.identity.v1.GetCaptchaRequest
+	2,  // 16: redmatrix.identity.v1.IdentityService.Login:input_type -> redmatrix.identity.v1.LoginRequest
+	5,  // 17: redmatrix.identity.v1.IdentityService.GetCurrentUser:input_type -> redmatrix.identity.v1.GetCurrentUserRequest
+	7,  // 18: redmatrix.identity.v1.IdentityService.ChangePassword:input_type -> redmatrix.identity.v1.ChangePasswordRequest
+	9,  // 19: redmatrix.identity.v1.IdentityService.Logout:input_type -> redmatrix.identity.v1.LogoutRequest
+	11, // 20: redmatrix.identity.v1.IdentityService.LogoutAllSessions:input_type -> redmatrix.identity.v1.LogoutAllSessionsRequest
+	14, // 21: redmatrix.identity.v1.IdentityService.ListAPIKeys:input_type -> redmatrix.identity.v1.ListAPIKeysRequest
+	16, // 22: redmatrix.identity.v1.IdentityService.CreateAPIKey:input_type -> redmatrix.identity.v1.CreateAPIKeyRequest
+	18, // 23: redmatrix.identity.v1.IdentityService.RevokeAPIKey:input_type -> redmatrix.identity.v1.RevokeAPIKeyRequest
+	20, // 24: redmatrix.identity.v1.IdentityService.CreateUser:input_type -> redmatrix.identity.v1.CreateUserRequest
+	22, // 25: redmatrix.identity.v1.IdentityService.ListUsers:input_type -> redmatrix.identity.v1.ListUsersRequest
+	24, // 26: redmatrix.identity.v1.IdentityService.GetUser:input_type -> redmatrix.identity.v1.GetUserRequest
+	26, // 27: redmatrix.identity.v1.IdentityService.EnableUser:input_type -> redmatrix.identity.v1.EnableUserRequest
+	28, // 28: redmatrix.identity.v1.IdentityService.DisableUser:input_type -> redmatrix.identity.v1.DisableUserRequest
+	30, // 29: redmatrix.identity.v1.IdentityService.ResetPassword:input_type -> redmatrix.identity.v1.ResetPasswordRequest
+	32, // 30: redmatrix.identity.v1.IdentityService.ForceLogout:input_type -> redmatrix.identity.v1.ForceLogoutRequest
+	1,  // 31: redmatrix.identity.v1.IdentityService.GetCaptcha:output_type -> redmatrix.identity.v1.GetCaptchaResponse
+	3,  // 32: redmatrix.identity.v1.IdentityService.Login:output_type -> redmatrix.identity.v1.LoginResponse
+	6,  // 33: redmatrix.identity.v1.IdentityService.GetCurrentUser:output_type -> redmatrix.identity.v1.GetCurrentUserResponse
+	8,  // 34: redmatrix.identity.v1.IdentityService.ChangePassword:output_type -> redmatrix.identity.v1.ChangePasswordResponse
+	10, // 35: redmatrix.identity.v1.IdentityService.Logout:output_type -> redmatrix.identity.v1.LogoutResponse
+	12, // 36: redmatrix.identity.v1.IdentityService.LogoutAllSessions:output_type -> redmatrix.identity.v1.LogoutAllSessionsResponse
+	15, // 37: redmatrix.identity.v1.IdentityService.ListAPIKeys:output_type -> redmatrix.identity.v1.ListAPIKeysResponse
+	17, // 38: redmatrix.identity.v1.IdentityService.CreateAPIKey:output_type -> redmatrix.identity.v1.CreateAPIKeyResponse
+	19, // 39: redmatrix.identity.v1.IdentityService.RevokeAPIKey:output_type -> redmatrix.identity.v1.RevokeAPIKeyResponse
+	21, // 40: redmatrix.identity.v1.IdentityService.CreateUser:output_type -> redmatrix.identity.v1.CreateUserResponse
+	23, // 41: redmatrix.identity.v1.IdentityService.ListUsers:output_type -> redmatrix.identity.v1.ListUsersResponse
+	25, // 42: redmatrix.identity.v1.IdentityService.GetUser:output_type -> redmatrix.identity.v1.GetUserResponse
+	27, // 43: redmatrix.identity.v1.IdentityService.EnableUser:output_type -> redmatrix.identity.v1.EnableUserResponse
+	29, // 44: redmatrix.identity.v1.IdentityService.DisableUser:output_type -> redmatrix.identity.v1.DisableUserResponse
+	31, // 45: redmatrix.identity.v1.IdentityService.ResetPassword:output_type -> redmatrix.identity.v1.ResetPasswordResponse
+	33, // 46: redmatrix.identity.v1.IdentityService.ForceLogout:output_type -> redmatrix.identity.v1.ForceLogoutResponse
+	31, // [31:47] is the sub-list for method output_type
+	15, // [15:31] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_redmatrix_identity_v1_identity_proto_init() }
@@ -1272,13 +2052,15 @@ func file_redmatrix_identity_v1_identity_proto_init() {
 	file_redmatrix_identity_v1_identity_proto_msgTypes[4].OneofWrappers = []any{}
 	file_redmatrix_identity_v1_identity_proto_msgTypes[13].OneofWrappers = []any{}
 	file_redmatrix_identity_v1_identity_proto_msgTypes[16].OneofWrappers = []any{}
+	file_redmatrix_identity_v1_identity_proto_msgTypes[20].OneofWrappers = []any{}
+	file_redmatrix_identity_v1_identity_proto_msgTypes[22].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redmatrix_identity_v1_identity_proto_rawDesc), len(file_redmatrix_identity_v1_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

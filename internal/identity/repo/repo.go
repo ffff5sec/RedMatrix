@@ -48,4 +48,24 @@ type Repository interface {
 	// CountByRole 数指定角色的用户数（不计 deleted_at 非空的，PR1 schema 暂未启 deleted_at；
 	// 与 schema 演进同步即可）。Bootstrap 判幂等用：SuperAdmin > 0 → skip。
 	CountByRole(ctx context.Context, role domain.Role) (int, error)
+
+	// List 列出符合 filter 的用户，含分页 + total。
+	// Status/Role/Keyword 任一可选；空 = 不过滤。
+	List(ctx context.Context, filter ListFilter, page Page) ([]*domain.User, int, error)
+
+	// UpdateEmail 更新指定用户邮箱（不动 token_version）。
+	UpdateEmail(ctx context.Context, id, email string) error
+}
+
+// ListFilter 是 List 查询的可选过滤条件。
+type ListFilter struct {
+	Status  domain.Status // 空 = 不过滤
+	Role    domain.Role   // 空 = 不过滤
+	Keyword string        // 空 = 不过滤；username/email ILIKE 子串
+}
+
+// Page 是 List 的分页参数。Page 1-based；PageSize 上限由 caller 负责钳。
+type Page struct {
+	Page     int
+	PageSize int
 }

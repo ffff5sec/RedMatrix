@@ -10,6 +10,7 @@ import (
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/domain"
+	"github.com/ffff5sec/RedMatrix/internal/identity/repo"
 )
 
 // === mock repo ===
@@ -63,6 +64,12 @@ func (m *mockUserRepo) CountByRole(_ context.Context, r domain.Role) (int, error
 		return 0, m.countErr
 	}
 	return m.countByRole[r], nil
+}
+func (m *mockUserRepo) List(context.Context, repo.ListFilter, repo.Page) ([]*domain.User, int, error) {
+	return nil, 0, errors.New("not impl")
+}
+func (m *mockUserRepo) UpdateEmail(context.Context, string, string) error {
+	return errors.New("not impl")
 }
 
 // === fixtures ===

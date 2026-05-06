@@ -63,6 +63,32 @@ service IdentityService {
   // RevokeAPIKey 撤销自己的 API Key（owner 校验：不属于本人时返 NOT_FOUND
   // 防 ID 枚举）。已撤销的再调一遍仍返成功（幂等）。
   rpc RevokeAPIKey(RevokeAPIKeyRequest) returns (RevokeAPIKeyResponse);
+
+  // ===== 用户 CRUD（SuperAdmin only，ListUsers / GetUser 开放给 TenantAuditor）=====
+
+  // CreateUser 创建新用户。InitialPassword 留空 → 服务端生成 16 字符强随机临时密码
+  // （仅一次性返回）。新用户 must_change_password=true 强制首登改密。
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+
+  // ListUsers 列用户（分页 + status/role/keyword 过滤）。SA + TA 可读。
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+
+  // GetUser 取单个用户详情。SA + TA 可读。
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+
+  // EnableUser 状态置 active（幂等）。
+  rpc EnableUser(EnableUserRequest) returns (EnableUserResponse);
+
+  // DisableUser 状态置 disabled + tv++（让所有现存 JWT 立即失效）。
+  rpc DisableUser(DisableUserRequest) returns (DisableUserResponse);
+
+  // ResetPassword 服务端生成临时密码并返一次性明文 + tv++ + must_change=true。
+  // 该用户所有现存 JWT 立即失效；首次用临时密码登录后必须改密。
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
+
+  // ForceLogout tv++（不改 status）。让该用户所有现存 JWT 立即失效，
+  // 但用户下次仍可正常登录。
+  rpc ForceLogout(ForceLogoutRequest) returns (ForceLogoutResponse);
 }
 
 // ===== Captcha =====
@@ -180,3 +206,72 @@ message RevokeAPIKeyRequest {
 }
 
 message RevokeAPIKeyResponse {}
+
+// ===== User CRUD =====
+
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  // role 必须是合法值：SUPER_ADMIN / PROJECT_ADMIN / TENANT_AUDITOR /
+  // PLATFORM_AUDITOR。
+  string role = 3;
+  // tenant_id 非跨租户角色（PROJECT_ADMIN / TENANT_AUDITOR）必填；
+  // 跨租户角色（SUPER_ADMIN / PLATFORM_AUDITOR）必空。
+  string tenant_id = 4;
+  // initial_password 留空 → 服务端生成 16 字符强随机；非空必须 ≥ 12 字符。
+  optional string initial_password = 5;
+}
+
+message CreateUserResponse {
+  User user = 1;
+  // temporary_password 始终非空：服务端生成时是新明文，client 提供时回吐同一明文。
+  // **仅一次性返回**；丢失需 ResetPassword 重置。
+  string temporary_password = 2;
+}
+
+message ListUsersRequest {
+  // 过滤；空 = 不过滤
+  optional string status = 1;
+  optional string role = 2;
+  optional string keyword = 3;
+  // 分页：page 1-based 默认 1；page_size 默认 20，上限 200
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+message GetUserResponse {
+  User user = 1;
+}
+
+message EnableUserRequest {
+  string id = 1;
+}
+message EnableUserResponse {}
+
+message DisableUserRequest {
+  string id = 1;
+}
+message DisableUserResponse {}
+
+message ResetPasswordRequest {
+  string id = 1;
+}
+message ResetPasswordResponse {
+  // 一次性明文临时密码（rmk_ 前缀仅 API Key 用；普通密码无前缀）。
+  string temporary_password = 1;
+}
+
+message ForceLogoutRequest {
+  string id = 1;
+}
+message ForceLogoutResponse {}

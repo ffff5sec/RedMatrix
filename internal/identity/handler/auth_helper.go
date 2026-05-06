@@ -8,6 +8,7 @@ import (
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
+	"github.com/ffff5sec/RedMatrix/internal/identity/domain"
 )
 
 // RequireAuth 从 Authorization header 取 Bearer，调 svc.AuthenticateBearer。
@@ -59,4 +60,25 @@ func clientIP(header http.Header) netip.Addr {
 // userAgent 取 User-Agent header；缺失时返空串（Login 流程兼容）。
 func userAgent(header http.Header) string {
 	return header.Get("User-Agent")
+}
+
+// RequireRole 校验 principal.Role 在 allowed 集合内；否则返
+// AUTHZ_ROLE_INSUFFICIENT。
+//
+// 占位实现，待全局 Authz Interceptor 落地后迁出。allowed 为空 = 任何登录者通过。
+func RequireRole(p *auth.UserPrincipal, allowed ...domain.Role) error {
+	if p == nil {
+		return errx.New(errx.ErrAuthFailed, "未登录")
+	}
+	if len(allowed) == 0 {
+		return nil
+	}
+	for _, r := range allowed {
+		if p.Role == r {
+			return nil
+		}
+	}
+	return errx.New(errx.ErrAuthzRoleInsufficient,
+		"当前角色无权调用此 RPC").
+		WithFields("role", string(p.Role))
 }

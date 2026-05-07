@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateProjectRequest, CreateProjectResponse, DeleteProjectRequest, DeleteProjectResponse, GetProjectRequest, GetProjectResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectRequest, GetProjectResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -115,6 +115,72 @@ export const TenancyService = {
       name: "ListProjectMembers",
       I: ListProjectMembersRequest,
       O: ListProjectMembersResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * CreateNode 手动注册节点（SA only）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.CreateNode
+     */
+    createNode: {
+      name: "CreateNode",
+      I: CreateNodeRequest,
+      O: CreateNodeResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListNodes 列租户内节点。SA + TA 可读。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.ListNodes
+     */
+    listNodes: {
+      name: "ListNodes",
+      I: ListNodesRequest,
+      O: ListNodesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * GetNode 取单个节点。SA + TA 可读。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.GetNode
+     */
+    getNode: {
+      name: "GetNode",
+      I: GetNodeRequest,
+      O: GetNodeResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * EnableNode 状态置 pending（SA only）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.EnableNode
+     */
+    enableNode: {
+      name: "EnableNode",
+      I: EnableNodeRequest,
+      O: EnableNodeResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * DisableNode 状态置 disabled（SA only）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.DisableNode
+     */
+    disableNode: {
+      name: "DisableNode",
+      I: DisableNodeRequest,
+      O: DisableNodeResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * DeleteNode 软删（SA only）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.DeleteNode
+     */
+    deleteNode: {
+      name: "DeleteNode",
+      I: DeleteNodeRequest,
+      O: DeleteNodeResponse,
       kind: MethodKind.Unary,
     },
   }

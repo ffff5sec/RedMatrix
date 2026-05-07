@@ -53,6 +53,24 @@ type Service interface {
 
 	// ListProjectMembers 列项目成员（按 added_at ASC）。
 	ListProjectMembers(ctx context.Context, projectID string) ([]*domain.ProjectMember, error)
+
+	// CreateNode 在租户内手动注册节点（MVP；完整 RegistrationToken 流程见 PR-T4-B）。
+	CreateNode(ctx context.Context, req CreateNodeRequest) (*domain.Node, error)
+
+	// ListNodes 列租户内节点；分页 + 过滤。
+	ListNodes(ctx context.Context, req ListNodesRequest) (*ListNodesResult, error)
+
+	// GetNode 取单个节点。
+	GetNode(ctx context.Context, id string) (*domain.Node, error)
+
+	// EnableNode 状态置 pending（重置回未连接，等待真节点上线）。MVP 演示用。
+	EnableNode(ctx context.Context, id string) error
+
+	// DisableNode 状态置 disabled。该节点不再被任务调度。
+	DisableNode(ctx context.Context, id string) error
+
+	// DeleteNode 软删（MVP 不级联 task / 白名单清理）。
+	DeleteNode(ctx context.Context, id string) error
 }
 
 // CreateProjectRequest 入参。
@@ -84,6 +102,32 @@ type AddProjectMemberRequest struct {
 	AddedBy   string // caller user id
 }
 
+// CreateNodeRequest 入参。
+type CreateNodeRequest struct {
+	TenantID     string
+	Name         string
+	Version      string
+	Capabilities []string
+	CreatedBy    string
+}
+
+// ListNodesRequest 入参。
+type ListNodesRequest struct {
+	TenantID string
+	Status   domain.NodeStatus
+	Keyword  string
+	Page     int
+	PageSize int
+}
+
+// ListNodesResult 返回。
+type ListNodesResult struct {
+	Nodes    []*domain.Node
+	Total    int
+	Page     int
+	PageSize int
+}
+
 // ListProjectsResult 返回。
 type ListProjectsResult struct {
 	Projects []*domain.Project
@@ -102,6 +146,7 @@ const (
 type service struct {
 	projects repo.ProjectRepository
 	members  repo.ProjectMemberRepository
+	nodes    repo.NodeRepository
 	users    UserLookup
 }
 
@@ -111,12 +156,13 @@ type service struct {
 func NewService(
 	projects repo.ProjectRepository,
 	members repo.ProjectMemberRepository,
+	nodes repo.NodeRepository,
 	users UserLookup,
 ) (Service, error) {
-	if projects == nil || members == nil || users == nil {
+	if projects == nil || members == nil || nodes == nil || users == nil {
 		return nil, errx.New(errx.ErrInternal, "tenancy.NewService: 依赖不能为 nil")
 	}
-	return &service{projects: projects, members: members, users: users}, nil
+	return &service{projects: projects, members: members, nodes: nodes, users: users}, nil
 }
 
 // === CreateProject ===
@@ -305,4 +351,90 @@ func (s *service) ListProjectMembers(ctx context.Context, projectID string) ([]*
 		return nil, err
 	}
 	return s.members.ListByProject(ctx, projectID)
+}
+
+// === Node CRUD ===
+
+const (
+	listNodesDefaultPageSize = 20
+	listNodesMaxPageSize     = 200
+)
+
+// CreateNode 手动注册节点（MVP；完整 RegistrationToken 流程见 PR-T4-B）。
+func (s *service) CreateNode(ctx context.Context, req CreateNodeRequest) (*domain.Node, error) {
+	if strings.TrimSpace(req.TenantID) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "tenant_id 不能为空")
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "name 不能为空")
+	}
+	n := &domain.Node{
+		TenantID:     req.TenantID,
+		Name:         req.Name,
+		Version:      req.Version,
+		Capabilities: req.Capabilities,
+		CreatedBy:    req.CreatedBy,
+	}
+	if err := s.nodes.Insert(ctx, n); err != nil {
+		return nil, err
+	}
+	return n, nil
+}
+
+// ListNodes 列租户内节点。
+func (s *service) ListNodes(ctx context.Context, req ListNodesRequest) (*ListNodesResult, error) {
+	if req.PageSize <= 0 {
+		req.PageSize = listNodesDefaultPageSize
+	}
+	if req.PageSize > listNodesMaxPageSize {
+		req.PageSize = listNodesMaxPageSize
+	}
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	out, total, err := s.nodes.List(ctx,
+		repo.NodeFilter{
+			TenantID: req.TenantID,
+			Status:   req.Status,
+			Keyword:  req.Keyword,
+		},
+		repo.Page{Page: req.Page, PageSize: req.PageSize})
+	if err != nil {
+		return nil, err
+	}
+	return &ListNodesResult{
+		Nodes:    out,
+		Total:    total,
+		Page:     req.Page,
+		PageSize: req.PageSize,
+	}, nil
+}
+
+func (s *service) GetNode(ctx context.Context, id string) (*domain.Node, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "id 不能为空")
+	}
+	return s.nodes.GetByID(ctx, id)
+}
+
+func (s *service) EnableNode(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return errx.New(errx.ErrInvalidInput, "id 不能为空")
+	}
+	// MVP：从 disabled 恢复时回到 pending（等真节点上报后由 Heartbeat 转 online）
+	return s.nodes.UpdateStatus(ctx, id, domain.NodePending)
+}
+
+func (s *service) DisableNode(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return errx.New(errx.ErrInvalidInput, "id 不能为空")
+	}
+	return s.nodes.UpdateStatus(ctx, id, domain.NodeDisabled)
+}
+
+func (s *service) DeleteNode(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return errx.New(errx.ErrInvalidInput, "id 不能为空")
+	}
+	return s.nodes.SoftDelete(ctx, id)
 }

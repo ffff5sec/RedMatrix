@@ -290,6 +290,126 @@ func (h *Handler) ListProjectMembers(
 	return connect.NewResponse(&tenancyv1.ListProjectMembersResponse{Members: pbList}), nil
 }
 
+// === Node ===
+
+func (h *Handler) CreateNode(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.CreateNodeRequest],
+) (*connect.Response[tenancyv1.CreateNodeResponse], error) {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	tenantID := req.Msg.GetTenantId()
+	if tenantID == "" {
+		tenantID = p.TenantID
+	}
+	out, err := h.svc.CreateNode(ctx, tenancy.CreateNodeRequest{
+		TenantID:     tenantID,
+		Name:         req.Msg.GetName(),
+		Version:      req.Msg.GetVersion(),
+		Capabilities: req.Msg.GetCapabilities(),
+		CreatedBy:    p.UserID,
+	})
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.CreateNodeResponse{Node: nodeToProto(out)}), nil
+}
+
+func (h *Handler) ListNodes(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.ListNodesRequest],
+) (*connect.Response[tenancyv1.ListNodesResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, adminAndAuditor...); err != nil {
+		return nil, toConnectError(err)
+	}
+
+	in := req.Msg
+	out, err := h.svc.ListNodes(ctx, tenancy.ListNodesRequest{
+		TenantID: in.GetTenantId(),
+		Status:   tenancydomain.NodeStatus(in.GetStatus()),
+		Keyword:  in.GetKeyword(),
+		Page:     int(in.GetPage()),
+		PageSize: int(in.GetPageSize()),
+	})
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	pbList := make([]*tenancyv1.Node, 0, len(out.Nodes))
+	for _, n := range out.Nodes {
+		pbList = append(pbList, nodeToProto(n))
+	}
+	//nolint:gosec // total/page/pagesize 经分页钳制，溢出 int32 不可能
+	return connect.NewResponse(&tenancyv1.ListNodesResponse{
+		Nodes:    pbList,
+		Total:    int32(out.Total),
+		Page:     int32(out.Page),
+		PageSize: int32(out.PageSize),
+	}), nil
+}
+
+func (h *Handler) GetNode(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.GetNodeRequest],
+) (*connect.Response[tenancyv1.GetNodeResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, adminAndAuditor...); err != nil {
+		return nil, toConnectError(err)
+	}
+	out, err := h.svc.GetNode(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.GetNodeResponse{Node: nodeToProto(out)}), nil
+}
+
+func (h *Handler) EnableNode(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.EnableNodeRequest],
+) (*connect.Response[tenancyv1.EnableNodeResponse], error) {
+	if _, err := h.requireSA(ctx, req.Header()); err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.EnableNode(ctx, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.EnableNodeResponse{}), nil
+}
+
+func (h *Handler) DisableNode(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.DisableNodeRequest],
+) (*connect.Response[tenancyv1.DisableNodeResponse], error) {
+	if _, err := h.requireSA(ctx, req.Header()); err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.DisableNode(ctx, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.DisableNodeResponse{}), nil
+}
+
+func (h *Handler) DeleteNode(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.DeleteNodeRequest],
+) (*connect.Response[tenancyv1.DeleteNodeResponse], error) {
+	if _, err := h.requireSA(ctx, req.Header()); err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.DeleteNode(ctx, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.DeleteNodeResponse{}), nil
+}
+
 // === conv ===
 
 func projectToProto(p *tenancydomain.Project) *tenancyv1.Project {
@@ -308,6 +428,27 @@ func projectToProto(p *tenancydomain.Project) *tenancyv1.Project {
 	}
 	if p.ArchivedAt != nil {
 		out.ArchivedAt = timestamppb.New(*p.ArchivedAt)
+	}
+	return out
+}
+
+func nodeToProto(n *tenancydomain.Node) *tenancyv1.Node {
+	if n == nil {
+		return nil
+	}
+	out := &tenancyv1.Node{
+		Id:           n.ID,
+		TenantId:     n.TenantID,
+		Name:         n.Name,
+		Version:      n.Version,
+		Capabilities: append([]string(nil), n.Capabilities...),
+		Status:       string(n.Status),
+		CreatedBy:    n.CreatedBy,
+		CreatedAt:    timestamppb.New(n.CreatedAt),
+		UpdatedAt:    timestamppb.New(n.UpdatedAt),
+	}
+	if n.LastSeenAt != nil {
+		out.LastSeenAt = timestamppb.New(*n.LastSeenAt)
 	}
 	return out
 }

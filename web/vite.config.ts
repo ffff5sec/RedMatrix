@@ -22,6 +22,7 @@ export default defineConfig({
         target: apiTarget,
         changeOrigin: true,
       },
+      // tenancy 的 RPC（含 Node）都在 TenancyService 下，proxy 已覆盖
       // 后续 service 在此追加
     },
   },

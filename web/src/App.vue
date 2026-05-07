@@ -6,8 +6,9 @@ import ProfilePanel from '@/views/ProfilePanel.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
 import UsersPanel from '@/views/UsersPanel.vue';
 import ProjectsPanel from '@/views/ProjectsPanel.vue';
+import NodesPanel from '@/views/NodesPanel.vue';
 
-type Tab = 'login' | 'profile' | 'apikeys' | 'users' | 'projects';
+type Tab = 'login' | 'profile' | 'apikeys' | 'users' | 'projects' | 'nodes';
 const active = ref<Tab>(authStore.isAuthed() ? 'profile' : 'login');
 
 const tabs = computed(() => [
@@ -16,6 +17,7 @@ const tabs = computed(() => [
   { key: 'apikeys', label: 'API Keys', enabled: authStore.isAuthed() },
   // PA 也开放：能看自己加入的项目
   { key: 'projects', label: '项目', enabled: authStore.isAuthed() },
+  { key: 'nodes', label: '节点', enabled: authStore.isSuperAdmin() || authStore.isAuditor() },
   { key: 'users', label: '用户管理', enabled: authStore.isSuperAdmin() || authStore.isAuditor() },
 ]);
 
@@ -54,6 +56,7 @@ function onLoggedOut() {
     <ProfilePanel v-else-if="active === 'profile'" @logged-out="onLoggedOut" />
     <APIKeysPanel v-else-if="active === 'apikeys'" />
     <ProjectsPanel v-else-if="active === 'projects'" />
+    <NodesPanel v-else-if="active === 'nodes'" />
     <UsersPanel v-else-if="active === 'users'" />
   </div>
 </template>

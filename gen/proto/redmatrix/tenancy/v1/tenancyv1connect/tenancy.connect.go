@@ -62,6 +62,23 @@ const (
 	// TenancyServiceListProjectMembersProcedure is the fully-qualified name of the TenancyService's
 	// ListProjectMembers RPC.
 	TenancyServiceListProjectMembersProcedure = "/redmatrix.tenancy.v1.TenancyService/ListProjectMembers"
+	// TenancyServiceCreateNodeProcedure is the fully-qualified name of the TenancyService's CreateNode
+	// RPC.
+	TenancyServiceCreateNodeProcedure = "/redmatrix.tenancy.v1.TenancyService/CreateNode"
+	// TenancyServiceListNodesProcedure is the fully-qualified name of the TenancyService's ListNodes
+	// RPC.
+	TenancyServiceListNodesProcedure = "/redmatrix.tenancy.v1.TenancyService/ListNodes"
+	// TenancyServiceGetNodeProcedure is the fully-qualified name of the TenancyService's GetNode RPC.
+	TenancyServiceGetNodeProcedure = "/redmatrix.tenancy.v1.TenancyService/GetNode"
+	// TenancyServiceEnableNodeProcedure is the fully-qualified name of the TenancyService's EnableNode
+	// RPC.
+	TenancyServiceEnableNodeProcedure = "/redmatrix.tenancy.v1.TenancyService/EnableNode"
+	// TenancyServiceDisableNodeProcedure is the fully-qualified name of the TenancyService's
+	// DisableNode RPC.
+	TenancyServiceDisableNodeProcedure = "/redmatrix.tenancy.v1.TenancyService/DisableNode"
+	// TenancyServiceDeleteNodeProcedure is the fully-qualified name of the TenancyService's DeleteNode
+	// RPC.
+	TenancyServiceDeleteNodeProcedure = "/redmatrix.tenancy.v1.TenancyService/DeleteNode"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -85,6 +102,18 @@ type TenancyServiceClient interface {
 	RemoveProjectMember(context.Context, *connect.Request[v1.RemoveProjectMemberRequest]) (*connect.Response[v1.RemoveProjectMemberResponse], error)
 	// ListProjectMembers 列项目成员。SA + 该项目的 PA 可读。
 	ListProjectMembers(context.Context, *connect.Request[v1.ListProjectMembersRequest]) (*connect.Response[v1.ListProjectMembersResponse], error)
+	// CreateNode 手动注册节点（SA only）。
+	CreateNode(context.Context, *connect.Request[v1.CreateNodeRequest]) (*connect.Response[v1.CreateNodeResponse], error)
+	// ListNodes 列租户内节点。SA + TA 可读。
+	ListNodes(context.Context, *connect.Request[v1.ListNodesRequest]) (*connect.Response[v1.ListNodesResponse], error)
+	// GetNode 取单个节点。SA + TA 可读。
+	GetNode(context.Context, *connect.Request[v1.GetNodeRequest]) (*connect.Response[v1.GetNodeResponse], error)
+	// EnableNode 状态置 pending（SA only）。
+	EnableNode(context.Context, *connect.Request[v1.EnableNodeRequest]) (*connect.Response[v1.EnableNodeResponse], error)
+	// DisableNode 状态置 disabled（SA only）。
+	DisableNode(context.Context, *connect.Request[v1.DisableNodeRequest]) (*connect.Response[v1.DisableNodeResponse], error)
+	// DeleteNode 软删（SA only）。
+	DeleteNode(context.Context, *connect.Request[v1.DeleteNodeRequest]) (*connect.Response[v1.DeleteNodeResponse], error)
 }
 
 // NewTenancyServiceClient constructs a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -152,6 +181,42 @@ func NewTenancyServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(tenancyServiceMethods.ByName("ListProjectMembers")),
 			connect.WithClientOptions(opts...),
 		),
+		createNode: connect.NewClient[v1.CreateNodeRequest, v1.CreateNodeResponse](
+			httpClient,
+			baseURL+TenancyServiceCreateNodeProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("CreateNode")),
+			connect.WithClientOptions(opts...),
+		),
+		listNodes: connect.NewClient[v1.ListNodesRequest, v1.ListNodesResponse](
+			httpClient,
+			baseURL+TenancyServiceListNodesProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("ListNodes")),
+			connect.WithClientOptions(opts...),
+		),
+		getNode: connect.NewClient[v1.GetNodeRequest, v1.GetNodeResponse](
+			httpClient,
+			baseURL+TenancyServiceGetNodeProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("GetNode")),
+			connect.WithClientOptions(opts...),
+		),
+		enableNode: connect.NewClient[v1.EnableNodeRequest, v1.EnableNodeResponse](
+			httpClient,
+			baseURL+TenancyServiceEnableNodeProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("EnableNode")),
+			connect.WithClientOptions(opts...),
+		),
+		disableNode: connect.NewClient[v1.DisableNodeRequest, v1.DisableNodeResponse](
+			httpClient,
+			baseURL+TenancyServiceDisableNodeProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("DisableNode")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteNode: connect.NewClient[v1.DeleteNodeRequest, v1.DeleteNodeResponse](
+			httpClient,
+			baseURL+TenancyServiceDeleteNodeProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("DeleteNode")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -166,6 +231,12 @@ type tenancyServiceClient struct {
 	addProjectMember    *connect.Client[v1.AddProjectMemberRequest, v1.AddProjectMemberResponse]
 	removeProjectMember *connect.Client[v1.RemoveProjectMemberRequest, v1.RemoveProjectMemberResponse]
 	listProjectMembers  *connect.Client[v1.ListProjectMembersRequest, v1.ListProjectMembersResponse]
+	createNode          *connect.Client[v1.CreateNodeRequest, v1.CreateNodeResponse]
+	listNodes           *connect.Client[v1.ListNodesRequest, v1.ListNodesResponse]
+	getNode             *connect.Client[v1.GetNodeRequest, v1.GetNodeResponse]
+	enableNode          *connect.Client[v1.EnableNodeRequest, v1.EnableNodeResponse]
+	disableNode         *connect.Client[v1.DisableNodeRequest, v1.DisableNodeResponse]
+	deleteNode          *connect.Client[v1.DeleteNodeRequest, v1.DeleteNodeResponse]
 }
 
 // CreateProject calls redmatrix.tenancy.v1.TenancyService.CreateProject.
@@ -213,6 +284,36 @@ func (c *tenancyServiceClient) ListProjectMembers(ctx context.Context, req *conn
 	return c.listProjectMembers.CallUnary(ctx, req)
 }
 
+// CreateNode calls redmatrix.tenancy.v1.TenancyService.CreateNode.
+func (c *tenancyServiceClient) CreateNode(ctx context.Context, req *connect.Request[v1.CreateNodeRequest]) (*connect.Response[v1.CreateNodeResponse], error) {
+	return c.createNode.CallUnary(ctx, req)
+}
+
+// ListNodes calls redmatrix.tenancy.v1.TenancyService.ListNodes.
+func (c *tenancyServiceClient) ListNodes(ctx context.Context, req *connect.Request[v1.ListNodesRequest]) (*connect.Response[v1.ListNodesResponse], error) {
+	return c.listNodes.CallUnary(ctx, req)
+}
+
+// GetNode calls redmatrix.tenancy.v1.TenancyService.GetNode.
+func (c *tenancyServiceClient) GetNode(ctx context.Context, req *connect.Request[v1.GetNodeRequest]) (*connect.Response[v1.GetNodeResponse], error) {
+	return c.getNode.CallUnary(ctx, req)
+}
+
+// EnableNode calls redmatrix.tenancy.v1.TenancyService.EnableNode.
+func (c *tenancyServiceClient) EnableNode(ctx context.Context, req *connect.Request[v1.EnableNodeRequest]) (*connect.Response[v1.EnableNodeResponse], error) {
+	return c.enableNode.CallUnary(ctx, req)
+}
+
+// DisableNode calls redmatrix.tenancy.v1.TenancyService.DisableNode.
+func (c *tenancyServiceClient) DisableNode(ctx context.Context, req *connect.Request[v1.DisableNodeRequest]) (*connect.Response[v1.DisableNodeResponse], error) {
+	return c.disableNode.CallUnary(ctx, req)
+}
+
+// DeleteNode calls redmatrix.tenancy.v1.TenancyService.DeleteNode.
+func (c *tenancyServiceClient) DeleteNode(ctx context.Context, req *connect.Request[v1.DeleteNodeRequest]) (*connect.Response[v1.DeleteNodeResponse], error) {
+	return c.deleteNode.CallUnary(ctx, req)
+}
+
 // TenancyServiceHandler is an implementation of the redmatrix.tenancy.v1.TenancyService service.
 type TenancyServiceHandler interface {
 	// CreateProject 创建项目（SA only）。name 在租户内唯一。
@@ -234,6 +335,18 @@ type TenancyServiceHandler interface {
 	RemoveProjectMember(context.Context, *connect.Request[v1.RemoveProjectMemberRequest]) (*connect.Response[v1.RemoveProjectMemberResponse], error)
 	// ListProjectMembers 列项目成员。SA + 该项目的 PA 可读。
 	ListProjectMembers(context.Context, *connect.Request[v1.ListProjectMembersRequest]) (*connect.Response[v1.ListProjectMembersResponse], error)
+	// CreateNode 手动注册节点（SA only）。
+	CreateNode(context.Context, *connect.Request[v1.CreateNodeRequest]) (*connect.Response[v1.CreateNodeResponse], error)
+	// ListNodes 列租户内节点。SA + TA 可读。
+	ListNodes(context.Context, *connect.Request[v1.ListNodesRequest]) (*connect.Response[v1.ListNodesResponse], error)
+	// GetNode 取单个节点。SA + TA 可读。
+	GetNode(context.Context, *connect.Request[v1.GetNodeRequest]) (*connect.Response[v1.GetNodeResponse], error)
+	// EnableNode 状态置 pending（SA only）。
+	EnableNode(context.Context, *connect.Request[v1.EnableNodeRequest]) (*connect.Response[v1.EnableNodeResponse], error)
+	// DisableNode 状态置 disabled（SA only）。
+	DisableNode(context.Context, *connect.Request[v1.DisableNodeRequest]) (*connect.Response[v1.DisableNodeResponse], error)
+	// DeleteNode 软删（SA only）。
+	DeleteNode(context.Context, *connect.Request[v1.DeleteNodeRequest]) (*connect.Response[v1.DeleteNodeResponse], error)
 }
 
 // NewTenancyServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -297,6 +410,42 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 		connect.WithSchema(tenancyServiceMethods.ByName("ListProjectMembers")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tenancyServiceCreateNodeHandler := connect.NewUnaryHandler(
+		TenancyServiceCreateNodeProcedure,
+		svc.CreateNode,
+		connect.WithSchema(tenancyServiceMethods.ByName("CreateNode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceListNodesHandler := connect.NewUnaryHandler(
+		TenancyServiceListNodesProcedure,
+		svc.ListNodes,
+		connect.WithSchema(tenancyServiceMethods.ByName("ListNodes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceGetNodeHandler := connect.NewUnaryHandler(
+		TenancyServiceGetNodeProcedure,
+		svc.GetNode,
+		connect.WithSchema(tenancyServiceMethods.ByName("GetNode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceEnableNodeHandler := connect.NewUnaryHandler(
+		TenancyServiceEnableNodeProcedure,
+		svc.EnableNode,
+		connect.WithSchema(tenancyServiceMethods.ByName("EnableNode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceDisableNodeHandler := connect.NewUnaryHandler(
+		TenancyServiceDisableNodeProcedure,
+		svc.DisableNode,
+		connect.WithSchema(tenancyServiceMethods.ByName("DisableNode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceDeleteNodeHandler := connect.NewUnaryHandler(
+		TenancyServiceDeleteNodeProcedure,
+		svc.DeleteNode,
+		connect.WithSchema(tenancyServiceMethods.ByName("DeleteNode")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.TenancyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TenancyServiceCreateProjectProcedure:
@@ -317,6 +466,18 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 			tenancyServiceRemoveProjectMemberHandler.ServeHTTP(w, r)
 		case TenancyServiceListProjectMembersProcedure:
 			tenancyServiceListProjectMembersHandler.ServeHTTP(w, r)
+		case TenancyServiceCreateNodeProcedure:
+			tenancyServiceCreateNodeHandler.ServeHTTP(w, r)
+		case TenancyServiceListNodesProcedure:
+			tenancyServiceListNodesHandler.ServeHTTP(w, r)
+		case TenancyServiceGetNodeProcedure:
+			tenancyServiceGetNodeHandler.ServeHTTP(w, r)
+		case TenancyServiceEnableNodeProcedure:
+			tenancyServiceEnableNodeHandler.ServeHTTP(w, r)
+		case TenancyServiceDisableNodeProcedure:
+			tenancyServiceDisableNodeHandler.ServeHTTP(w, r)
+		case TenancyServiceDeleteNodeProcedure:
+			tenancyServiceDeleteNodeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -360,4 +521,28 @@ func (UnimplementedTenancyServiceHandler) RemoveProjectMember(context.Context, *
 
 func (UnimplementedTenancyServiceHandler) ListProjectMembers(context.Context, *connect.Request[v1.ListProjectMembersRequest]) (*connect.Response[v1.ListProjectMembersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.ListProjectMembers is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) CreateNode(context.Context, *connect.Request[v1.CreateNodeRequest]) (*connect.Response[v1.CreateNodeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.CreateNode is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) ListNodes(context.Context, *connect.Request[v1.ListNodesRequest]) (*connect.Response[v1.ListNodesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.ListNodes is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) GetNode(context.Context, *connect.Request[v1.GetNodeRequest]) (*connect.Response[v1.GetNodeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.GetNode is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) EnableNode(context.Context, *connect.Request[v1.EnableNodeRequest]) (*connect.Response[v1.EnableNodeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.EnableNode is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) DisableNode(context.Context, *connect.Request[v1.DisableNodeRequest]) (*connect.Response[v1.DisableNodeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.DisableNode is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) DeleteNode(context.Context, *connect.Request[v1.DeleteNodeRequest]) (*connect.Response[v1.DeleteNodeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.DeleteNode is not implemented"))
 }

@@ -112,6 +112,101 @@ func (m *mockUserLookup) GetByID(_ context.Context, id string) (*identitydomain.
 	return u, nil
 }
 
+// === mock node repo ===
+
+type mockNodeRepo struct {
+	rows        map[string]*domain.Node
+	insertCalls int
+}
+
+func newMockNodeRepo() *mockNodeRepo {
+	return &mockNodeRepo{rows: map[string]*domain.Node{}}
+}
+
+func (m *mockNodeRepo) Insert(_ context.Context, n *domain.Node) error {
+	m.insertCalls++
+	if err := n.ValidateForCreate(); err != nil {
+		return err
+	}
+	for _, ex := range m.rows {
+		if ex.TenantID == n.TenantID && ex.Name == n.Name && ex.DeletedAt == nil {
+			return errx.New(errx.ErrNodeNameExists, "dup")
+		}
+	}
+	if n.ID == "" {
+		n.ID = "n-" + n.Name
+	}
+	if n.CreatedAt.IsZero() {
+		n.CreatedAt = time.Now().UTC()
+	}
+	m.rows[n.ID] = n
+	return nil
+}
+
+func (m *mockNodeRepo) GetByID(_ context.Context, id string) (*domain.Node, error) {
+	n, ok := m.rows[id]
+	if !ok || n.DeletedAt != nil {
+		return nil, errx.New(errx.ErrNodeNotFound, "not found")
+	}
+	return n, nil
+}
+
+func (m *mockNodeRepo) List(_ context.Context, f repo.NodeFilter, p repo.Page) ([]*domain.Node, int, error) {
+	var matched []*domain.Node
+	for _, n := range m.rows {
+		if n.DeletedAt != nil {
+			continue
+		}
+		if f.TenantID != "" && n.TenantID != f.TenantID {
+			continue
+		}
+		if f.Status != "" && n.Status != f.Status {
+			continue
+		}
+		matched = append(matched, n)
+	}
+	if p.PageSize <= 0 {
+		p.PageSize = 20
+	}
+	if p.Page < 1 {
+		p.Page = 1
+	}
+	total := len(matched)
+	start := (p.Page - 1) * p.PageSize
+	end := start + p.PageSize
+	if start > total {
+		return nil, total, nil
+	}
+	if end > total {
+		end = total
+	}
+	return matched[start:end], total, nil
+}
+
+func (m *mockNodeRepo) UpdateStatus(_ context.Context, id string, status domain.NodeStatus) error {
+	n, ok := m.rows[id]
+	if !ok || n.DeletedAt != nil {
+		return errx.New(errx.ErrNodeNotFound, "not found")
+	}
+	if !status.Valid() {
+		return errx.New(errx.ErrInvalidInput, "bad status")
+	}
+	n.Status = status
+	return nil
+}
+
+func (m *mockNodeRepo) SoftDelete(_ context.Context, id string) error {
+	n, ok := m.rows[id]
+	if !ok {
+		return errx.New(errx.ErrNodeNotFound, "not found")
+	}
+	if n.DeletedAt == nil {
+		now := time.Now().UTC()
+		n.DeletedAt = &now
+	}
+	return nil
+}
+
 // === mock project repo ===
 
 type mockProjectRepo struct {
@@ -239,8 +334,9 @@ func setupSvc(t *testing.T) (Service, *mockProjectRepo) {
 	t.Helper()
 	r := newMockProjectRepo()
 	mr := newMockMemberRepo()
+	nr := newMockNodeRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, users)
+	svc, err := NewService(r, mr, nr, users)
 	require.NoError(t, err)
 	return svc, r
 }
@@ -249,16 +345,28 @@ func setupSvcAll(t *testing.T) (Service, *mockProjectRepo, *mockMemberRepo, *moc
 	t.Helper()
 	r := newMockProjectRepo()
 	mr := newMockMemberRepo()
+	nr := newMockNodeRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, users)
+	svc, err := NewService(r, mr, nr, users)
 	require.NoError(t, err)
 	return svc, r, mr, users
 }
 
+func setupSvcWithNodes(t *testing.T) (Service, *mockNodeRepo) {
+	t.Helper()
+	r := newMockProjectRepo()
+	mr := newMockMemberRepo()
+	nr := newMockNodeRepo()
+	users := newMockUserLookup()
+	svc, err := NewService(r, mr, nr, users)
+	require.NoError(t, err)
+	return svc, nr
+}
+
 func TestNewService_NilDeps(t *testing.T) {
-	_, err := NewService(nil, nil, nil)
+	_, err := NewService(nil, nil, nil, nil)
 	require.Error(t, err)
-	_, err = NewService(newMockProjectRepo(), nil, newMockUserLookup())
+	_, err = NewService(newMockProjectRepo(), nil, newMockNodeRepo(), newMockUserLookup())
 	require.Error(t, err)
 }
 
@@ -530,4 +638,98 @@ func TestListProjects_PAWithNoJoined_ReturnsEmpty(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, res.Total)
 	assert.Empty(t, res.Projects)
+}
+
+// === Node CRUD ===
+
+func TestCreateNode_Happy(t *testing.T) {
+	svc, _ := setupSvcWithNodes(t)
+	n, err := svc.CreateNode(context.Background(), CreateNodeRequest{
+		TenantID:     tenantID,
+		Name:         "agent-01",
+		Version:      "1.0.0",
+		Capabilities: []string{"scan:web"},
+		CreatedBy:    "u-sa",
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, n.ID)
+	assert.Equal(t, domain.NodePending, n.Status)
+	assert.Equal(t, "u-sa", n.CreatedBy)
+}
+
+func TestCreateNode_EmptyName(t *testing.T) {
+	svc, _ := setupSvcWithNodes(t)
+	_, err := svc.CreateNode(context.Background(), CreateNodeRequest{
+		TenantID: tenantID, Name: " ",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInvalidInput, c)
+}
+
+func TestCreateNode_DupName(t *testing.T) {
+	svc, _ := setupSvcWithNodes(t)
+	_, err := svc.CreateNode(context.Background(),
+		CreateNodeRequest{TenantID: tenantID, Name: "agent-01"})
+	require.NoError(t, err)
+	_, err = svc.CreateNode(context.Background(),
+		CreateNodeRequest{TenantID: tenantID, Name: "agent-01"})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeNameExists, c)
+}
+
+func TestListNodes_PaginationClamp(t *testing.T) {
+	svc, repo := setupSvcWithNodes(t)
+	for i := 0; i < 3; i++ {
+		require.NoError(t, repo.Insert(context.Background(), &domain.Node{
+			TenantID: tenantID,
+			Name:     "n-" + string(rune('a'+i)),
+			Status:   domain.NodePending,
+		}))
+	}
+	res, err := svc.ListNodes(context.Background(), ListNodesRequest{
+		TenantID: tenantID, PageSize: 9999,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, listNodesMaxPageSize, res.PageSize)
+	assert.Equal(t, 3, res.Total)
+}
+
+func TestEnableDisableDeleteNode(t *testing.T) {
+	svc, repo := setupSvcWithNodes(t)
+	n, err := svc.CreateNode(context.Background(),
+		CreateNodeRequest{TenantID: tenantID, Name: "n-1"})
+	require.NoError(t, err)
+	originalStatus := n.Status
+
+	require.NoError(t, svc.DisableNode(context.Background(), n.ID))
+	got, _ := svc.GetNode(context.Background(), n.ID)
+	assert.Equal(t, domain.NodeDisabled, got.Status)
+
+	require.NoError(t, svc.EnableNode(context.Background(), n.ID))
+	got, _ = svc.GetNode(context.Background(), n.ID)
+	assert.Equal(t, domain.NodePending, got.Status, "Enable 回 pending（等真节点上报）")
+
+	require.NoError(t, svc.DeleteNode(context.Background(), n.ID))
+	_, err = svc.GetNode(context.Background(), n.ID)
+	require.Error(t, err)
+	_ = originalStatus
+	_ = repo
+}
+
+func TestNodeCRUD_EmptyIDs(t *testing.T) {
+	svc, _ := setupSvc(t)
+	ctx := context.Background()
+	for _, op := range []func() error{
+		func() error { _, err := svc.GetNode(ctx, " "); return err },
+		func() error { return svc.EnableNode(ctx, " ") },
+		func() error { return svc.DisableNode(ctx, " ") },
+		func() error { return svc.DeleteNode(ctx, " ") },
+	} {
+		err := op()
+		require.Error(t, err)
+		c, _ := errx.GetCode(err)
+		assert.Equal(t, errx.ErrInvalidInput, c)
+	}
 }

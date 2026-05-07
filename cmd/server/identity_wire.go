@@ -97,8 +97,9 @@ func buildTenancyMount(pool *pg.Pool, authSvc auth.Service) (*identityHandlerMou
 
 	projects := tenancyrepo.NewProjectPG(pool.App)
 	members := tenancyrepo.NewProjectMemberPG(pool.App)
+	nodes := tenancyrepo.NewNodePG(pool.App)
 	users := repo.NewPG(pool.App) // 复用 identity 的 user repo（同 pool）
-	svc, err := tenancy.NewService(projects, members, users)
+	svc, err := tenancy.NewService(projects, members, nodes, users)
 	if err != nil {
 		return nil, err
 	}

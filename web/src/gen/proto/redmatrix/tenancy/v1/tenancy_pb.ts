@@ -865,3 +865,584 @@ export class ListProjectMembersResponse extends Message<ListProjectMembersRespon
   }
 }
 
+/**
+ * @generated from message redmatrix.tenancy.v1.Node
+ */
+export class Node extends Message<Node> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string tenant_id = 2;
+   */
+  tenantId = "";
+
+  /**
+   * @generated from field: string name = 3;
+   */
+  name = "";
+
+  /**
+   * @generated from field: string version = 4;
+   */
+  version = "";
+
+  /**
+   * @generated from field: repeated string capabilities = 5;
+   */
+  capabilities: string[] = [];
+
+  /**
+   * pending / online / offline / disabled
+   *
+   * @generated from field: string status = 6;
+   */
+  status = "";
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp last_seen_at = 7;
+   */
+  lastSeenAt?: Timestamp;
+
+  /**
+   * @generated from field: string created_by = 8;
+   */
+  createdBy = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 9;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 10;
+   */
+  updatedAt?: Timestamp;
+
+  constructor(data?: PartialMessage<Node>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.Node";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "capabilities", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 6, name: "status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "last_seen_at", kind: "message", T: Timestamp, opt: true },
+    { no: 8, name: "created_by", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "created_at", kind: "message", T: Timestamp },
+    { no: 10, name: "updated_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Node {
+    return new Node().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Node {
+    return new Node().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Node {
+    return new Node().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Node | PlainMessage<Node> | undefined, b: Node | PlainMessage<Node> | undefined): boolean {
+    return proto3.util.equals(Node, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.CreateNodeRequest
+ */
+export class CreateNodeRequest extends Message<CreateNodeRequest> {
+  /**
+   * 留空 = 用 caller principal.tenant_id
+   *
+   * @generated from field: string tenant_id = 1;
+   */
+  tenantId = "";
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name = "";
+
+  /**
+   * @generated from field: string version = 3;
+   */
+  version = "";
+
+  /**
+   * @generated from field: repeated string capabilities = 4;
+   */
+  capabilities: string[] = [];
+
+  constructor(data?: PartialMessage<CreateNodeRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.CreateNodeRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "capabilities", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateNodeRequest {
+    return new CreateNodeRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateNodeRequest {
+    return new CreateNodeRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateNodeRequest {
+    return new CreateNodeRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateNodeRequest | PlainMessage<CreateNodeRequest> | undefined, b: CreateNodeRequest | PlainMessage<CreateNodeRequest> | undefined): boolean {
+    return proto3.util.equals(CreateNodeRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.CreateNodeResponse
+ */
+export class CreateNodeResponse extends Message<CreateNodeResponse> {
+  /**
+   * @generated from field: redmatrix.tenancy.v1.Node node = 1;
+   */
+  node?: Node;
+
+  constructor(data?: PartialMessage<CreateNodeResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.CreateNodeResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "node", kind: "message", T: Node },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateNodeResponse {
+    return new CreateNodeResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateNodeResponse {
+    return new CreateNodeResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateNodeResponse {
+    return new CreateNodeResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateNodeResponse | PlainMessage<CreateNodeResponse> | undefined, b: CreateNodeResponse | PlainMessage<CreateNodeResponse> | undefined): boolean {
+    return proto3.util.equals(CreateNodeResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListNodesRequest
+ */
+export class ListNodesRequest extends Message<ListNodesRequest> {
+  /**
+   * @generated from field: optional string tenant_id = 1;
+   */
+  tenantId?: string;
+
+  /**
+   * @generated from field: optional string status = 2;
+   */
+  status?: string;
+
+  /**
+   * @generated from field: optional string keyword = 3;
+   */
+  keyword?: string;
+
+  /**
+   * @generated from field: int32 page = 4;
+   */
+  page = 0;
+
+  /**
+   * @generated from field: int32 page_size = 5;
+   */
+  pageSize = 0;
+
+  constructor(data?: PartialMessage<ListNodesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListNodesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 2, name: "status", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "keyword", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "page", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListNodesRequest {
+    return new ListNodesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListNodesRequest {
+    return new ListNodesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListNodesRequest {
+    return new ListNodesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListNodesRequest | PlainMessage<ListNodesRequest> | undefined, b: ListNodesRequest | PlainMessage<ListNodesRequest> | undefined): boolean {
+    return proto3.util.equals(ListNodesRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListNodesResponse
+ */
+export class ListNodesResponse extends Message<ListNodesResponse> {
+  /**
+   * @generated from field: repeated redmatrix.tenancy.v1.Node nodes = 1;
+   */
+  nodes: Node[] = [];
+
+  /**
+   * @generated from field: int32 total = 2;
+   */
+  total = 0;
+
+  /**
+   * @generated from field: int32 page = 3;
+   */
+  page = 0;
+
+  /**
+   * @generated from field: int32 page_size = 4;
+   */
+  pageSize = 0;
+
+  constructor(data?: PartialMessage<ListNodesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListNodesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "nodes", kind: "message", T: Node, repeated: true },
+    { no: 2, name: "total", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "page", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListNodesResponse {
+    return new ListNodesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListNodesResponse {
+    return new ListNodesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListNodesResponse {
+    return new ListNodesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListNodesResponse | PlainMessage<ListNodesResponse> | undefined, b: ListNodesResponse | PlainMessage<ListNodesResponse> | undefined): boolean {
+    return proto3.util.equals(ListNodesResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.GetNodeRequest
+ */
+export class GetNodeRequest extends Message<GetNodeRequest> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<GetNodeRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetNodeRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetNodeRequest {
+    return new GetNodeRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetNodeRequest {
+    return new GetNodeRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetNodeRequest {
+    return new GetNodeRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetNodeRequest | PlainMessage<GetNodeRequest> | undefined, b: GetNodeRequest | PlainMessage<GetNodeRequest> | undefined): boolean {
+    return proto3.util.equals(GetNodeRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.GetNodeResponse
+ */
+export class GetNodeResponse extends Message<GetNodeResponse> {
+  /**
+   * @generated from field: redmatrix.tenancy.v1.Node node = 1;
+   */
+  node?: Node;
+
+  constructor(data?: PartialMessage<GetNodeResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetNodeResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "node", kind: "message", T: Node },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetNodeResponse {
+    return new GetNodeResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetNodeResponse {
+    return new GetNodeResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetNodeResponse {
+    return new GetNodeResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetNodeResponse | PlainMessage<GetNodeResponse> | undefined, b: GetNodeResponse | PlainMessage<GetNodeResponse> | undefined): boolean {
+    return proto3.util.equals(GetNodeResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.EnableNodeRequest
+ */
+export class EnableNodeRequest extends Message<EnableNodeRequest> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<EnableNodeRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.EnableNodeRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): EnableNodeRequest {
+    return new EnableNodeRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): EnableNodeRequest {
+    return new EnableNodeRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): EnableNodeRequest {
+    return new EnableNodeRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: EnableNodeRequest | PlainMessage<EnableNodeRequest> | undefined, b: EnableNodeRequest | PlainMessage<EnableNodeRequest> | undefined): boolean {
+    return proto3.util.equals(EnableNodeRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.EnableNodeResponse
+ */
+export class EnableNodeResponse extends Message<EnableNodeResponse> {
+  constructor(data?: PartialMessage<EnableNodeResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.EnableNodeResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): EnableNodeResponse {
+    return new EnableNodeResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): EnableNodeResponse {
+    return new EnableNodeResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): EnableNodeResponse {
+    return new EnableNodeResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: EnableNodeResponse | PlainMessage<EnableNodeResponse> | undefined, b: EnableNodeResponse | PlainMessage<EnableNodeResponse> | undefined): boolean {
+    return proto3.util.equals(EnableNodeResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.DisableNodeRequest
+ */
+export class DisableNodeRequest extends Message<DisableNodeRequest> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<DisableNodeRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.DisableNodeRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DisableNodeRequest {
+    return new DisableNodeRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DisableNodeRequest {
+    return new DisableNodeRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DisableNodeRequest {
+    return new DisableNodeRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DisableNodeRequest | PlainMessage<DisableNodeRequest> | undefined, b: DisableNodeRequest | PlainMessage<DisableNodeRequest> | undefined): boolean {
+    return proto3.util.equals(DisableNodeRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.DisableNodeResponse
+ */
+export class DisableNodeResponse extends Message<DisableNodeResponse> {
+  constructor(data?: PartialMessage<DisableNodeResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.DisableNodeResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DisableNodeResponse {
+    return new DisableNodeResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DisableNodeResponse {
+    return new DisableNodeResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DisableNodeResponse {
+    return new DisableNodeResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DisableNodeResponse | PlainMessage<DisableNodeResponse> | undefined, b: DisableNodeResponse | PlainMessage<DisableNodeResponse> | undefined): boolean {
+    return proto3.util.equals(DisableNodeResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.DeleteNodeRequest
+ */
+export class DeleteNodeRequest extends Message<DeleteNodeRequest> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<DeleteNodeRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.DeleteNodeRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteNodeRequest {
+    return new DeleteNodeRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteNodeRequest {
+    return new DeleteNodeRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteNodeRequest {
+    return new DeleteNodeRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteNodeRequest | PlainMessage<DeleteNodeRequest> | undefined, b: DeleteNodeRequest | PlainMessage<DeleteNodeRequest> | undefined): boolean {
+    return proto3.util.equals(DeleteNodeRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.DeleteNodeResponse
+ */
+export class DeleteNodeResponse extends Message<DeleteNodeResponse> {
+  constructor(data?: PartialMessage<DeleteNodeResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.DeleteNodeResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteNodeResponse {
+    return new DeleteNodeResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteNodeResponse {
+    return new DeleteNodeResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteNodeResponse {
+    return new DeleteNodeResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteNodeResponse | PlainMessage<DeleteNodeResponse> | undefined, b: DeleteNodeResponse | PlainMessage<DeleteNodeResponse> | undefined): boolean {
+    return proto3.util.equals(DeleteNodeResponse, a, b);
+  }
+}
+

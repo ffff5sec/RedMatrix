@@ -284,8 +284,8 @@ func Fingerprint(cert *x509.Certificate) string {
 
 func randomSerial() (*big.Int, error) {
 	// 128-bit serial（RFC 5280 推荐）
-	max := new(big.Int).Lsh(big.NewInt(1), 128)
-	n, err := rand.Int(rand.Reader, max)
+	upper := new(big.Int).Lsh(big.NewInt(1), 128)
+	n, err := rand.Int(rand.Reader, upper)
 	if err != nil {
 		return nil, errx.Wrap(errx.ErrCryptoEncryptionFailed, err, "pki: 生成 serial")
 	}
@@ -311,11 +311,11 @@ func parseECDSAKeyPEM(b []byte) (*ecdsa.PrivateKey, error) {
 	if block.Type != "PRIVATE KEY" {
 		return nil, errors.New("key PEM 类型必须为 PRIVATE KEY（PKCS#8）")
 	}
-	any, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
-	k, ok := any.(*ecdsa.PrivateKey)
+	k, ok := parsed.(*ecdsa.PrivateKey)
 	if !ok {
 		return nil, errors.New("key 不是 ECDSA")
 	}

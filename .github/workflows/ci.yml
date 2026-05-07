@@ -15,7 +15,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  GO_VERSION: '1.25'
+  # 钉到 patch 版本：'1.25' 拉到 1.25.9 时被 GO-2026-4971 / 4918 扫到（govulncheck）；
+  # 1.25.10 已修。后续 1.26 stable 时再大版本升。
+  GO_VERSION: '1.25.10'
   # 与 Makefile / 模块版本对齐。
   PROTOC_GEN_GO_VERSION: 'v1.36.11'
   PROTOC_GEN_CONNECT_GO_VERSION: 'v1.19.2'

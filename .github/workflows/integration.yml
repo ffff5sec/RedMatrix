@@ -22,7 +22,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GO_VERSION: '1.25'
+  # 与 ci.yml 同步：钉 patch 版本（1.25.9 受 GO-2026-4971/4918 影响；1.25.10 已修）
+  GO_VERSION: '1.25.10'
 
 jobs:
   integration:

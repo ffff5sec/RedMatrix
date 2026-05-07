@@ -3,9 +3,11 @@ package tenancy
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
+	tenancycrypto "github.com/ffff5sec/RedMatrix/internal/tenancy/crypto"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy/domain"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
 )
@@ -81,6 +83,21 @@ type Service interface {
 
 	// IsNodeAllowedForProject Scan 调用：项目 + 节点 → 是否允许。
 	IsNodeAllowedForProject(ctx context.Context, projectID, nodeID string) (bool, error)
+
+	// CreateRegistrationToken 生成一次性节点注册令牌（SA only）。
+	// 返 plaintext 仅一次性显示；hash 入库。
+	CreateRegistrationToken(ctx context.Context, req CreateRegistrationTokenRequest) (*CreateRegistrationTokenResult, error)
+
+	// ListRegistrationTokens 列租户全部令牌（SA / TA）。
+	ListRegistrationTokens(ctx context.Context, tenantID string) ([]*domain.RegistrationToken, error)
+
+	// RevokeRegistrationToken 撤销令牌（SA only）。
+	RevokeRegistrationToken(ctx context.Context, id string) error
+
+	// RedeemRegistrationToken（公开 RPC；bearer token 自身即认证）：
+	// 用 plaintext 兑换 → 创建 Node 行（status=pending）+ 标 used。
+	// 错码：hash 找不到 / 已用 / 已撤 / 已过期 → ErrNodeRegistrationTokenInvalid
+	RedeemRegistrationToken(ctx context.Context, req RedeemRegistrationTokenRequest) (*RedeemRegistrationTokenResult, error)
 }
 
 // CreateProjectRequest 入参。
@@ -148,6 +165,34 @@ type SetProjectAllowedNodesRequest struct {
 	AddedBy   string
 }
 
+// CreateRegistrationTokenRequest 入参。
+type CreateRegistrationTokenRequest struct {
+	TenantID  string
+	Name      string
+	TTL       time.Duration // 0 → 默认 1h；上限 24h；下限 1m
+	CreatedBy string
+}
+
+// CreateRegistrationTokenResult 返回。
+//
+// Plaintext 一次性返给 SA；下次拉同一 token 仅能见 hash（不可读）。
+type CreateRegistrationTokenResult struct {
+	Token     *domain.RegistrationToken
+	Plaintext string
+}
+
+// RedeemRegistrationTokenRequest 入参。
+type RedeemRegistrationTokenRequest struct {
+	Plaintext string // 完整 rmnode_xxx 字串
+	NodeName  string // Agent 自报名（租户内唯一）
+	Version   string // Agent 版本（可空）
+}
+
+// RedeemRegistrationTokenResult 返回。
+type RedeemRegistrationTokenResult struct {
+	Node *domain.Node
+}
+
 // ListProjectsResult 返回。
 type ListProjectsResult struct {
 	Projects []*domain.Project
@@ -168,7 +213,9 @@ type service struct {
 	members  repo.ProjectMemberRepository
 	nodes    repo.NodeRepository
 	allowed  repo.AllowedNodesRepository
+	tokens   repo.RegistrationTokenRepository
 	users    UserLookup
+	now      func() time.Time
 }
 
 // NewService 构造 tenancy Service。
@@ -179,14 +226,16 @@ func NewService(
 	members repo.ProjectMemberRepository,
 	nodes repo.NodeRepository,
 	allowed repo.AllowedNodesRepository,
+	tokens repo.RegistrationTokenRepository,
 	users UserLookup,
 ) (Service, error) {
-	if projects == nil || members == nil || nodes == nil || allowed == nil || users == nil {
+	if projects == nil || members == nil || nodes == nil || allowed == nil || tokens == nil || users == nil {
 		return nil, errx.New(errx.ErrInternal, "tenancy.NewService: 依赖不能为 nil")
 	}
 	return &service{
 		projects: projects, members: members, nodes: nodes,
-		allowed: allowed, users: users,
+		allowed: allowed, tokens: tokens, users: users,
+		now: time.Now,
 	}, nil
 }
 
@@ -527,4 +576,114 @@ func (s *service) IsNodeAllowedForProject(ctx context.Context, projectID, nodeID
 		return false, errx.New(errx.ErrInvalidInput, "project_id / node_id 不能为空")
 	}
 	return s.allowed.IsAllowed(ctx, projectID, nodeID)
+}
+
+// === RegistrationToken ===
+
+// CreateRegistrationToken 生成 plaintext + 入库 hash。
+//
+// TTL 钳制：
+//   - 0 → 默认 1h
+//   - < 1m → 拒（防误填）
+//   - > 24h → 拒（防长期暴露窗口）
+func (s *service) CreateRegistrationToken(ctx context.Context, req CreateRegistrationTokenRequest) (*CreateRegistrationTokenResult, error) {
+	if strings.TrimSpace(req.TenantID) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "tenant_id 不能为空")
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "name 不能为空")
+	}
+	ttl := req.TTL
+	if ttl == 0 {
+		ttl = domain.RegistrationTokenDefaultTTL
+	}
+	if ttl < domain.RegistrationTokenMinTTL || ttl > domain.RegistrationTokenMaxTTL {
+		return nil, errx.New(errx.ErrInvalidInput,
+			"ttl 必须在 [1m, 24h]").
+			WithFields("got", ttl.String())
+	}
+
+	gen, err := tenancycrypto.GenerateNodeToken()
+	if err != nil {
+		return nil, err
+	}
+	now := s.now().UTC()
+	tok := &domain.RegistrationToken{
+		TenantID:  req.TenantID,
+		Name:      req.Name,
+		TokenHash: gen.Hash,
+		ExpiresAt: now.Add(ttl),
+		CreatedBy: req.CreatedBy,
+		CreatedAt: now,
+	}
+	if err := s.tokens.Insert(ctx, tok); err != nil {
+		return nil, err
+	}
+	return &CreateRegistrationTokenResult{
+		Token:     tok,
+		Plaintext: gen.Plaintext,
+	}, nil
+}
+
+// ListRegistrationTokens 列租户全部令牌（hash 字段保留；前端不显示）。
+func (s *service) ListRegistrationTokens(ctx context.Context, tenantID string) ([]*domain.RegistrationToken, error) {
+	if strings.TrimSpace(tenantID) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "tenant_id 不能为空")
+	}
+	return s.tokens.ListByTenant(ctx, tenantID)
+}
+
+// RevokeRegistrationToken 撤销令牌（幂等）。
+func (s *service) RevokeRegistrationToken(ctx context.Context, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return errx.New(errx.ErrInvalidInput, "token id 不能为空")
+	}
+	return s.tokens.Revoke(ctx, id)
+}
+
+// RedeemRegistrationToken 用 plaintext 兑换 → 创建 Node + 标 used。
+//
+// 流程：
+//  1. plaintext 长度 / 前缀粗校（错码：invalid）
+//  2. SHA-256(plaintext) → repo.GetByHash（错码：invalid）
+//  3. domain.IsUsable(now)：未用 + 未撤 + 未过期；任一失败 → invalid（混淆）
+//  4. CreateNode（pending）；name 已存在 → ErrNodeNameExists 透传
+//  5. tokens.MarkUsed（防双花；与 4 不在事务里——若 4 成功 5 失败极少见且仅
+//     意味着 token 仍可再用一次，节点已建；MVP 容忍）
+func (s *service) RedeemRegistrationToken(ctx context.Context, req RedeemRegistrationTokenRequest) (*RedeemRegistrationTokenResult, error) {
+	if !tenancycrypto.IsNodeTokenFormat(req.Plaintext) {
+		return nil, errx.New(errx.ErrNodeRegistrationTokenInvalid, "token 格式不合法")
+	}
+	if strings.TrimSpace(req.NodeName) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "node_name 不能为空")
+	}
+	hash := tenancycrypto.HashNodeToken(req.Plaintext)
+	tok, err := s.tokens.GetByHash(ctx, hash)
+	if err != nil {
+		// repo 已用 ErrNodeRegistrationTokenInvalid 包装 NotFound
+		return nil, err
+	}
+	if !tok.IsUsable(s.now().UTC()) {
+		return nil, errx.New(errx.ErrNodeRegistrationTokenInvalid,
+			"token 不可用（已用 / 已撤 / 已过期）")
+	}
+
+	// 创建 node 记录
+	n := &domain.Node{
+		TenantID: tok.TenantID,
+		Name:     req.NodeName,
+		Version:  req.Version,
+		Status:   domain.NodePending, // PR-T4-D 心跳上线后转 online
+	}
+	if err := s.nodes.Insert(ctx, n); err != nil {
+		return nil, err
+	}
+
+	// 标 used；失败仅记 caller（不回滚 node：MVP 容忍 token 再用，运维可手动 Revoke）
+	if err := s.tokens.MarkUsed(ctx, tok.ID); err != nil {
+		// caller 可见（透传），运维需排查
+		return nil, err
+	}
+
+	return &RedeemRegistrationTokenResult{Node: n}, nil
 }

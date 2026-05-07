@@ -85,6 +85,18 @@ const (
 	// TenancyServiceGetProjectAllowedNodesProcedure is the fully-qualified name of the TenancyService's
 	// GetProjectAllowedNodes RPC.
 	TenancyServiceGetProjectAllowedNodesProcedure = "/redmatrix.tenancy.v1.TenancyService/GetProjectAllowedNodes"
+	// TenancyServiceCreateRegistrationTokenProcedure is the fully-qualified name of the
+	// TenancyService's CreateRegistrationToken RPC.
+	TenancyServiceCreateRegistrationTokenProcedure = "/redmatrix.tenancy.v1.TenancyService/CreateRegistrationToken"
+	// TenancyServiceListRegistrationTokensProcedure is the fully-qualified name of the TenancyService's
+	// ListRegistrationTokens RPC.
+	TenancyServiceListRegistrationTokensProcedure = "/redmatrix.tenancy.v1.TenancyService/ListRegistrationTokens"
+	// TenancyServiceRevokeRegistrationTokenProcedure is the fully-qualified name of the
+	// TenancyService's RevokeRegistrationToken RPC.
+	TenancyServiceRevokeRegistrationTokenProcedure = "/redmatrix.tenancy.v1.TenancyService/RevokeRegistrationToken"
+	// TenancyServiceRedeemRegistrationTokenProcedure is the fully-qualified name of the
+	// TenancyService's RedeemRegistrationToken RPC.
+	TenancyServiceRedeemRegistrationTokenProcedure = "/redmatrix.tenancy.v1.TenancyService/RedeemRegistrationToken"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -126,6 +138,16 @@ type TenancyServiceClient interface {
 	// GetProjectAllowedNodes 取项目白名单。
 	// 返 all_nodes=true 表示 ALL 默认；false 时 node_ids 是显式列表。
 	GetProjectAllowedNodes(context.Context, *connect.Request[v1.GetProjectAllowedNodesRequest]) (*connect.Response[v1.GetProjectAllowedNodesResponse], error)
+	// CreateRegistrationToken 生成一次性节点注册令牌（SA only）。
+	// 返 plaintext 仅一次性显示。
+	CreateRegistrationToken(context.Context, *connect.Request[v1.CreateRegistrationTokenRequest]) (*connect.Response[v1.CreateRegistrationTokenResponse], error)
+	// ListRegistrationTokens 列租户全部令牌（SA + TA）。
+	ListRegistrationTokens(context.Context, *connect.Request[v1.ListRegistrationTokensRequest]) (*connect.Response[v1.ListRegistrationTokensResponse], error)
+	// RevokeRegistrationToken 撤销令牌（SA only）。
+	RevokeRegistrationToken(context.Context, *connect.Request[v1.RevokeRegistrationTokenRequest]) (*connect.Response[v1.RevokeRegistrationTokenResponse], error)
+	// RedeemRegistrationToken 真节点首次接入（公开 RPC；plaintext 自身即认证）。
+	// 兑换 → 创建 Node 行（status=pending）+ 单次性消费 token。
+	RedeemRegistrationToken(context.Context, *connect.Request[v1.RedeemRegistrationTokenRequest]) (*connect.Response[v1.RedeemRegistrationTokenResponse], error)
 }
 
 // NewTenancyServiceClient constructs a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -241,28 +263,56 @@ func NewTenancyServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(tenancyServiceMethods.ByName("GetProjectAllowedNodes")),
 			connect.WithClientOptions(opts...),
 		),
+		createRegistrationToken: connect.NewClient[v1.CreateRegistrationTokenRequest, v1.CreateRegistrationTokenResponse](
+			httpClient,
+			baseURL+TenancyServiceCreateRegistrationTokenProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("CreateRegistrationToken")),
+			connect.WithClientOptions(opts...),
+		),
+		listRegistrationTokens: connect.NewClient[v1.ListRegistrationTokensRequest, v1.ListRegistrationTokensResponse](
+			httpClient,
+			baseURL+TenancyServiceListRegistrationTokensProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("ListRegistrationTokens")),
+			connect.WithClientOptions(opts...),
+		),
+		revokeRegistrationToken: connect.NewClient[v1.RevokeRegistrationTokenRequest, v1.RevokeRegistrationTokenResponse](
+			httpClient,
+			baseURL+TenancyServiceRevokeRegistrationTokenProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("RevokeRegistrationToken")),
+			connect.WithClientOptions(opts...),
+		),
+		redeemRegistrationToken: connect.NewClient[v1.RedeemRegistrationTokenRequest, v1.RedeemRegistrationTokenResponse](
+			httpClient,
+			baseURL+TenancyServiceRedeemRegistrationTokenProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("RedeemRegistrationToken")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // tenancyServiceClient implements TenancyServiceClient.
 type tenancyServiceClient struct {
-	createProject          *connect.Client[v1.CreateProjectRequest, v1.CreateProjectResponse]
-	listProjects           *connect.Client[v1.ListProjectsRequest, v1.ListProjectsResponse]
-	getProject             *connect.Client[v1.GetProjectRequest, v1.GetProjectResponse]
-	archiveProject         *connect.Client[v1.ArchiveProjectRequest, v1.ArchiveProjectResponse]
-	unarchiveProject       *connect.Client[v1.UnarchiveProjectRequest, v1.UnarchiveProjectResponse]
-	deleteProject          *connect.Client[v1.DeleteProjectRequest, v1.DeleteProjectResponse]
-	addProjectMember       *connect.Client[v1.AddProjectMemberRequest, v1.AddProjectMemberResponse]
-	removeProjectMember    *connect.Client[v1.RemoveProjectMemberRequest, v1.RemoveProjectMemberResponse]
-	listProjectMembers     *connect.Client[v1.ListProjectMembersRequest, v1.ListProjectMembersResponse]
-	createNode             *connect.Client[v1.CreateNodeRequest, v1.CreateNodeResponse]
-	listNodes              *connect.Client[v1.ListNodesRequest, v1.ListNodesResponse]
-	getNode                *connect.Client[v1.GetNodeRequest, v1.GetNodeResponse]
-	enableNode             *connect.Client[v1.EnableNodeRequest, v1.EnableNodeResponse]
-	disableNode            *connect.Client[v1.DisableNodeRequest, v1.DisableNodeResponse]
-	deleteNode             *connect.Client[v1.DeleteNodeRequest, v1.DeleteNodeResponse]
-	setProjectAllowedNodes *connect.Client[v1.SetProjectAllowedNodesRequest, v1.SetProjectAllowedNodesResponse]
-	getProjectAllowedNodes *connect.Client[v1.GetProjectAllowedNodesRequest, v1.GetProjectAllowedNodesResponse]
+	createProject           *connect.Client[v1.CreateProjectRequest, v1.CreateProjectResponse]
+	listProjects            *connect.Client[v1.ListProjectsRequest, v1.ListProjectsResponse]
+	getProject              *connect.Client[v1.GetProjectRequest, v1.GetProjectResponse]
+	archiveProject          *connect.Client[v1.ArchiveProjectRequest, v1.ArchiveProjectResponse]
+	unarchiveProject        *connect.Client[v1.UnarchiveProjectRequest, v1.UnarchiveProjectResponse]
+	deleteProject           *connect.Client[v1.DeleteProjectRequest, v1.DeleteProjectResponse]
+	addProjectMember        *connect.Client[v1.AddProjectMemberRequest, v1.AddProjectMemberResponse]
+	removeProjectMember     *connect.Client[v1.RemoveProjectMemberRequest, v1.RemoveProjectMemberResponse]
+	listProjectMembers      *connect.Client[v1.ListProjectMembersRequest, v1.ListProjectMembersResponse]
+	createNode              *connect.Client[v1.CreateNodeRequest, v1.CreateNodeResponse]
+	listNodes               *connect.Client[v1.ListNodesRequest, v1.ListNodesResponse]
+	getNode                 *connect.Client[v1.GetNodeRequest, v1.GetNodeResponse]
+	enableNode              *connect.Client[v1.EnableNodeRequest, v1.EnableNodeResponse]
+	disableNode             *connect.Client[v1.DisableNodeRequest, v1.DisableNodeResponse]
+	deleteNode              *connect.Client[v1.DeleteNodeRequest, v1.DeleteNodeResponse]
+	setProjectAllowedNodes  *connect.Client[v1.SetProjectAllowedNodesRequest, v1.SetProjectAllowedNodesResponse]
+	getProjectAllowedNodes  *connect.Client[v1.GetProjectAllowedNodesRequest, v1.GetProjectAllowedNodesResponse]
+	createRegistrationToken *connect.Client[v1.CreateRegistrationTokenRequest, v1.CreateRegistrationTokenResponse]
+	listRegistrationTokens  *connect.Client[v1.ListRegistrationTokensRequest, v1.ListRegistrationTokensResponse]
+	revokeRegistrationToken *connect.Client[v1.RevokeRegistrationTokenRequest, v1.RevokeRegistrationTokenResponse]
+	redeemRegistrationToken *connect.Client[v1.RedeemRegistrationTokenRequest, v1.RedeemRegistrationTokenResponse]
 }
 
 // CreateProject calls redmatrix.tenancy.v1.TenancyService.CreateProject.
@@ -350,6 +400,26 @@ func (c *tenancyServiceClient) GetProjectAllowedNodes(ctx context.Context, req *
 	return c.getProjectAllowedNodes.CallUnary(ctx, req)
 }
 
+// CreateRegistrationToken calls redmatrix.tenancy.v1.TenancyService.CreateRegistrationToken.
+func (c *tenancyServiceClient) CreateRegistrationToken(ctx context.Context, req *connect.Request[v1.CreateRegistrationTokenRequest]) (*connect.Response[v1.CreateRegistrationTokenResponse], error) {
+	return c.createRegistrationToken.CallUnary(ctx, req)
+}
+
+// ListRegistrationTokens calls redmatrix.tenancy.v1.TenancyService.ListRegistrationTokens.
+func (c *tenancyServiceClient) ListRegistrationTokens(ctx context.Context, req *connect.Request[v1.ListRegistrationTokensRequest]) (*connect.Response[v1.ListRegistrationTokensResponse], error) {
+	return c.listRegistrationTokens.CallUnary(ctx, req)
+}
+
+// RevokeRegistrationToken calls redmatrix.tenancy.v1.TenancyService.RevokeRegistrationToken.
+func (c *tenancyServiceClient) RevokeRegistrationToken(ctx context.Context, req *connect.Request[v1.RevokeRegistrationTokenRequest]) (*connect.Response[v1.RevokeRegistrationTokenResponse], error) {
+	return c.revokeRegistrationToken.CallUnary(ctx, req)
+}
+
+// RedeemRegistrationToken calls redmatrix.tenancy.v1.TenancyService.RedeemRegistrationToken.
+func (c *tenancyServiceClient) RedeemRegistrationToken(ctx context.Context, req *connect.Request[v1.RedeemRegistrationTokenRequest]) (*connect.Response[v1.RedeemRegistrationTokenResponse], error) {
+	return c.redeemRegistrationToken.CallUnary(ctx, req)
+}
+
 // TenancyServiceHandler is an implementation of the redmatrix.tenancy.v1.TenancyService service.
 type TenancyServiceHandler interface {
 	// CreateProject 创建项目（SA only）。name 在租户内唯一。
@@ -389,6 +459,16 @@ type TenancyServiceHandler interface {
 	// GetProjectAllowedNodes 取项目白名单。
 	// 返 all_nodes=true 表示 ALL 默认；false 时 node_ids 是显式列表。
 	GetProjectAllowedNodes(context.Context, *connect.Request[v1.GetProjectAllowedNodesRequest]) (*connect.Response[v1.GetProjectAllowedNodesResponse], error)
+	// CreateRegistrationToken 生成一次性节点注册令牌（SA only）。
+	// 返 plaintext 仅一次性显示。
+	CreateRegistrationToken(context.Context, *connect.Request[v1.CreateRegistrationTokenRequest]) (*connect.Response[v1.CreateRegistrationTokenResponse], error)
+	// ListRegistrationTokens 列租户全部令牌（SA + TA）。
+	ListRegistrationTokens(context.Context, *connect.Request[v1.ListRegistrationTokensRequest]) (*connect.Response[v1.ListRegistrationTokensResponse], error)
+	// RevokeRegistrationToken 撤销令牌（SA only）。
+	RevokeRegistrationToken(context.Context, *connect.Request[v1.RevokeRegistrationTokenRequest]) (*connect.Response[v1.RevokeRegistrationTokenResponse], error)
+	// RedeemRegistrationToken 真节点首次接入（公开 RPC；plaintext 自身即认证）。
+	// 兑换 → 创建 Node 行（status=pending）+ 单次性消费 token。
+	RedeemRegistrationToken(context.Context, *connect.Request[v1.RedeemRegistrationTokenRequest]) (*connect.Response[v1.RedeemRegistrationTokenResponse], error)
 }
 
 // NewTenancyServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -500,6 +580,30 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 		connect.WithSchema(tenancyServiceMethods.ByName("GetProjectAllowedNodes")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tenancyServiceCreateRegistrationTokenHandler := connect.NewUnaryHandler(
+		TenancyServiceCreateRegistrationTokenProcedure,
+		svc.CreateRegistrationToken,
+		connect.WithSchema(tenancyServiceMethods.ByName("CreateRegistrationToken")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceListRegistrationTokensHandler := connect.NewUnaryHandler(
+		TenancyServiceListRegistrationTokensProcedure,
+		svc.ListRegistrationTokens,
+		connect.WithSchema(tenancyServiceMethods.ByName("ListRegistrationTokens")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceRevokeRegistrationTokenHandler := connect.NewUnaryHandler(
+		TenancyServiceRevokeRegistrationTokenProcedure,
+		svc.RevokeRegistrationToken,
+		connect.WithSchema(tenancyServiceMethods.ByName("RevokeRegistrationToken")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceRedeemRegistrationTokenHandler := connect.NewUnaryHandler(
+		TenancyServiceRedeemRegistrationTokenProcedure,
+		svc.RedeemRegistrationToken,
+		connect.WithSchema(tenancyServiceMethods.ByName("RedeemRegistrationToken")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.TenancyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TenancyServiceCreateProjectProcedure:
@@ -536,6 +640,14 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 			tenancyServiceSetProjectAllowedNodesHandler.ServeHTTP(w, r)
 		case TenancyServiceGetProjectAllowedNodesProcedure:
 			tenancyServiceGetProjectAllowedNodesHandler.ServeHTTP(w, r)
+		case TenancyServiceCreateRegistrationTokenProcedure:
+			tenancyServiceCreateRegistrationTokenHandler.ServeHTTP(w, r)
+		case TenancyServiceListRegistrationTokensProcedure:
+			tenancyServiceListRegistrationTokensHandler.ServeHTTP(w, r)
+		case TenancyServiceRevokeRegistrationTokenProcedure:
+			tenancyServiceRevokeRegistrationTokenHandler.ServeHTTP(w, r)
+		case TenancyServiceRedeemRegistrationTokenProcedure:
+			tenancyServiceRedeemRegistrationTokenHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -611,4 +723,20 @@ func (UnimplementedTenancyServiceHandler) SetProjectAllowedNodes(context.Context
 
 func (UnimplementedTenancyServiceHandler) GetProjectAllowedNodes(context.Context, *connect.Request[v1.GetProjectAllowedNodesRequest]) (*connect.Response[v1.GetProjectAllowedNodesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.GetProjectAllowedNodes is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) CreateRegistrationToken(context.Context, *connect.Request[v1.CreateRegistrationTokenRequest]) (*connect.Response[v1.CreateRegistrationTokenResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.CreateRegistrationToken is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) ListRegistrationTokens(context.Context, *connect.Request[v1.ListRegistrationTokensRequest]) (*connect.Response[v1.ListRegistrationTokensResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.ListRegistrationTokens is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) RevokeRegistrationToken(context.Context, *connect.Request[v1.RevokeRegistrationTokenRequest]) (*connect.Response[v1.RevokeRegistrationTokenResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.RevokeRegistrationToken is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) RedeemRegistrationToken(context.Context, *connect.Request[v1.RedeemRegistrationTokenRequest]) (*connect.Response[v1.RedeemRegistrationTokenResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.RedeemRegistrationToken is not implemented"))
 }

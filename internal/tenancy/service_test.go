@@ -10,6 +10,7 @@ import (
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
+	tenancycrypto "github.com/ffff5sec/RedMatrix/internal/tenancy/crypto"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy/domain"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
 )
@@ -110,6 +111,86 @@ func (m *mockUserLookup) GetByID(_ context.Context, id string) (*identitydomain.
 		return nil, errx.New(errx.ErrUserNotFound, "nf")
 	}
 	return u, nil
+}
+
+// === mock registration-token repo ===
+
+type mockTokenRepo struct {
+	rows   map[string]*domain.RegistrationToken
+	byHash map[string]string
+}
+
+func newMockTokenRepo() *mockTokenRepo {
+	return &mockTokenRepo{
+		rows:   map[string]*domain.RegistrationToken{},
+		byHash: map[string]string{},
+	}
+}
+
+func (m *mockTokenRepo) Insert(_ context.Context, t *domain.RegistrationToken) error {
+	if err := t.ValidateForCreate(); err != nil {
+		return err
+	}
+	if _, dup := m.byHash[t.TokenHash]; dup {
+		return errx.New(errx.ErrNodeRegistrationTokenInvalid, "hash dup")
+	}
+	if t.ID == "" {
+		t.ID = "tk-" + t.Name
+	}
+	if t.CreatedAt.IsZero() {
+		t.CreatedAt = time.Now().UTC()
+	}
+	m.rows[t.ID] = t
+	m.byHash[t.TokenHash] = t.ID
+	return nil
+}
+
+func (m *mockTokenRepo) GetByHash(_ context.Context, hash string) (*domain.RegistrationToken, error) {
+	id, ok := m.byHash[hash]
+	if !ok {
+		return nil, errx.New(errx.ErrNodeRegistrationTokenInvalid, "not found")
+	}
+	return m.rows[id], nil
+}
+
+func (m *mockTokenRepo) GetByID(_ context.Context, id string) (*domain.RegistrationToken, error) {
+	t, ok := m.rows[id]
+	if !ok {
+		return nil, errx.New(errx.ErrNodeRegistrationTokenInvalid, "not found")
+	}
+	return t, nil
+}
+
+func (m *mockTokenRepo) ListByTenant(_ context.Context, tenantID string) ([]*domain.RegistrationToken, error) {
+	var out []*domain.RegistrationToken
+	for _, t := range m.rows {
+		if t.TenantID == tenantID {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockTokenRepo) Revoke(_ context.Context, id string) error {
+	t, ok := m.rows[id]
+	if !ok {
+		return errx.New(errx.ErrNodeRegistrationTokenInvalid, "not found")
+	}
+	if t.RevokedAt == nil {
+		now := time.Now().UTC()
+		t.RevokedAt = &now
+	}
+	return nil
+}
+
+func (m *mockTokenRepo) MarkUsed(_ context.Context, id string) error {
+	t, ok := m.rows[id]
+	if !ok || t.UsedAt != nil || t.RevokedAt != nil {
+		return errx.New(errx.ErrNodeRegistrationTokenInvalid, "not usable")
+	}
+	now := time.Now().UTC()
+	t.UsedAt = &now
+	return nil
 }
 
 // === mock allowed-nodes repo ===
@@ -385,8 +466,9 @@ func setupSvc(t *testing.T) (Service, *mockProjectRepo) {
 	mr := newMockMemberRepo()
 	nr := newMockNodeRepo()
 	ar := newMockAllowedRepo()
+	tr := newMockTokenRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, ar, users)
+	svc, err := NewService(r, mr, nr, ar, tr, users)
 	require.NoError(t, err)
 	return svc, r
 }
@@ -397,8 +479,9 @@ func setupSvcAll(t *testing.T) (Service, *mockProjectRepo, *mockMemberRepo, *moc
 	mr := newMockMemberRepo()
 	nr := newMockNodeRepo()
 	ar := newMockAllowedRepo()
+	tr := newMockTokenRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, ar, users)
+	svc, err := NewService(r, mr, nr, ar, tr, users)
 	require.NoError(t, err)
 	return svc, r, mr, users
 }
@@ -409,8 +492,9 @@ func setupSvcWithNodes(t *testing.T) (Service, *mockNodeRepo) {
 	mr := newMockMemberRepo()
 	nr := newMockNodeRepo()
 	ar := newMockAllowedRepo()
+	tr := newMockTokenRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, ar, users)
+	svc, err := NewService(r, mr, nr, ar, tr, users)
 	require.NoError(t, err)
 	return svc, nr
 }
@@ -422,16 +506,32 @@ func setupSvcWithAllowed(t *testing.T) (Service, *mockProjectRepo, *mockNodeRepo
 	mr := newMockMemberRepo()
 	nr := newMockNodeRepo()
 	ar := newMockAllowedRepo()
+	tr := newMockTokenRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, ar, users)
+	svc, err := NewService(r, mr, nr, ar, tr, users)
 	require.NoError(t, err)
 	return svc, r, nr, ar
 }
 
+// setupSvcWithTokens 给 RegistrationToken 测试用：拿到 svc + node repo + token repo。
+func setupSvcWithTokens(t *testing.T) (Service, *mockNodeRepo, *mockTokenRepo) {
+	t.Helper()
+	r := newMockProjectRepo()
+	mr := newMockMemberRepo()
+	nr := newMockNodeRepo()
+	ar := newMockAllowedRepo()
+	tr := newMockTokenRepo()
+	users := newMockUserLookup()
+	svc, err := NewService(r, mr, nr, ar, tr, users)
+	require.NoError(t, err)
+	return svc, nr, tr
+}
+
 func TestNewService_NilDeps(t *testing.T) {
-	_, err := NewService(nil, nil, nil, nil, nil)
+	_, err := NewService(nil, nil, nil, nil, nil, nil)
 	require.Error(t, err)
-	_, err = NewService(newMockProjectRepo(), nil, newMockNodeRepo(), newMockAllowedRepo(), newMockUserLookup())
+	_, err = NewService(newMockProjectRepo(), nil, newMockNodeRepo(),
+		newMockAllowedRepo(), newMockTokenRepo(), newMockUserLookup())
 	require.Error(t, err)
 }
 
@@ -947,4 +1047,201 @@ func TestAllowedNodes_EmptyIDs(t *testing.T) {
 		c, _ := errx.GetCode(err)
 		assert.Equal(t, errx.ErrInvalidInput, c)
 	}
+}
+
+// === RegistrationToken ===
+
+func TestCreateRegistrationToken_Happy(t *testing.T) {
+	svc, _, tr := setupSvcWithTokens(t)
+	res, err := svc.CreateRegistrationToken(context.Background(), CreateRegistrationTokenRequest{
+		TenantID:  tenantID,
+		Name:      "batch-1",
+		CreatedBy: "u-sa",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res.Token)
+	assert.NotEmpty(t, res.Token.ID)
+	assert.NotEmpty(t, res.Plaintext)
+	assert.True(t, len(res.Plaintext) > 40, "plaintext 含 prefix + 32 字节 base64url")
+	assert.Equal(t, "batch-1", res.Token.Name)
+	assert.Nil(t, res.Token.UsedAt)
+	assert.Nil(t, res.Token.RevokedAt)
+	// hash 入库；plaintext 不入库
+	assert.Equal(t, 1, len(tr.byHash))
+}
+
+func TestCreateRegistrationToken_TTLClamp(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	cases := []struct {
+		name    string
+		ttl     time.Duration
+		wantErr bool
+	}{
+		{"zero default", 0, false},
+		{"min 1m", time.Minute, false},
+		{"max 24h", 24 * time.Hour, false},
+		{"too short", 30 * time.Second, true},
+		{"too long", 25 * time.Hour, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.CreateRegistrationToken(context.Background(),
+				CreateRegistrationTokenRequest{
+					TenantID: tenantID, Name: "t-" + tc.name, TTL: tc.ttl,
+				})
+			if tc.wantErr {
+				require.Error(t, err)
+				c, _ := errx.GetCode(err)
+				assert.Equal(t, errx.ErrInvalidInput, c)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCreateRegistrationToken_EmptyInputs(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	cases := []CreateRegistrationTokenRequest{
+		{Name: "x"},                      // tenant 空
+		{TenantID: tenantID, Name: "  "}, // name 空
+	}
+	for _, c := range cases {
+		_, err := svc.CreateRegistrationToken(context.Background(), c)
+		require.Error(t, err)
+		code, _ := errx.GetCode(err)
+		assert.Equal(t, errx.ErrInvalidInput, code)
+	}
+}
+
+func TestRevokeRegistrationToken(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	res, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "rev"})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.RevokeRegistrationToken(context.Background(), res.Token.ID))
+	// 再撤一次仍幂等
+	require.NoError(t, svc.RevokeRegistrationToken(context.Background(), res.Token.ID))
+}
+
+func TestListRegistrationTokens(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	for i := 0; i < 3; i++ {
+		_, err := svc.CreateRegistrationToken(context.Background(),
+			CreateRegistrationTokenRequest{
+				TenantID: tenantID,
+				Name:     "t-" + string(rune('a'+i)),
+			})
+		require.NoError(t, err)
+	}
+	got, err := svc.ListRegistrationTokens(context.Background(), tenantID)
+	require.NoError(t, err)
+	assert.Len(t, got, 3)
+}
+
+// === RedeemRegistrationToken ===
+
+func TestRedeemRegistrationToken_Happy(t *testing.T) {
+	svc, nr, _ := setupSvcWithTokens(t)
+	res, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "redeem"})
+	require.NoError(t, err)
+
+	rd, err := svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{
+			Plaintext: res.Plaintext,
+			NodeName:  "agent-01",
+			Version:   "1.0.0",
+		})
+	require.NoError(t, err)
+	require.NotNil(t, rd.Node)
+	assert.Equal(t, "agent-01", rd.Node.Name)
+	assert.Equal(t, domain.NodePending, rd.Node.Status)
+	assert.Equal(t, tenantID, rd.Node.TenantID)
+	assert.Equal(t, "1.0.0", rd.Node.Version)
+
+	// node 已落 mock
+	assert.Len(t, nr.rows, 1)
+}
+
+func TestRedeemRegistrationToken_BadFormat(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	_, err := svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: "not-a-token", NodeName: "x"})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeRegistrationTokenInvalid, c)
+}
+
+func TestRedeemRegistrationToken_EmptyName(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	res, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "x"})
+	require.NoError(t, err)
+	_, err = svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: res.Plaintext, NodeName: " "})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInvalidInput, c)
+}
+
+func TestRedeemRegistrationToken_NotFound(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	// 自己生成一个真实格式但未入库的 plaintext
+	gen, err := tenancycrypto.GenerateNodeToken()
+	require.NoError(t, err)
+	_, err = svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: gen.Plaintext, NodeName: "x"})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeRegistrationTokenInvalid, c)
+}
+
+func TestRedeemRegistrationToken_AlreadyUsed_DoubleSpendBlocked(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	res, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "once"})
+	require.NoError(t, err)
+
+	// 第一次 OK
+	_, err = svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: res.Plaintext, NodeName: "agent-1"})
+	require.NoError(t, err)
+
+	// 第二次必须失败（防双花）
+	_, err = svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: res.Plaintext, NodeName: "agent-2"})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeRegistrationTokenInvalid, c)
+}
+
+func TestRedeemRegistrationToken_Revoked(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	res, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "rev"})
+	require.NoError(t, err)
+	require.NoError(t, svc.RevokeRegistrationToken(context.Background(), res.Token.ID))
+
+	_, err = svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: res.Plaintext, NodeName: "x"})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeRegistrationTokenInvalid, c)
+}
+
+func TestRedeemRegistrationToken_Expired(t *testing.T) {
+	svc, _, tr := setupSvcWithTokens(t)
+	res, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "exp"})
+	require.NoError(t, err)
+	// 手动改 ExpiresAt 到过去（mockTokenRepo 持的是同一指针）
+	tr.rows[res.Token.ID].ExpiresAt = time.Now().Add(-time.Minute)
+
+	_, err = svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: res.Plaintext, NodeName: "x"})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeRegistrationTokenInvalid, c)
 }

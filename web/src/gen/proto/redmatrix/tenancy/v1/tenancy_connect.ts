@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -205,6 +205,52 @@ export const TenancyService = {
       name: "GetProjectAllowedNodes",
       I: GetProjectAllowedNodesRequest,
       O: GetProjectAllowedNodesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * CreateRegistrationToken 生成一次性节点注册令牌（SA only）。
+     * 返 plaintext 仅一次性显示。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.CreateRegistrationToken
+     */
+    createRegistrationToken: {
+      name: "CreateRegistrationToken",
+      I: CreateRegistrationTokenRequest,
+      O: CreateRegistrationTokenResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListRegistrationTokens 列租户全部令牌（SA + TA）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.ListRegistrationTokens
+     */
+    listRegistrationTokens: {
+      name: "ListRegistrationTokens",
+      I: ListRegistrationTokensRequest,
+      O: ListRegistrationTokensResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * RevokeRegistrationToken 撤销令牌（SA only）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.RevokeRegistrationToken
+     */
+    revokeRegistrationToken: {
+      name: "RevokeRegistrationToken",
+      I: RevokeRegistrationTokenRequest,
+      O: RevokeRegistrationTokenResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * RedeemRegistrationToken 真节点首次接入（公开 RPC；plaintext 自身即认证）。
+     * 兑换 → 创建 Node 行（status=pending）+ 单次性消费 token。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.RedeemRegistrationToken
+     */
+    redeemRegistrationToken: {
+      name: "RedeemRegistrationToken",
+      I: RedeemRegistrationTokenRequest,
+      O: RedeemRegistrationTokenResponse,
       kind: MethodKind.Unary,
     },
   }

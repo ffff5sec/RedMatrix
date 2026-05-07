@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -502,6 +503,98 @@ func (h *Handler) assertProjectMember(ctx context.Context, p *auth.UserPrincipal
 		"非项目成员").WithFields("project_id", projectID)
 }
 
+// === RegistrationToken ===
+
+func (h *Handler) CreateRegistrationToken(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.CreateRegistrationTokenRequest],
+) (*connect.Response[tenancyv1.CreateRegistrationTokenResponse], error) {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	tenantID := req.Msg.GetTenantId()
+	if tenantID == "" {
+		tenantID = p.TenantID
+	}
+
+	res, err := h.svc.CreateRegistrationToken(ctx, tenancy.CreateRegistrationTokenRequest{
+		TenantID:  tenantID,
+		Name:      req.Msg.GetName(),
+		TTL:       time.Duration(req.Msg.GetTtlSeconds()) * time.Second,
+		CreatedBy: p.UserID,
+	})
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.CreateRegistrationTokenResponse{
+		Token:     registrationTokenToProto(res.Token),
+		Plaintext: res.Plaintext,
+	}), nil
+}
+
+func (h *Handler) ListRegistrationTokens(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.ListRegistrationTokensRequest],
+) (*connect.Response[tenancyv1.ListRegistrationTokensResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, adminAndAuditor...); err != nil {
+		return nil, toConnectError(err)
+	}
+	tenantID := req.Msg.GetTenantId()
+	if tenantID == "" {
+		tenantID = p.TenantID
+	}
+	out, err := h.svc.ListRegistrationTokens(ctx, tenantID)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	pbList := make([]*tenancyv1.RegistrationToken, 0, len(out))
+	for _, t := range out {
+		pbList = append(pbList, registrationTokenToProto(t))
+	}
+	return connect.NewResponse(&tenancyv1.ListRegistrationTokensResponse{
+		Tokens: pbList,
+	}), nil
+}
+
+func (h *Handler) RevokeRegistrationToken(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.RevokeRegistrationTokenRequest],
+) (*connect.Response[tenancyv1.RevokeRegistrationTokenResponse], error) {
+	if _, err := h.requireSA(ctx, req.Header()); err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.RevokeRegistrationToken(ctx, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.RevokeRegistrationTokenResponse{}), nil
+}
+
+// RedeemRegistrationToken 是公开 RPC（无 auth）；plaintext 自身即认证。
+//
+// 注意：本 RPC 用于真节点首次连接前换取节点身份；caller 通常是 Agent 而非
+// 浏览器。MVP 把它直接挂在 TenancyService 下；生产可拆出独立"接入端点"。
+func (h *Handler) RedeemRegistrationToken(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.RedeemRegistrationTokenRequest],
+) (*connect.Response[tenancyv1.RedeemRegistrationTokenResponse], error) {
+	res, err := h.svc.RedeemRegistrationToken(ctx, tenancy.RedeemRegistrationTokenRequest{
+		Plaintext: req.Msg.GetPlaintext(),
+		NodeName:  req.Msg.GetNodeName(),
+		Version:   req.Msg.GetVersion(),
+	})
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.RedeemRegistrationTokenResponse{
+		Node: nodeToProto(res.Node),
+	}), nil
+}
+
 // === conv ===
 
 func projectToProto(p *tenancydomain.Project) *tenancyv1.Project {
@@ -541,6 +634,27 @@ func nodeToProto(n *tenancydomain.Node) *tenancyv1.Node {
 	}
 	if n.LastSeenAt != nil {
 		out.LastSeenAt = timestamppb.New(*n.LastSeenAt)
+	}
+	return out
+}
+
+func registrationTokenToProto(t *tenancydomain.RegistrationToken) *tenancyv1.RegistrationToken {
+	if t == nil {
+		return nil
+	}
+	out := &tenancyv1.RegistrationToken{
+		Id:        t.ID,
+		TenantId:  t.TenantID,
+		Name:      t.Name,
+		ExpiresAt: timestamppb.New(t.ExpiresAt),
+		CreatedBy: t.CreatedBy,
+		CreatedAt: timestamppb.New(t.CreatedAt),
+	}
+	if t.UsedAt != nil {
+		out.UsedAt = timestamppb.New(*t.UsedAt)
+	}
+	if t.RevokedAt != nil {
+		out.RevokedAt = timestamppb.New(*t.RevokedAt)
 	}
 	return out
 }

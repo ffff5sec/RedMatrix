@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import { tenancyClient } from '@/api/transport';
 import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
-import type { Node } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
+import type { Node, RegistrationToken } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -121,6 +121,76 @@ function statusBadge(s: string) {
     default: return '';
   }
 }
+
+// === RegistrationToken（节点接入）===
+
+const showTokens = ref(false);
+const tokens = ref<RegistrationToken[]>([]);
+const tokensLoading = ref(false);
+const tokensErr = ref('');
+const newToken = ref({ name: '', ttlHours: 1 });
+const tokenSubmitting = ref(false);
+const lastPlaintext = ref<{ name: string; plaintext: string } | null>(null);
+
+async function refreshTokens() {
+  tokensLoading.value = true;
+  tokensErr.value = '';
+  try {
+    const r = await tenancyClient.listRegistrationTokens({ tenantId: DEFAULT_TENANT_ID });
+    tokens.value = r.tokens;
+  } catch (e) {
+    tokensErr.value = errorMessage(e);
+  } finally {
+    tokensLoading.value = false;
+  }
+}
+
+async function toggleTokens() {
+  showTokens.value = !showTokens.value;
+  if (showTokens.value) await refreshTokens();
+}
+
+async function createToken() {
+  if (tokenSubmitting.value) return;
+  tokenSubmitting.value = true;
+  tokensErr.value = '';
+  try {
+    const r = await tenancyClient.createRegistrationToken({
+      tenantId: DEFAULT_TENANT_ID,
+      name: newToken.value.name,
+      ttlSeconds: BigInt(Math.max(60, Math.min(86400, newToken.value.ttlHours * 3600))),
+    });
+    lastPlaintext.value = { name: newToken.value.name, plaintext: r.plaintext };
+    newToken.value = { name: '', ttlHours: 1 };
+    await refreshTokens();
+  } catch (e) {
+    tokensErr.value = errorMessage(e);
+  } finally {
+    tokenSubmitting.value = false;
+  }
+}
+
+async function revokeToken(id: string, name: string) {
+  if (!confirm(`撤销注册令牌 ${name}？已撤销不可恢复（请重新创建）。`)) return;
+  tokensErr.value = '';
+  try {
+    await tenancyClient.revokeRegistrationToken({ id });
+    await refreshTokens();
+  } catch (e) {
+    tokensErr.value = errorMessage(e);
+  }
+}
+
+function copyText(s: string) {
+  navigator.clipboard?.writeText(s);
+}
+
+function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
+  if (t.revokedAt) return { text: 'revoked', cls: 'red' };
+  if (t.usedAt) return { text: 'used', cls: 'green' };
+  if (t.expiresAt && t.expiresAt.toDate() < new Date()) return { text: 'expired', cls: 'amber' };
+  return { text: 'pending', cls: 'amber' };
+}
 </script>
 
 <template>
@@ -129,6 +199,88 @@ function statusBadge(s: string) {
   </div>
 
   <template v-else>
+    <div class="card">
+      <div class="row" style="justify-content: space-between">
+        <h2>注册令牌</h2>
+        <button @click="toggleTokens">
+          {{ showTokens ? '收起' : '展开' }}
+        </button>
+      </div>
+      <p class="muted">
+        SA 生成一次性令牌；真节点（Agent）首次连接时凭此换取节点身份（PR-T4-D 加 mTLS 证书）。
+      </p>
+
+      <div v-if="showTokens">
+        <div v-if="tokensErr" class="error">{{ tokensErr }}</div>
+
+        <div v-if="lastPlaintext" class="info">
+          <strong>新令牌已创建（仅本次显示）·{{ lastPlaintext.name }}：</strong>
+          <code class="mono" style="display: block; margin-top: 4px; word-break: break-all">{{ lastPlaintext.plaintext }}</code>
+          <button style="margin-top: 8px" @click="copyText(lastPlaintext.plaintext)">复制</button>
+          <button style="margin-left: 4px" @click="lastPlaintext = null">关闭</button>
+        </div>
+
+        <div v-if="authStore.isSuperAdmin()" class="row" style="margin: 12px 0">
+          <input
+            v-model="newToken.name"
+            placeholder="令牌名（如 q1-batch）"
+            :disabled="tokenSubmitting"
+          />
+          <input
+            v-model.number="newToken.ttlHours"
+            type="number"
+            min="1"
+            max="24"
+            :disabled="tokenSubmitting"
+            style="width: 80px"
+          />
+          <span class="muted">小时（1-24）</span>
+          <button
+            class="primary"
+            :disabled="tokenSubmitting || !newToken.name"
+            @click="createToken"
+          >
+            {{ tokenSubmitting ? '生成中…' : '生成令牌' }}
+          </button>
+        </div>
+
+        <table v-if="tokens.length > 0">
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>状态</th>
+              <th>过期</th>
+              <th>已用</th>
+              <th>创建</th>
+              <th v-if="authStore.isSuperAdmin()"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="t in tokens" :key="t.id">
+              <td>{{ t.name }}</td>
+              <td>
+                <span class="badge" :class="tokenStatusOf(t).cls">{{ tokenStatusOf(t).text }}</span>
+              </td>
+              <td class="muted">{{ fmt(t.expiresAt) }}</td>
+              <td class="muted">{{ fmt(t.usedAt) }}</td>
+              <td class="muted">{{ fmt(t.createdAt) }}</td>
+              <td v-if="authStore.isSuperAdmin()">
+                <button
+                  v-if="!t.revokedAt && !t.usedAt"
+                  class="danger"
+                  @click="revokeToken(t.id, t.name)"
+                >
+                  撤销
+                </button>
+                <span v-else class="muted">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else-if="!tokensLoading" class="muted">尚无令牌。</p>
+      </div>
+    </div>
+
     <div class="card">
       <h2>节点</h2>
       <div class="row">

@@ -69,6 +69,22 @@ service TenancyService {
   // GetProjectAllowedNodes 取项目白名单。
   // 返 all_nodes=true 表示 ALL 默认；false 时 node_ids 是显式列表。
   rpc GetProjectAllowedNodes(GetProjectAllowedNodesRequest) returns (GetProjectAllowedNodesResponse);
+
+  // ===== RegistrationToken（节点接入）=====
+
+  // CreateRegistrationToken 生成一次性节点注册令牌（SA only）。
+  // 返 plaintext 仅一次性显示。
+  rpc CreateRegistrationToken(CreateRegistrationTokenRequest) returns (CreateRegistrationTokenResponse);
+
+  // ListRegistrationTokens 列租户全部令牌（SA + TA）。
+  rpc ListRegistrationTokens(ListRegistrationTokensRequest) returns (ListRegistrationTokensResponse);
+
+  // RevokeRegistrationToken 撤销令牌（SA only）。
+  rpc RevokeRegistrationToken(RevokeRegistrationTokenRequest) returns (RevokeRegistrationTokenResponse);
+
+  // RedeemRegistrationToken 真节点首次接入（公开 RPC；plaintext 自身即认证）。
+  // 兑换 → 创建 Node 行（status=pending）+ 单次性消费 token。
+  rpc RedeemRegistrationToken(RedeemRegistrationTokenRequest) returns (RedeemRegistrationTokenResponse);
 }
 
 // ===== Project =====
@@ -240,4 +256,51 @@ message GetProjectAllowedNodesResponse {
   // all_nodes=true → 所有节点可用（白名单为空）；false → node_ids 是显式列表
   bool all_nodes = 1;
   repeated string node_ids = 2;
+}
+
+// ===== RegistrationToken =====
+
+message RegistrationToken {
+  string id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  // token_hash 入参出参不携带 plaintext；仅 Create 一次性返
+  google.protobuf.Timestamp expires_at = 4;
+  optional google.protobuf.Timestamp used_at = 5;
+  optional google.protobuf.Timestamp revoked_at = 6;
+  string created_by = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message CreateRegistrationTokenRequest {
+  string tenant_id = 1;
+  string name = 2;
+  // ttl_seconds 0 = 默认 1h；范围 [60, 86400]
+  int64 ttl_seconds = 3;
+}
+message CreateRegistrationTokenResponse {
+  RegistrationToken token = 1;
+  // plaintext 一次性返回；丢失需 Revoke + 重建
+  string plaintext = 2;
+}
+
+message ListRegistrationTokensRequest {
+  string tenant_id = 1;
+}
+message ListRegistrationTokensResponse {
+  repeated RegistrationToken tokens = 1;
+}
+
+message RevokeRegistrationTokenRequest {
+  string id = 1;
+}
+message RevokeRegistrationTokenResponse {}
+
+message RedeemRegistrationTokenRequest {
+  string plaintext = 1;
+  string node_name = 2;
+  string version = 3;
+}
+message RedeemRegistrationTokenResponse {
+  Node node = 1;
 }

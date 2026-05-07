@@ -7,7 +7,7 @@
 // 成员 / 节点 / 白名单 / 注册流程）。
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * @generated from message redmatrix.tenancy.v1.Project
@@ -1601,6 +1601,411 @@ export class GetProjectAllowedNodesResponse extends Message<GetProjectAllowedNod
 
   static equals(a: GetProjectAllowedNodesResponse | PlainMessage<GetProjectAllowedNodesResponse> | undefined, b: GetProjectAllowedNodesResponse | PlainMessage<GetProjectAllowedNodesResponse> | undefined): boolean {
     return proto3.util.equals(GetProjectAllowedNodesResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.RegistrationToken
+ */
+export class RegistrationToken extends Message<RegistrationToken> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string tenant_id = 2;
+   */
+  tenantId = "";
+
+  /**
+   * @generated from field: string name = 3;
+   */
+  name = "";
+
+  /**
+   * token_hash 入参出参不携带 plaintext；仅 Create 一次性返
+   *
+   * @generated from field: google.protobuf.Timestamp expires_at = 4;
+   */
+  expiresAt?: Timestamp;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp used_at = 5;
+   */
+  usedAt?: Timestamp;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp revoked_at = 6;
+   */
+  revokedAt?: Timestamp;
+
+  /**
+   * @generated from field: string created_by = 7;
+   */
+  createdBy = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 8;
+   */
+  createdAt?: Timestamp;
+
+  constructor(data?: PartialMessage<RegistrationToken>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.RegistrationToken";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "expires_at", kind: "message", T: Timestamp },
+    { no: 5, name: "used_at", kind: "message", T: Timestamp, opt: true },
+    { no: 6, name: "revoked_at", kind: "message", T: Timestamp, opt: true },
+    { no: 7, name: "created_by", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "created_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RegistrationToken {
+    return new RegistrationToken().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RegistrationToken {
+    return new RegistrationToken().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RegistrationToken {
+    return new RegistrationToken().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RegistrationToken | PlainMessage<RegistrationToken> | undefined, b: RegistrationToken | PlainMessage<RegistrationToken> | undefined): boolean {
+    return proto3.util.equals(RegistrationToken, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.CreateRegistrationTokenRequest
+ */
+export class CreateRegistrationTokenRequest extends Message<CreateRegistrationTokenRequest> {
+  /**
+   * @generated from field: string tenant_id = 1;
+   */
+  tenantId = "";
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name = "";
+
+  /**
+   * ttl_seconds 0 = 默认 1h；范围 [60, 86400]
+   *
+   * @generated from field: int64 ttl_seconds = 3;
+   */
+  ttlSeconds = protoInt64.zero;
+
+  constructor(data?: PartialMessage<CreateRegistrationTokenRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.CreateRegistrationTokenRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "ttl_seconds", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateRegistrationTokenRequest {
+    return new CreateRegistrationTokenRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateRegistrationTokenRequest {
+    return new CreateRegistrationTokenRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateRegistrationTokenRequest {
+    return new CreateRegistrationTokenRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateRegistrationTokenRequest | PlainMessage<CreateRegistrationTokenRequest> | undefined, b: CreateRegistrationTokenRequest | PlainMessage<CreateRegistrationTokenRequest> | undefined): boolean {
+    return proto3.util.equals(CreateRegistrationTokenRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.CreateRegistrationTokenResponse
+ */
+export class CreateRegistrationTokenResponse extends Message<CreateRegistrationTokenResponse> {
+  /**
+   * @generated from field: redmatrix.tenancy.v1.RegistrationToken token = 1;
+   */
+  token?: RegistrationToken;
+
+  /**
+   * plaintext 一次性返回；丢失需 Revoke + 重建
+   *
+   * @generated from field: string plaintext = 2;
+   */
+  plaintext = "";
+
+  constructor(data?: PartialMessage<CreateRegistrationTokenResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.CreateRegistrationTokenResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "token", kind: "message", T: RegistrationToken },
+    { no: 2, name: "plaintext", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateRegistrationTokenResponse {
+    return new CreateRegistrationTokenResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateRegistrationTokenResponse {
+    return new CreateRegistrationTokenResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateRegistrationTokenResponse {
+    return new CreateRegistrationTokenResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateRegistrationTokenResponse | PlainMessage<CreateRegistrationTokenResponse> | undefined, b: CreateRegistrationTokenResponse | PlainMessage<CreateRegistrationTokenResponse> | undefined): boolean {
+    return proto3.util.equals(CreateRegistrationTokenResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListRegistrationTokensRequest
+ */
+export class ListRegistrationTokensRequest extends Message<ListRegistrationTokensRequest> {
+  /**
+   * @generated from field: string tenant_id = 1;
+   */
+  tenantId = "";
+
+  constructor(data?: PartialMessage<ListRegistrationTokensRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListRegistrationTokensRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListRegistrationTokensRequest {
+    return new ListRegistrationTokensRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListRegistrationTokensRequest {
+    return new ListRegistrationTokensRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListRegistrationTokensRequest {
+    return new ListRegistrationTokensRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListRegistrationTokensRequest | PlainMessage<ListRegistrationTokensRequest> | undefined, b: ListRegistrationTokensRequest | PlainMessage<ListRegistrationTokensRequest> | undefined): boolean {
+    return proto3.util.equals(ListRegistrationTokensRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListRegistrationTokensResponse
+ */
+export class ListRegistrationTokensResponse extends Message<ListRegistrationTokensResponse> {
+  /**
+   * @generated from field: repeated redmatrix.tenancy.v1.RegistrationToken tokens = 1;
+   */
+  tokens: RegistrationToken[] = [];
+
+  constructor(data?: PartialMessage<ListRegistrationTokensResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListRegistrationTokensResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "tokens", kind: "message", T: RegistrationToken, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListRegistrationTokensResponse {
+    return new ListRegistrationTokensResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListRegistrationTokensResponse {
+    return new ListRegistrationTokensResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListRegistrationTokensResponse {
+    return new ListRegistrationTokensResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListRegistrationTokensResponse | PlainMessage<ListRegistrationTokensResponse> | undefined, b: ListRegistrationTokensResponse | PlainMessage<ListRegistrationTokensResponse> | undefined): boolean {
+    return proto3.util.equals(ListRegistrationTokensResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.RevokeRegistrationTokenRequest
+ */
+export class RevokeRegistrationTokenRequest extends Message<RevokeRegistrationTokenRequest> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<RevokeRegistrationTokenRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.RevokeRegistrationTokenRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RevokeRegistrationTokenRequest {
+    return new RevokeRegistrationTokenRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RevokeRegistrationTokenRequest {
+    return new RevokeRegistrationTokenRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RevokeRegistrationTokenRequest {
+    return new RevokeRegistrationTokenRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RevokeRegistrationTokenRequest | PlainMessage<RevokeRegistrationTokenRequest> | undefined, b: RevokeRegistrationTokenRequest | PlainMessage<RevokeRegistrationTokenRequest> | undefined): boolean {
+    return proto3.util.equals(RevokeRegistrationTokenRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.RevokeRegistrationTokenResponse
+ */
+export class RevokeRegistrationTokenResponse extends Message<RevokeRegistrationTokenResponse> {
+  constructor(data?: PartialMessage<RevokeRegistrationTokenResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.RevokeRegistrationTokenResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RevokeRegistrationTokenResponse {
+    return new RevokeRegistrationTokenResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RevokeRegistrationTokenResponse {
+    return new RevokeRegistrationTokenResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RevokeRegistrationTokenResponse {
+    return new RevokeRegistrationTokenResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RevokeRegistrationTokenResponse | PlainMessage<RevokeRegistrationTokenResponse> | undefined, b: RevokeRegistrationTokenResponse | PlainMessage<RevokeRegistrationTokenResponse> | undefined): boolean {
+    return proto3.util.equals(RevokeRegistrationTokenResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.RedeemRegistrationTokenRequest
+ */
+export class RedeemRegistrationTokenRequest extends Message<RedeemRegistrationTokenRequest> {
+  /**
+   * @generated from field: string plaintext = 1;
+   */
+  plaintext = "";
+
+  /**
+   * @generated from field: string node_name = 2;
+   */
+  nodeName = "";
+
+  /**
+   * @generated from field: string version = 3;
+   */
+  version = "";
+
+  constructor(data?: PartialMessage<RedeemRegistrationTokenRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.RedeemRegistrationTokenRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "plaintext", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "node_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RedeemRegistrationTokenRequest {
+    return new RedeemRegistrationTokenRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RedeemRegistrationTokenRequest {
+    return new RedeemRegistrationTokenRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RedeemRegistrationTokenRequest {
+    return new RedeemRegistrationTokenRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RedeemRegistrationTokenRequest | PlainMessage<RedeemRegistrationTokenRequest> | undefined, b: RedeemRegistrationTokenRequest | PlainMessage<RedeemRegistrationTokenRequest> | undefined): boolean {
+    return proto3.util.equals(RedeemRegistrationTokenRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.RedeemRegistrationTokenResponse
+ */
+export class RedeemRegistrationTokenResponse extends Message<RedeemRegistrationTokenResponse> {
+  /**
+   * @generated from field: redmatrix.tenancy.v1.Node node = 1;
+   */
+  node?: Node;
+
+  constructor(data?: PartialMessage<RedeemRegistrationTokenResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.RedeemRegistrationTokenResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "node", kind: "message", T: Node },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RedeemRegistrationTokenResponse {
+    return new RedeemRegistrationTokenResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RedeemRegistrationTokenResponse {
+    return new RedeemRegistrationTokenResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RedeemRegistrationTokenResponse {
+    return new RedeemRegistrationTokenResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RedeemRegistrationTokenResponse | PlainMessage<RedeemRegistrationTokenResponse> | undefined, b: RedeemRegistrationTokenResponse | PlainMessage<RedeemRegistrationTokenResponse> | undefined): boolean {
+    return proto3.util.equals(RedeemRegistrationTokenResponse, a, b);
   }
 }
 

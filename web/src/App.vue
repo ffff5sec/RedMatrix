@@ -14,7 +14,8 @@ const tabs = computed(() => [
   { key: 'login', label: '登录', enabled: !authStore.isAuthed() },
   { key: 'profile', label: '个人', enabled: authStore.isAuthed() },
   { key: 'apikeys', label: 'API Keys', enabled: authStore.isAuthed() },
-  { key: 'projects', label: '项目', enabled: authStore.isSuperAdmin() || authStore.isAuditor() },
+  // PA 也开放：能看自己加入的项目
+  { key: 'projects', label: '项目', enabled: authStore.isAuthed() },
   { key: 'users', label: '用户管理', enabled: authStore.isSuperAdmin() || authStore.isAuditor() },
 ]);
 

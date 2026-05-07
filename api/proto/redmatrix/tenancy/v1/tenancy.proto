@@ -26,6 +26,17 @@ service TenancyService {
 
   // DeleteProject 软删（MVP 不级联资产 / 任务，由 LLD 11 §4.4 后续 PR 接）。
   rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
+
+  // ===== ProjectMember =====
+
+  // AddProjectMember 加成员（SA only）。被加用户必须 PROJECT_ADMIN 且 tenant 与项目一致。
+  rpc AddProjectMember(AddProjectMemberRequest) returns (AddProjectMemberResponse);
+
+  // RemoveProjectMember 移除成员（SA only）。
+  rpc RemoveProjectMember(RemoveProjectMemberRequest) returns (RemoveProjectMemberResponse);
+
+  // ListProjectMembers 列项目成员。SA + 该项目的 PA 可读。
+  rpc ListProjectMembers(ListProjectMembersRequest) returns (ListProjectMembersResponse);
 }
 
 // ===== Project =====
@@ -90,3 +101,32 @@ message DeleteProjectRequest {
   string id = 1;
 }
 message DeleteProjectResponse {}
+
+// ===== ProjectMember =====
+
+message ProjectMember {
+  string project_id = 1;
+  string user_id = 2;
+  string tenant_id = 3;
+  string added_by = 4;
+  google.protobuf.Timestamp added_at = 5;
+}
+
+message AddProjectMemberRequest {
+  string project_id = 1;
+  string user_id = 2;
+}
+message AddProjectMemberResponse {}
+
+message RemoveProjectMemberRequest {
+  string project_id = 1;
+  string user_id = 2;
+}
+message RemoveProjectMemberResponse {}
+
+message ListProjectMembersRequest {
+  string project_id = 1;
+}
+message ListProjectMembersResponse {
+  repeated ProjectMember members = 1;
+}

@@ -710,6 +710,346 @@ func (*DeleteProjectResponse) Descriptor() ([]byte, []int) {
 	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{12}
 }
 
+type ProjectMember struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TenantId      string                 `protobuf:"bytes,3,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	AddedBy       string                 `protobuf:"bytes,4,opt,name=added_by,json=addedBy,proto3" json:"added_by,omitempty"`
+	AddedAt       *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=added_at,json=addedAt,proto3" json:"added_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProjectMember) Reset() {
+	*x = ProjectMember{}
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProjectMember) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProjectMember) ProtoMessage() {}
+
+func (x *ProjectMember) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProjectMember.ProtoReflect.Descriptor instead.
+func (*ProjectMember) Descriptor() ([]byte, []int) {
+	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ProjectMember) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ProjectMember) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ProjectMember) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *ProjectMember) GetAddedBy() string {
+	if x != nil {
+		return x.AddedBy
+	}
+	return ""
+}
+
+func (x *ProjectMember) GetAddedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AddedAt
+	}
+	return nil
+}
+
+type AddProjectMemberRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddProjectMemberRequest) Reset() {
+	*x = AddProjectMemberRequest{}
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddProjectMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddProjectMemberRequest) ProtoMessage() {}
+
+func (x *AddProjectMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddProjectMemberRequest.ProtoReflect.Descriptor instead.
+func (*AddProjectMemberRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *AddProjectMemberRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *AddProjectMemberRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type AddProjectMemberResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddProjectMemberResponse) Reset() {
+	*x = AddProjectMemberResponse{}
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddProjectMemberResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddProjectMemberResponse) ProtoMessage() {}
+
+func (x *AddProjectMemberResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddProjectMemberResponse.ProtoReflect.Descriptor instead.
+func (*AddProjectMemberResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{15}
+}
+
+type RemoveProjectMemberRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveProjectMemberRequest) Reset() {
+	*x = RemoveProjectMemberRequest{}
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveProjectMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveProjectMemberRequest) ProtoMessage() {}
+
+func (x *RemoveProjectMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveProjectMemberRequest.ProtoReflect.Descriptor instead.
+func (*RemoveProjectMemberRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RemoveProjectMemberRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *RemoveProjectMemberRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type RemoveProjectMemberResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveProjectMemberResponse) Reset() {
+	*x = RemoveProjectMemberResponse{}
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveProjectMemberResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveProjectMemberResponse) ProtoMessage() {}
+
+func (x *RemoveProjectMemberResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveProjectMemberResponse.ProtoReflect.Descriptor instead.
+func (*RemoveProjectMemberResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{17}
+}
+
+type ListProjectMembersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListProjectMembersRequest) Reset() {
+	*x = ListProjectMembersRequest{}
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProjectMembersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProjectMembersRequest) ProtoMessage() {}
+
+func (x *ListProjectMembersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProjectMembersRequest.ProtoReflect.Descriptor instead.
+func (*ListProjectMembersRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ListProjectMembersRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+type ListProjectMembersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Members       []*ProjectMember       `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListProjectMembersResponse) Reset() {
+	*x = ListProjectMembersResponse{}
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProjectMembersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProjectMembersResponse) ProtoMessage() {}
+
+func (x *ListProjectMembersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProjectMembersResponse.ProtoReflect.Descriptor instead.
+func (*ListProjectMembersResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ListProjectMembersResponse) GetMembers() []*ProjectMember {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
 var File_redmatrix_tenancy_v1_tenancy_proto protoreflect.FileDescriptor
 
 const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
@@ -764,7 +1104,29 @@ const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
 	"\x18UnarchiveProjectResponse\"&\n" +
 	"\x14DeleteProjectRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
-	"\x15DeleteProjectResponse2\x8c\x05\n" +
+	"\x15DeleteProjectResponse\"\xb6\x01\n" +
+	"\rProjectMember\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1b\n" +
+	"\ttenant_id\x18\x03 \x01(\tR\btenantId\x12\x19\n" +
+	"\badded_by\x18\x04 \x01(\tR\aaddedBy\x125\n" +
+	"\badded_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\aaddedAt\"Q\n" +
+	"\x17AddProjectMemberRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x1a\n" +
+	"\x18AddProjectMemberResponse\"T\n" +
+	"\x1aRemoveProjectMemberRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x1d\n" +
+	"\x1bRemoveProjectMemberResponse\":\n" +
+	"\x19ListProjectMembersRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\"[\n" +
+	"\x1aListProjectMembersResponse\x12=\n" +
+	"\amembers\x18\x01 \x03(\v2#.redmatrix.tenancy.v1.ProjectMemberR\amembers2\xf4\a\n" +
 	"\x0eTenancyService\x12h\n" +
 	"\rCreateProject\x12*.redmatrix.tenancy.v1.CreateProjectRequest\x1a+.redmatrix.tenancy.v1.CreateProjectResponse\x12e\n" +
 	"\fListProjects\x12).redmatrix.tenancy.v1.ListProjectsRequest\x1a*.redmatrix.tenancy.v1.ListProjectsResponse\x12_\n" +
@@ -772,7 +1134,10 @@ const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
 	"GetProject\x12'.redmatrix.tenancy.v1.GetProjectRequest\x1a(.redmatrix.tenancy.v1.GetProjectResponse\x12k\n" +
 	"\x0eArchiveProject\x12+.redmatrix.tenancy.v1.ArchiveProjectRequest\x1a,.redmatrix.tenancy.v1.ArchiveProjectResponse\x12q\n" +
 	"\x10UnarchiveProject\x12-.redmatrix.tenancy.v1.UnarchiveProjectRequest\x1a..redmatrix.tenancy.v1.UnarchiveProjectResponse\x12h\n" +
-	"\rDeleteProject\x12*.redmatrix.tenancy.v1.DeleteProjectRequest\x1a+.redmatrix.tenancy.v1.DeleteProjectResponseB\xe2\x01\n" +
+	"\rDeleteProject\x12*.redmatrix.tenancy.v1.DeleteProjectRequest\x1a+.redmatrix.tenancy.v1.DeleteProjectResponse\x12q\n" +
+	"\x10AddProjectMember\x12-.redmatrix.tenancy.v1.AddProjectMemberRequest\x1a..redmatrix.tenancy.v1.AddProjectMemberResponse\x12z\n" +
+	"\x13RemoveProjectMember\x120.redmatrix.tenancy.v1.RemoveProjectMemberRequest\x1a1.redmatrix.tenancy.v1.RemoveProjectMemberResponse\x12w\n" +
+	"\x12ListProjectMembers\x12/.redmatrix.tenancy.v1.ListProjectMembersRequest\x1a0.redmatrix.tenancy.v1.ListProjectMembersResponseB\xe2\x01\n" +
 	"\x18com.redmatrix.tenancy.v1B\fTenancyProtoP\x01ZFgithub.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1;tenancyv1\xa2\x02\x03RTX\xaa\x02\x14Redmatrix.Tenancy.V1\xca\x02\x14Redmatrix\\Tenancy\\V1\xe2\x02 Redmatrix\\Tenancy\\V1\\GPBMetadata\xea\x02\x16Redmatrix::Tenancy::V1b\x06proto3"
 
 var (
@@ -787,47 +1152,62 @@ func file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP() []byte {
 	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescData
 }
 
-var file_redmatrix_tenancy_v1_tenancy_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_redmatrix_tenancy_v1_tenancy_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_redmatrix_tenancy_v1_tenancy_proto_goTypes = []any{
-	(*Project)(nil),                  // 0: redmatrix.tenancy.v1.Project
-	(*CreateProjectRequest)(nil),     // 1: redmatrix.tenancy.v1.CreateProjectRequest
-	(*CreateProjectResponse)(nil),    // 2: redmatrix.tenancy.v1.CreateProjectResponse
-	(*ListProjectsRequest)(nil),      // 3: redmatrix.tenancy.v1.ListProjectsRequest
-	(*ListProjectsResponse)(nil),     // 4: redmatrix.tenancy.v1.ListProjectsResponse
-	(*GetProjectRequest)(nil),        // 5: redmatrix.tenancy.v1.GetProjectRequest
-	(*GetProjectResponse)(nil),       // 6: redmatrix.tenancy.v1.GetProjectResponse
-	(*ArchiveProjectRequest)(nil),    // 7: redmatrix.tenancy.v1.ArchiveProjectRequest
-	(*ArchiveProjectResponse)(nil),   // 8: redmatrix.tenancy.v1.ArchiveProjectResponse
-	(*UnarchiveProjectRequest)(nil),  // 9: redmatrix.tenancy.v1.UnarchiveProjectRequest
-	(*UnarchiveProjectResponse)(nil), // 10: redmatrix.tenancy.v1.UnarchiveProjectResponse
-	(*DeleteProjectRequest)(nil),     // 11: redmatrix.tenancy.v1.DeleteProjectRequest
-	(*DeleteProjectResponse)(nil),    // 12: redmatrix.tenancy.v1.DeleteProjectResponse
-	(*timestamppb.Timestamp)(nil),    // 13: google.protobuf.Timestamp
+	(*Project)(nil),                     // 0: redmatrix.tenancy.v1.Project
+	(*CreateProjectRequest)(nil),        // 1: redmatrix.tenancy.v1.CreateProjectRequest
+	(*CreateProjectResponse)(nil),       // 2: redmatrix.tenancy.v1.CreateProjectResponse
+	(*ListProjectsRequest)(nil),         // 3: redmatrix.tenancy.v1.ListProjectsRequest
+	(*ListProjectsResponse)(nil),        // 4: redmatrix.tenancy.v1.ListProjectsResponse
+	(*GetProjectRequest)(nil),           // 5: redmatrix.tenancy.v1.GetProjectRequest
+	(*GetProjectResponse)(nil),          // 6: redmatrix.tenancy.v1.GetProjectResponse
+	(*ArchiveProjectRequest)(nil),       // 7: redmatrix.tenancy.v1.ArchiveProjectRequest
+	(*ArchiveProjectResponse)(nil),      // 8: redmatrix.tenancy.v1.ArchiveProjectResponse
+	(*UnarchiveProjectRequest)(nil),     // 9: redmatrix.tenancy.v1.UnarchiveProjectRequest
+	(*UnarchiveProjectResponse)(nil),    // 10: redmatrix.tenancy.v1.UnarchiveProjectResponse
+	(*DeleteProjectRequest)(nil),        // 11: redmatrix.tenancy.v1.DeleteProjectRequest
+	(*DeleteProjectResponse)(nil),       // 12: redmatrix.tenancy.v1.DeleteProjectResponse
+	(*ProjectMember)(nil),               // 13: redmatrix.tenancy.v1.ProjectMember
+	(*AddProjectMemberRequest)(nil),     // 14: redmatrix.tenancy.v1.AddProjectMemberRequest
+	(*AddProjectMemberResponse)(nil),    // 15: redmatrix.tenancy.v1.AddProjectMemberResponse
+	(*RemoveProjectMemberRequest)(nil),  // 16: redmatrix.tenancy.v1.RemoveProjectMemberRequest
+	(*RemoveProjectMemberResponse)(nil), // 17: redmatrix.tenancy.v1.RemoveProjectMemberResponse
+	(*ListProjectMembersRequest)(nil),   // 18: redmatrix.tenancy.v1.ListProjectMembersRequest
+	(*ListProjectMembersResponse)(nil),  // 19: redmatrix.tenancy.v1.ListProjectMembersResponse
+	(*timestamppb.Timestamp)(nil),       // 20: google.protobuf.Timestamp
 }
 var file_redmatrix_tenancy_v1_tenancy_proto_depIdxs = []int32{
-	13, // 0: redmatrix.tenancy.v1.Project.created_at:type_name -> google.protobuf.Timestamp
-	13, // 1: redmatrix.tenancy.v1.Project.updated_at:type_name -> google.protobuf.Timestamp
-	13, // 2: redmatrix.tenancy.v1.Project.archived_at:type_name -> google.protobuf.Timestamp
+	20, // 0: redmatrix.tenancy.v1.Project.created_at:type_name -> google.protobuf.Timestamp
+	20, // 1: redmatrix.tenancy.v1.Project.updated_at:type_name -> google.protobuf.Timestamp
+	20, // 2: redmatrix.tenancy.v1.Project.archived_at:type_name -> google.protobuf.Timestamp
 	0,  // 3: redmatrix.tenancy.v1.CreateProjectResponse.project:type_name -> redmatrix.tenancy.v1.Project
 	0,  // 4: redmatrix.tenancy.v1.ListProjectsResponse.projects:type_name -> redmatrix.tenancy.v1.Project
 	0,  // 5: redmatrix.tenancy.v1.GetProjectResponse.project:type_name -> redmatrix.tenancy.v1.Project
-	1,  // 6: redmatrix.tenancy.v1.TenancyService.CreateProject:input_type -> redmatrix.tenancy.v1.CreateProjectRequest
-	3,  // 7: redmatrix.tenancy.v1.TenancyService.ListProjects:input_type -> redmatrix.tenancy.v1.ListProjectsRequest
-	5,  // 8: redmatrix.tenancy.v1.TenancyService.GetProject:input_type -> redmatrix.tenancy.v1.GetProjectRequest
-	7,  // 9: redmatrix.tenancy.v1.TenancyService.ArchiveProject:input_type -> redmatrix.tenancy.v1.ArchiveProjectRequest
-	9,  // 10: redmatrix.tenancy.v1.TenancyService.UnarchiveProject:input_type -> redmatrix.tenancy.v1.UnarchiveProjectRequest
-	11, // 11: redmatrix.tenancy.v1.TenancyService.DeleteProject:input_type -> redmatrix.tenancy.v1.DeleteProjectRequest
-	2,  // 12: redmatrix.tenancy.v1.TenancyService.CreateProject:output_type -> redmatrix.tenancy.v1.CreateProjectResponse
-	4,  // 13: redmatrix.tenancy.v1.TenancyService.ListProjects:output_type -> redmatrix.tenancy.v1.ListProjectsResponse
-	6,  // 14: redmatrix.tenancy.v1.TenancyService.GetProject:output_type -> redmatrix.tenancy.v1.GetProjectResponse
-	8,  // 15: redmatrix.tenancy.v1.TenancyService.ArchiveProject:output_type -> redmatrix.tenancy.v1.ArchiveProjectResponse
-	10, // 16: redmatrix.tenancy.v1.TenancyService.UnarchiveProject:output_type -> redmatrix.tenancy.v1.UnarchiveProjectResponse
-	12, // 17: redmatrix.tenancy.v1.TenancyService.DeleteProject:output_type -> redmatrix.tenancy.v1.DeleteProjectResponse
-	12, // [12:18] is the sub-list for method output_type
-	6,  // [6:12] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	20, // 6: redmatrix.tenancy.v1.ProjectMember.added_at:type_name -> google.protobuf.Timestamp
+	13, // 7: redmatrix.tenancy.v1.ListProjectMembersResponse.members:type_name -> redmatrix.tenancy.v1.ProjectMember
+	1,  // 8: redmatrix.tenancy.v1.TenancyService.CreateProject:input_type -> redmatrix.tenancy.v1.CreateProjectRequest
+	3,  // 9: redmatrix.tenancy.v1.TenancyService.ListProjects:input_type -> redmatrix.tenancy.v1.ListProjectsRequest
+	5,  // 10: redmatrix.tenancy.v1.TenancyService.GetProject:input_type -> redmatrix.tenancy.v1.GetProjectRequest
+	7,  // 11: redmatrix.tenancy.v1.TenancyService.ArchiveProject:input_type -> redmatrix.tenancy.v1.ArchiveProjectRequest
+	9,  // 12: redmatrix.tenancy.v1.TenancyService.UnarchiveProject:input_type -> redmatrix.tenancy.v1.UnarchiveProjectRequest
+	11, // 13: redmatrix.tenancy.v1.TenancyService.DeleteProject:input_type -> redmatrix.tenancy.v1.DeleteProjectRequest
+	14, // 14: redmatrix.tenancy.v1.TenancyService.AddProjectMember:input_type -> redmatrix.tenancy.v1.AddProjectMemberRequest
+	16, // 15: redmatrix.tenancy.v1.TenancyService.RemoveProjectMember:input_type -> redmatrix.tenancy.v1.RemoveProjectMemberRequest
+	18, // 16: redmatrix.tenancy.v1.TenancyService.ListProjectMembers:input_type -> redmatrix.tenancy.v1.ListProjectMembersRequest
+	2,  // 17: redmatrix.tenancy.v1.TenancyService.CreateProject:output_type -> redmatrix.tenancy.v1.CreateProjectResponse
+	4,  // 18: redmatrix.tenancy.v1.TenancyService.ListProjects:output_type -> redmatrix.tenancy.v1.ListProjectsResponse
+	6,  // 19: redmatrix.tenancy.v1.TenancyService.GetProject:output_type -> redmatrix.tenancy.v1.GetProjectResponse
+	8,  // 20: redmatrix.tenancy.v1.TenancyService.ArchiveProject:output_type -> redmatrix.tenancy.v1.ArchiveProjectResponse
+	10, // 21: redmatrix.tenancy.v1.TenancyService.UnarchiveProject:output_type -> redmatrix.tenancy.v1.UnarchiveProjectResponse
+	12, // 22: redmatrix.tenancy.v1.TenancyService.DeleteProject:output_type -> redmatrix.tenancy.v1.DeleteProjectResponse
+	15, // 23: redmatrix.tenancy.v1.TenancyService.AddProjectMember:output_type -> redmatrix.tenancy.v1.AddProjectMemberResponse
+	17, // 24: redmatrix.tenancy.v1.TenancyService.RemoveProjectMember:output_type -> redmatrix.tenancy.v1.RemoveProjectMemberResponse
+	19, // 25: redmatrix.tenancy.v1.TenancyService.ListProjectMembers:output_type -> redmatrix.tenancy.v1.ListProjectMembersResponse
+	17, // [17:26] is the sub-list for method output_type
+	8,  // [8:17] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_redmatrix_tenancy_v1_tenancy_proto_init() }
@@ -843,7 +1223,7 @@ func file_redmatrix_tenancy_v1_tenancy_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redmatrix_tenancy_v1_tenancy_proto_rawDesc), len(file_redmatrix_tenancy_v1_tenancy_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

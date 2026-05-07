@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { ArchiveProjectRequest, ArchiveProjectResponse, CreateProjectRequest, CreateProjectResponse, DeleteProjectRequest, DeleteProjectResponse, GetProjectRequest, GetProjectResponse, ListProjectsRequest, ListProjectsResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateProjectRequest, CreateProjectResponse, DeleteProjectRequest, DeleteProjectResponse, GetProjectRequest, GetProjectResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -82,6 +82,39 @@ export const TenancyService = {
       name: "DeleteProject",
       I: DeleteProjectRequest,
       O: DeleteProjectResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * AddProjectMember 加成员（SA only）。被加用户必须 PROJECT_ADMIN 且 tenant 与项目一致。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.AddProjectMember
+     */
+    addProjectMember: {
+      name: "AddProjectMember",
+      I: AddProjectMemberRequest,
+      O: AddProjectMemberResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * RemoveProjectMember 移除成员（SA only）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.RemoveProjectMember
+     */
+    removeProjectMember: {
+      name: "RemoveProjectMember",
+      I: RemoveProjectMemberRequest,
+      O: RemoveProjectMemberResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListProjectMembers 列项目成员。SA + 该项目的 PA 可读。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.ListProjectMembers
+     */
+    listProjectMembers: {
+      name: "ListProjectMembers",
+      I: ListProjectMembersRequest,
+      O: ListProjectMembersResponse,
       kind: MethodKind.Unary,
     },
   }

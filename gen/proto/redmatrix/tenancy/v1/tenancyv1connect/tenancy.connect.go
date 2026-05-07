@@ -53,6 +53,15 @@ const (
 	// TenancyServiceDeleteProjectProcedure is the fully-qualified name of the TenancyService's
 	// DeleteProject RPC.
 	TenancyServiceDeleteProjectProcedure = "/redmatrix.tenancy.v1.TenancyService/DeleteProject"
+	// TenancyServiceAddProjectMemberProcedure is the fully-qualified name of the TenancyService's
+	// AddProjectMember RPC.
+	TenancyServiceAddProjectMemberProcedure = "/redmatrix.tenancy.v1.TenancyService/AddProjectMember"
+	// TenancyServiceRemoveProjectMemberProcedure is the fully-qualified name of the TenancyService's
+	// RemoveProjectMember RPC.
+	TenancyServiceRemoveProjectMemberProcedure = "/redmatrix.tenancy.v1.TenancyService/RemoveProjectMember"
+	// TenancyServiceListProjectMembersProcedure is the fully-qualified name of the TenancyService's
+	// ListProjectMembers RPC.
+	TenancyServiceListProjectMembersProcedure = "/redmatrix.tenancy.v1.TenancyService/ListProjectMembers"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -70,6 +79,12 @@ type TenancyServiceClient interface {
 	UnarchiveProject(context.Context, *connect.Request[v1.UnarchiveProjectRequest]) (*connect.Response[v1.UnarchiveProjectResponse], error)
 	// DeleteProject 软删（MVP 不级联资产 / 任务，由 LLD 11 §4.4 后续 PR 接）。
 	DeleteProject(context.Context, *connect.Request[v1.DeleteProjectRequest]) (*connect.Response[v1.DeleteProjectResponse], error)
+	// AddProjectMember 加成员（SA only）。被加用户必须 PROJECT_ADMIN 且 tenant 与项目一致。
+	AddProjectMember(context.Context, *connect.Request[v1.AddProjectMemberRequest]) (*connect.Response[v1.AddProjectMemberResponse], error)
+	// RemoveProjectMember 移除成员（SA only）。
+	RemoveProjectMember(context.Context, *connect.Request[v1.RemoveProjectMemberRequest]) (*connect.Response[v1.RemoveProjectMemberResponse], error)
+	// ListProjectMembers 列项目成员。SA + 该项目的 PA 可读。
+	ListProjectMembers(context.Context, *connect.Request[v1.ListProjectMembersRequest]) (*connect.Response[v1.ListProjectMembersResponse], error)
 }
 
 // NewTenancyServiceClient constructs a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -119,17 +134,38 @@ func NewTenancyServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(tenancyServiceMethods.ByName("DeleteProject")),
 			connect.WithClientOptions(opts...),
 		),
+		addProjectMember: connect.NewClient[v1.AddProjectMemberRequest, v1.AddProjectMemberResponse](
+			httpClient,
+			baseURL+TenancyServiceAddProjectMemberProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("AddProjectMember")),
+			connect.WithClientOptions(opts...),
+		),
+		removeProjectMember: connect.NewClient[v1.RemoveProjectMemberRequest, v1.RemoveProjectMemberResponse](
+			httpClient,
+			baseURL+TenancyServiceRemoveProjectMemberProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("RemoveProjectMember")),
+			connect.WithClientOptions(opts...),
+		),
+		listProjectMembers: connect.NewClient[v1.ListProjectMembersRequest, v1.ListProjectMembersResponse](
+			httpClient,
+			baseURL+TenancyServiceListProjectMembersProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("ListProjectMembers")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // tenancyServiceClient implements TenancyServiceClient.
 type tenancyServiceClient struct {
-	createProject    *connect.Client[v1.CreateProjectRequest, v1.CreateProjectResponse]
-	listProjects     *connect.Client[v1.ListProjectsRequest, v1.ListProjectsResponse]
-	getProject       *connect.Client[v1.GetProjectRequest, v1.GetProjectResponse]
-	archiveProject   *connect.Client[v1.ArchiveProjectRequest, v1.ArchiveProjectResponse]
-	unarchiveProject *connect.Client[v1.UnarchiveProjectRequest, v1.UnarchiveProjectResponse]
-	deleteProject    *connect.Client[v1.DeleteProjectRequest, v1.DeleteProjectResponse]
+	createProject       *connect.Client[v1.CreateProjectRequest, v1.CreateProjectResponse]
+	listProjects        *connect.Client[v1.ListProjectsRequest, v1.ListProjectsResponse]
+	getProject          *connect.Client[v1.GetProjectRequest, v1.GetProjectResponse]
+	archiveProject      *connect.Client[v1.ArchiveProjectRequest, v1.ArchiveProjectResponse]
+	unarchiveProject    *connect.Client[v1.UnarchiveProjectRequest, v1.UnarchiveProjectResponse]
+	deleteProject       *connect.Client[v1.DeleteProjectRequest, v1.DeleteProjectResponse]
+	addProjectMember    *connect.Client[v1.AddProjectMemberRequest, v1.AddProjectMemberResponse]
+	removeProjectMember *connect.Client[v1.RemoveProjectMemberRequest, v1.RemoveProjectMemberResponse]
+	listProjectMembers  *connect.Client[v1.ListProjectMembersRequest, v1.ListProjectMembersResponse]
 }
 
 // CreateProject calls redmatrix.tenancy.v1.TenancyService.CreateProject.
@@ -162,6 +198,21 @@ func (c *tenancyServiceClient) DeleteProject(ctx context.Context, req *connect.R
 	return c.deleteProject.CallUnary(ctx, req)
 }
 
+// AddProjectMember calls redmatrix.tenancy.v1.TenancyService.AddProjectMember.
+func (c *tenancyServiceClient) AddProjectMember(ctx context.Context, req *connect.Request[v1.AddProjectMemberRequest]) (*connect.Response[v1.AddProjectMemberResponse], error) {
+	return c.addProjectMember.CallUnary(ctx, req)
+}
+
+// RemoveProjectMember calls redmatrix.tenancy.v1.TenancyService.RemoveProjectMember.
+func (c *tenancyServiceClient) RemoveProjectMember(ctx context.Context, req *connect.Request[v1.RemoveProjectMemberRequest]) (*connect.Response[v1.RemoveProjectMemberResponse], error) {
+	return c.removeProjectMember.CallUnary(ctx, req)
+}
+
+// ListProjectMembers calls redmatrix.tenancy.v1.TenancyService.ListProjectMembers.
+func (c *tenancyServiceClient) ListProjectMembers(ctx context.Context, req *connect.Request[v1.ListProjectMembersRequest]) (*connect.Response[v1.ListProjectMembersResponse], error) {
+	return c.listProjectMembers.CallUnary(ctx, req)
+}
+
 // TenancyServiceHandler is an implementation of the redmatrix.tenancy.v1.TenancyService service.
 type TenancyServiceHandler interface {
 	// CreateProject 创建项目（SA only）。name 在租户内唯一。
@@ -177,6 +228,12 @@ type TenancyServiceHandler interface {
 	UnarchiveProject(context.Context, *connect.Request[v1.UnarchiveProjectRequest]) (*connect.Response[v1.UnarchiveProjectResponse], error)
 	// DeleteProject 软删（MVP 不级联资产 / 任务，由 LLD 11 §4.4 后续 PR 接）。
 	DeleteProject(context.Context, *connect.Request[v1.DeleteProjectRequest]) (*connect.Response[v1.DeleteProjectResponse], error)
+	// AddProjectMember 加成员（SA only）。被加用户必须 PROJECT_ADMIN 且 tenant 与项目一致。
+	AddProjectMember(context.Context, *connect.Request[v1.AddProjectMemberRequest]) (*connect.Response[v1.AddProjectMemberResponse], error)
+	// RemoveProjectMember 移除成员（SA only）。
+	RemoveProjectMember(context.Context, *connect.Request[v1.RemoveProjectMemberRequest]) (*connect.Response[v1.RemoveProjectMemberResponse], error)
+	// ListProjectMembers 列项目成员。SA + 该项目的 PA 可读。
+	ListProjectMembers(context.Context, *connect.Request[v1.ListProjectMembersRequest]) (*connect.Response[v1.ListProjectMembersResponse], error)
 }
 
 // NewTenancyServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -222,6 +279,24 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 		connect.WithSchema(tenancyServiceMethods.ByName("DeleteProject")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tenancyServiceAddProjectMemberHandler := connect.NewUnaryHandler(
+		TenancyServiceAddProjectMemberProcedure,
+		svc.AddProjectMember,
+		connect.WithSchema(tenancyServiceMethods.ByName("AddProjectMember")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceRemoveProjectMemberHandler := connect.NewUnaryHandler(
+		TenancyServiceRemoveProjectMemberProcedure,
+		svc.RemoveProjectMember,
+		connect.WithSchema(tenancyServiceMethods.ByName("RemoveProjectMember")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceListProjectMembersHandler := connect.NewUnaryHandler(
+		TenancyServiceListProjectMembersProcedure,
+		svc.ListProjectMembers,
+		connect.WithSchema(tenancyServiceMethods.ByName("ListProjectMembers")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.TenancyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TenancyServiceCreateProjectProcedure:
@@ -236,6 +311,12 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 			tenancyServiceUnarchiveProjectHandler.ServeHTTP(w, r)
 		case TenancyServiceDeleteProjectProcedure:
 			tenancyServiceDeleteProjectHandler.ServeHTTP(w, r)
+		case TenancyServiceAddProjectMemberProcedure:
+			tenancyServiceAddProjectMemberHandler.ServeHTTP(w, r)
+		case TenancyServiceRemoveProjectMemberProcedure:
+			tenancyServiceRemoveProjectMemberHandler.ServeHTTP(w, r)
+		case TenancyServiceListProjectMembersProcedure:
+			tenancyServiceListProjectMembersHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -267,4 +348,16 @@ func (UnimplementedTenancyServiceHandler) UnarchiveProject(context.Context, *con
 
 func (UnimplementedTenancyServiceHandler) DeleteProject(context.Context, *connect.Request[v1.DeleteProjectRequest]) (*connect.Response[v1.DeleteProjectResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.DeleteProject is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) AddProjectMember(context.Context, *connect.Request[v1.AddProjectMemberRequest]) (*connect.Response[v1.AddProjectMemberResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.AddProjectMember is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) RemoveProjectMember(context.Context, *connect.Request[v1.RemoveProjectMemberRequest]) (*connect.Response[v1.RemoveProjectMemberResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.RemoveProjectMember is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) ListProjectMembers(context.Context, *connect.Request[v1.ListProjectMembersRequest]) (*connect.Response[v1.ListProjectMembersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.ListProjectMembers is not implemented"))
 }

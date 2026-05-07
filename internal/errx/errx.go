@@ -203,12 +203,15 @@ var codeToConnect = map[Code]connect.Code{
 	ErrAccountSlugExists:              connect.CodeAlreadyExists,
 
 	// PROJECT
-	ErrProjectNotFound:         connect.CodeNotFound,
-	ErrProjectNameExists:       connect.CodeAlreadyExists,
-	ErrProjectAccessDenied:     connect.CodePermissionDenied,
-	ErrProjectArchived:         connect.CodeFailedPrecondition,
-	ErrProjectHasRunningTasks:  connect.CodeFailedPrecondition,
-	ErrProjectNoAvailableNodes: connect.CodeFailedPrecondition,
+	ErrProjectNotFound:          connect.CodeNotFound,
+	ErrProjectMemberNotFound:    connect.CodeNotFound,
+	ErrProjectMemberExists:      connect.CodeAlreadyExists,
+	ErrProjectMemberRoleInvalid: connect.CodeInvalidArgument,
+	ErrProjectNameExists:        connect.CodeAlreadyExists,
+	ErrProjectAccessDenied:      connect.CodePermissionDenied,
+	ErrProjectArchived:          connect.CodeFailedPrecondition,
+	ErrProjectHasRunningTasks:   connect.CodeFailedPrecondition,
+	ErrProjectNoAvailableNodes:  connect.CodeFailedPrecondition,
 
 	// ASSET
 	ErrAssetNotFound:          connect.CodeNotFound,

@@ -95,7 +95,11 @@ func (h *Handler) CreateProject(
 }
 
 // === ListProjects ===
-
+//
+// 按角色过滤（PR-T3 起）：
+//   - SA / TenantAuditor：跨项目可见，无 MemberUserID 注入
+//   - ProjectAdmin：仅看自己加入的项目（service 注 MemberUserID=principal.UserID）
+//   - 其他：拒（暂不开放）
 func (h *Handler) ListProjects(
 	ctx context.Context,
 	req *connect.Request[tenancyv1.ListProjectsRequest],
@@ -104,18 +108,25 @@ func (h *Handler) ListProjects(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, adminAndAuditor...); err != nil {
-		// PA / 其他角色：MVP 拒；待 PR-T3 ProjectMember 落地后允许 PA 看自己加入的项目
-		return nil, toConnectError(err)
+	memberUserID := ""
+	switch p.Role {
+	case identitydomain.RoleSuperAdmin, identitydomain.RoleTenantAuditor:
+		// 全可见
+	case identitydomain.RoleProjectAdmin:
+		memberUserID = p.UserID
+	default:
+		return nil, toConnectError(errx.New(errx.ErrAuthzRoleInsufficient,
+			"无权列项目").WithFields("role", string(p.Role)))
 	}
 
 	in := req.Msg
 	out, err := h.svc.ListProjects(ctx, tenancy.ListProjectsRequest{
-		TenantID: in.GetTenantId(),
-		Status:   tenancydomain.ProjectStatus(in.GetStatus()),
-		Keyword:  in.GetKeyword(),
-		Page:     int(in.GetPage()),
-		PageSize: int(in.GetPageSize()),
+		TenantID:     in.GetTenantId(),
+		Status:       tenancydomain.ProjectStatus(in.GetStatus()),
+		Keyword:      in.GetKeyword(),
+		Page:         int(in.GetPage()),
+		PageSize:     int(in.GetPageSize()),
+		MemberUserID: memberUserID,
 	})
 	if err != nil {
 		return nil, toConnectError(err)
@@ -195,6 +206,90 @@ func (h *Handler) DeleteProject(
 	return connect.NewResponse(&tenancyv1.DeleteProjectResponse{}), nil
 }
 
+// === ProjectMember ===
+
+func (h *Handler) AddProjectMember(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.AddProjectMemberRequest],
+) (*connect.Response[tenancyv1.AddProjectMemberResponse], error) {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.AddProjectMember(ctx, tenancy.AddProjectMemberRequest{
+		ProjectID: req.Msg.GetProjectId(),
+		UserID:    req.Msg.GetUserId(),
+		AddedBy:   p.UserID,
+	}); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.AddProjectMemberResponse{}), nil
+}
+
+func (h *Handler) RemoveProjectMember(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.RemoveProjectMemberRequest],
+) (*connect.Response[tenancyv1.RemoveProjectMemberResponse], error) {
+	if _, err := h.requireSA(ctx, req.Header()); err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.RemoveProjectMember(ctx,
+		req.Msg.GetProjectId(), req.Msg.GetUserId()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.RemoveProjectMemberResponse{}), nil
+}
+
+// ListProjectMembers：SA 全可见；该项目的 PA member 也可读；其他拒。
+func (h *Handler) ListProjectMembers(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.ListProjectMembersRequest],
+) (*connect.Response[tenancyv1.ListProjectMembersResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+
+	projectID := req.Msg.GetProjectId()
+
+	// SA / TA：直放；其他角色（PA）必须先确认自己是该项目成员
+	switch p.Role {
+	case identitydomain.RoleSuperAdmin, identitydomain.RoleTenantAuditor:
+		// ok
+	case identitydomain.RoleProjectAdmin:
+		// 拉自己加入项目集合判定
+		req2 := tenancy.ListProjectsRequest{MemberUserID: p.UserID}
+		mine, err := h.svc.ListProjects(ctx, req2)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		ok := false
+		for _, mp := range mine.Projects {
+			if mp.ID == projectID {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return nil, toConnectError(errx.New(errx.ErrAuthzNotProjectMember,
+				"非项目成员").WithFields("project_id", projectID))
+		}
+	default:
+		return nil, toConnectError(errx.New(errx.ErrAuthzRoleInsufficient,
+			"无权列项目成员").WithFields("role", string(p.Role)))
+	}
+
+	out, err := h.svc.ListProjectMembers(ctx, projectID)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	pbList := make([]*tenancyv1.ProjectMember, 0, len(out))
+	for _, m := range out {
+		pbList = append(pbList, memberToProto(m))
+	}
+	return connect.NewResponse(&tenancyv1.ListProjectMembersResponse{Members: pbList}), nil
+}
+
 // === conv ===
 
 func projectToProto(p *tenancydomain.Project) *tenancyv1.Project {
@@ -215,6 +310,19 @@ func projectToProto(p *tenancydomain.Project) *tenancyv1.Project {
 		out.ArchivedAt = timestamppb.New(*p.ArchivedAt)
 	}
 	return out
+}
+
+func memberToProto(m *tenancydomain.ProjectMember) *tenancyv1.ProjectMember {
+	if m == nil {
+		return nil
+	}
+	return &tenancyv1.ProjectMember{
+		ProjectId: m.ProjectID,
+		UserId:    m.UserID,
+		TenantId:  m.TenantID,
+		AddedBy:   m.AddedBy,
+		AddedAt:   timestamppb.New(m.AddedAt),
+	}
 }
 
 // === error mapping（与 identity/handler 同思路）===

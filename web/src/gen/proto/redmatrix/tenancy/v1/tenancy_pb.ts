@@ -582,3 +582,286 @@ export class DeleteProjectResponse extends Message<DeleteProjectResponse> {
   }
 }
 
+/**
+ * @generated from message redmatrix.tenancy.v1.ProjectMember
+ */
+export class ProjectMember extends Message<ProjectMember> {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId = "";
+
+  /**
+   * @generated from field: string user_id = 2;
+   */
+  userId = "";
+
+  /**
+   * @generated from field: string tenant_id = 3;
+   */
+  tenantId = "";
+
+  /**
+   * @generated from field: string added_by = 4;
+   */
+  addedBy = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp added_at = 5;
+   */
+  addedAt?: Timestamp;
+
+  constructor(data?: PartialMessage<ProjectMember>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ProjectMember";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "user_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "added_by", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "added_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ProjectMember {
+    return new ProjectMember().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ProjectMember {
+    return new ProjectMember().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ProjectMember {
+    return new ProjectMember().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ProjectMember | PlainMessage<ProjectMember> | undefined, b: ProjectMember | PlainMessage<ProjectMember> | undefined): boolean {
+    return proto3.util.equals(ProjectMember, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.AddProjectMemberRequest
+ */
+export class AddProjectMemberRequest extends Message<AddProjectMemberRequest> {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId = "";
+
+  /**
+   * @generated from field: string user_id = 2;
+   */
+  userId = "";
+
+  constructor(data?: PartialMessage<AddProjectMemberRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.AddProjectMemberRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "user_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AddProjectMemberRequest {
+    return new AddProjectMemberRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AddProjectMemberRequest {
+    return new AddProjectMemberRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AddProjectMemberRequest {
+    return new AddProjectMemberRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AddProjectMemberRequest | PlainMessage<AddProjectMemberRequest> | undefined, b: AddProjectMemberRequest | PlainMessage<AddProjectMemberRequest> | undefined): boolean {
+    return proto3.util.equals(AddProjectMemberRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.AddProjectMemberResponse
+ */
+export class AddProjectMemberResponse extends Message<AddProjectMemberResponse> {
+  constructor(data?: PartialMessage<AddProjectMemberResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.AddProjectMemberResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AddProjectMemberResponse {
+    return new AddProjectMemberResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AddProjectMemberResponse {
+    return new AddProjectMemberResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AddProjectMemberResponse {
+    return new AddProjectMemberResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AddProjectMemberResponse | PlainMessage<AddProjectMemberResponse> | undefined, b: AddProjectMemberResponse | PlainMessage<AddProjectMemberResponse> | undefined): boolean {
+    return proto3.util.equals(AddProjectMemberResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.RemoveProjectMemberRequest
+ */
+export class RemoveProjectMemberRequest extends Message<RemoveProjectMemberRequest> {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId = "";
+
+  /**
+   * @generated from field: string user_id = 2;
+   */
+  userId = "";
+
+  constructor(data?: PartialMessage<RemoveProjectMemberRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.RemoveProjectMemberRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "user_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RemoveProjectMemberRequest {
+    return new RemoveProjectMemberRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RemoveProjectMemberRequest {
+    return new RemoveProjectMemberRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RemoveProjectMemberRequest {
+    return new RemoveProjectMemberRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RemoveProjectMemberRequest | PlainMessage<RemoveProjectMemberRequest> | undefined, b: RemoveProjectMemberRequest | PlainMessage<RemoveProjectMemberRequest> | undefined): boolean {
+    return proto3.util.equals(RemoveProjectMemberRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.RemoveProjectMemberResponse
+ */
+export class RemoveProjectMemberResponse extends Message<RemoveProjectMemberResponse> {
+  constructor(data?: PartialMessage<RemoveProjectMemberResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.RemoveProjectMemberResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RemoveProjectMemberResponse {
+    return new RemoveProjectMemberResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RemoveProjectMemberResponse {
+    return new RemoveProjectMemberResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RemoveProjectMemberResponse {
+    return new RemoveProjectMemberResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RemoveProjectMemberResponse | PlainMessage<RemoveProjectMemberResponse> | undefined, b: RemoveProjectMemberResponse | PlainMessage<RemoveProjectMemberResponse> | undefined): boolean {
+    return proto3.util.equals(RemoveProjectMemberResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListProjectMembersRequest
+ */
+export class ListProjectMembersRequest extends Message<ListProjectMembersRequest> {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId = "";
+
+  constructor(data?: PartialMessage<ListProjectMembersRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListProjectMembersRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListProjectMembersRequest {
+    return new ListProjectMembersRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListProjectMembersRequest {
+    return new ListProjectMembersRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListProjectMembersRequest {
+    return new ListProjectMembersRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListProjectMembersRequest | PlainMessage<ListProjectMembersRequest> | undefined, b: ListProjectMembersRequest | PlainMessage<ListProjectMembersRequest> | undefined): boolean {
+    return proto3.util.equals(ListProjectMembersRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListProjectMembersResponse
+ */
+export class ListProjectMembersResponse extends Message<ListProjectMembersResponse> {
+  /**
+   * @generated from field: repeated redmatrix.tenancy.v1.ProjectMember members = 1;
+   */
+  members: ProjectMember[] = [];
+
+  constructor(data?: PartialMessage<ListProjectMembersResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListProjectMembersResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "members", kind: "message", T: ProjectMember, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListProjectMembersResponse {
+    return new ListProjectMembersResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListProjectMembersResponse {
+    return new ListProjectMembersResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListProjectMembersResponse {
+    return new ListProjectMembersResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListProjectMembersResponse | PlainMessage<ListProjectMembersResponse> | undefined, b: ListProjectMembersResponse | PlainMessage<ListProjectMembersResponse> | undefined): boolean {
+    return proto3.util.equals(ListProjectMembersResponse, a, b);
+  }
+}
+

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { tenancyClient } from '@/api/transport';
+import { tenancyClient, identityClient } from '@/api/transport';
 import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
-import type { Project } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
+import type { Project, ProjectMember } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
+import type { User } from '@/gen/proto/redmatrix/identity/v1/identity_pb';
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -22,6 +23,7 @@ async function refresh() {
   loading.value = true;
   errMsg.value = '';
   try {
+    // PA 时后端按 principal.UserID 自动过滤；前端传 tenant_id 即可。
     const r = await tenancyClient.listProjects({
       tenantId: DEFAULT_TENANT_ID,
       status: filterStatus.value || undefined,
@@ -108,6 +110,75 @@ const totalPages = () => Math.max(1, Math.ceil(total.value / pageSize.value));
 function fmt(t?: { toDate(): Date }) {
   return t ? t.toDate().toLocaleString() : '-';
 }
+
+// === ProjectMember 管理 modal ===
+
+const memberModalProject = ref<{ id: string; name: string } | null>(null);
+const members = ref<ProjectMember[]>([]);
+const eligibleUsers = ref<User[]>([]); // 同 tenant 下的 PROJECT_ADMIN
+const usernameByID = ref<Record<string, string>>({});
+const memberLoading = ref(false);
+const memberErr = ref('');
+
+async function openMembers(id: string, name: string) {
+  memberModalProject.value = { id, name };
+  memberErr.value = '';
+  memberLoading.value = true;
+  try {
+    const [mList, uList] = await Promise.all([
+      tenancyClient.listProjectMembers({ projectId: id }),
+      identityClient.listUsers({ role: 'PROJECT_ADMIN', pageSize: 200 }).catch(() => ({ users: [] })),
+    ]);
+    members.value = mList.members;
+    eligibleUsers.value = uList.users;
+    const byID: Record<string, string> = {};
+    for (const u of uList.users) byID[u.id] = u.username;
+    usernameByID.value = byID;
+  } catch (e) {
+    memberErr.value = errorMessage(e);
+  } finally {
+    memberLoading.value = false;
+  }
+}
+
+function closeMembers() {
+  memberModalProject.value = null;
+  members.value = [];
+  eligibleUsers.value = [];
+  usernameByID.value = {};
+}
+
+const selectedUserToAdd = ref('');
+
+async function addMember() {
+  if (!memberModalProject.value || !selectedUserToAdd.value) return;
+  memberErr.value = '';
+  try {
+    await tenancyClient.addProjectMember({
+      projectId: memberModalProject.value.id,
+      userId: selectedUserToAdd.value,
+    });
+    selectedUserToAdd.value = '';
+    await openMembers(memberModalProject.value.id, memberModalProject.value.name);
+  } catch (e) {
+    memberErr.value = errorMessage(e);
+  }
+}
+
+async function removeMember(userID: string, username: string) {
+  if (!memberModalProject.value) return;
+  if (!confirm(`将 ${username} 从 ${memberModalProject.value.name} 移除？`)) return;
+  memberErr.value = '';
+  try {
+    await tenancyClient.removeProjectMember({
+      projectId: memberModalProject.value.id,
+      userId: userID,
+    });
+    await openMembers(memberModalProject.value.id, memberModalProject.value.name);
+  } catch (e) {
+    memberErr.value = errorMessage(e);
+  }
+}
 </script>
 
 <template>
@@ -147,7 +218,7 @@ function fmt(t?: { toDate(): Date }) {
             <th>描述</th>
             <th>创建时间</th>
             <th>归档时间</th>
-            <th v-if="authStore.isSuperAdmin()">操作</th>
+            <th v-if="authStore.isSuperAdmin() || (authStore.isAuthed() && !authStore.isAuditor())">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -163,12 +234,16 @@ function fmt(t?: { toDate(): Date }) {
             <td class="muted">{{ fmt(p.archivedAt) }}</td>
             <td v-if="authStore.isSuperAdmin()">
               <div class="row" style="gap: 4px">
+                <button @click="openMembers(p.id, p.name)">成员</button>
                 <button v-if="p.status === 'active'" @click="archive(p.id, p.name)">
                   归档
                 </button>
                 <button v-else @click="unarchive(p.id, p.name)">恢复</button>
                 <button class="danger" @click="del(p.id, p.name)">删除</button>
               </div>
+            </td>
+            <td v-else-if="authStore.isAuthed() && !authStore.isAuditor()">
+              <button @click="openMembers(p.id, p.name)">成员</button>
             </td>
           </tr>
           <tr v-if="projects.length === 0">
@@ -186,6 +261,59 @@ function fmt(t?: { toDate(): Date }) {
           <span class="muted">第 {{ page }} / {{ totalPages() }} 页</span>
           <button :disabled="page >= totalPages() || loading" @click="page++; refresh()">下一页</button>
         </div>
+      </div>
+    </div>
+
+    <div v-if="memberModalProject" class="modal-backdrop" @click.self="closeMembers">
+      <div class="modal" style="min-width: 480px; max-width: 640px">
+        <div class="row" style="justify-content: space-between">
+          <h2>项目成员 · {{ memberModalProject.name }}</h2>
+          <button @click="closeMembers">关闭</button>
+        </div>
+        <div v-if="memberErr" class="error">{{ memberErr }}</div>
+        <p v-if="memberLoading" class="muted">加载中…</p>
+
+        <table v-else>
+          <thead>
+            <tr>
+              <th>用户名</th>
+              <th>加入时间</th>
+              <th v-if="authStore.isSuperAdmin()"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="m in members" :key="m.userId">
+              <td>{{ usernameByID[m.userId] ?? m.userId }}</td>
+              <td class="muted">{{ fmt(m.addedAt) }}</td>
+              <td v-if="authStore.isSuperAdmin()">
+                <button class="danger" @click="removeMember(m.userId, usernameByID[m.userId] ?? m.userId)">
+                  移除
+                </button>
+              </td>
+            </tr>
+            <tr v-if="members.length === 0">
+              <td colspan="3" class="muted" style="text-align: center; padding: 16px">
+                暂无成员
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-if="authStore.isSuperAdmin()" class="row" style="margin-top: 12px">
+          <span class="label">添加</span>
+          <select v-model="selectedUserToAdd" style="flex: 1; min-width: 0">
+            <option value="">选择 ProjectAdmin 用户…</option>
+            <option v-for="u in eligibleUsers" :key="u.id" :value="u.id">
+              {{ u.username }} · {{ u.email ?? '-' }}
+            </option>
+          </select>
+          <button class="primary" :disabled="!selectedUserToAdd" @click="addMember">
+            添加
+          </button>
+        </div>
+        <p v-if="authStore.isSuperAdmin()" class="muted">
+          仅 PROJECT_ADMIN 角色可加入项目（schema 强制）；先在"用户管理"创建。
+        </p>
       </div>
     </div>
 

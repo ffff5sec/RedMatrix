@@ -76,12 +76,15 @@ const (
 
 // === 3.5 项目 PROJECT ===
 const (
-	ErrProjectNotFound         Code = "PROJECT_NOT_FOUND"
-	ErrProjectNameExists       Code = "PROJECT_NAME_EXISTS"
-	ErrProjectAccessDenied     Code = "PROJECT_ACCESS_DENIED"
-	ErrProjectArchived         Code = "PROJECT_ARCHIVED"
-	ErrProjectHasRunningTasks  Code = "PROJECT_HAS_RUNNING_TASKS"
-	ErrProjectNoAvailableNodes Code = "PROJECT_NO_AVAILABLE_NODES"
+	ErrProjectNotFound          Code = "PROJECT_NOT_FOUND"
+	ErrProjectMemberNotFound    Code = "PROJECT_MEMBER_NOT_FOUND"
+	ErrProjectMemberExists      Code = "PROJECT_MEMBER_EXISTS"
+	ErrProjectMemberRoleInvalid Code = "PROJECT_MEMBER_ROLE_INVALID"
+	ErrProjectNameExists        Code = "PROJECT_NAME_EXISTS"
+	ErrProjectAccessDenied      Code = "PROJECT_ACCESS_DENIED"
+	ErrProjectArchived          Code = "PROJECT_ARCHIVED"
+	ErrProjectHasRunningTasks   Code = "PROJECT_HAS_RUNNING_TASKS"
+	ErrProjectNoAvailableNodes  Code = "PROJECT_NO_AVAILABLE_NODES"
 )
 
 // === 3.6 资产 ASSET ===
@@ -233,6 +236,7 @@ var AllCodes = []Code{
 	// PROJECT
 	ErrProjectNotFound, ErrProjectNameExists, ErrProjectAccessDenied, ErrProjectArchived,
 	ErrProjectHasRunningTasks, ErrProjectNoAvailableNodes,
+	ErrProjectMemberNotFound, ErrProjectMemberExists, ErrProjectMemberRoleInvalid,
 	// ASSET
 	ErrAssetNotFound, ErrAssetDuplicate, ErrAssetTypeInvalid, ErrAssetNaturalKeyInvalid,
 	ErrAssetTypeNotManual, ErrAssetVersionConflict,

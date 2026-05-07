@@ -31,6 +31,9 @@ Thumbs.db
 secrets/
 pki/
 ca/
+# 源码包白名单：内部 PKI 库不是生成物
+!internal/tenancy/pki/
+!internal/tenancy/pki/**
 *.crt
 !**/testdata/**/*.crt
 

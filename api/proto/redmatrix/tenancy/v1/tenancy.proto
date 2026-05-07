@@ -59,6 +59,16 @@ service TenancyService {
 
   // DeleteNode 软删（SA only）。
   rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
+
+  // ===== Project Allowed Nodes =====
+
+  // SetProjectAllowedNodes 全量替换项目白名单（SA / 该项目 PA）。
+  // 空 node_ids = 恢复 ALL 默认（所有节点可用）。
+  rpc SetProjectAllowedNodes(SetProjectAllowedNodesRequest) returns (SetProjectAllowedNodesResponse);
+
+  // GetProjectAllowedNodes 取项目白名单。
+  // 返 all_nodes=true 表示 ALL 默认；false 时 node_ids 是显式列表。
+  rpc GetProjectAllowedNodes(GetProjectAllowedNodesRequest) returns (GetProjectAllowedNodesResponse);
 }
 
 // ===== Project =====
@@ -213,3 +223,21 @@ message DeleteNodeRequest {
   string id = 1;
 }
 message DeleteNodeResponse {}
+
+// ===== Project Allowed Nodes =====
+
+message SetProjectAllowedNodesRequest {
+  string project_id = 1;
+  // 空 = 恢复 ALL 默认（所有节点可用）
+  repeated string node_ids = 2;
+}
+message SetProjectAllowedNodesResponse {}
+
+message GetProjectAllowedNodesRequest {
+  string project_id = 1;
+}
+message GetProjectAllowedNodesResponse {
+  // all_nodes=true → 所有节点可用（白名单为空）；false → node_ids 是显式列表
+  bool all_nodes = 1;
+  repeated string node_ids = 2;
+}

@@ -71,6 +71,16 @@ type Service interface {
 
 	// DeleteNode 软删（MVP 不级联 task / 白名单清理）。
 	DeleteNode(ctx context.Context, id string) error
+
+	// SetProjectAllowedNodes 设置项目可用节点白名单（全量替换）。
+	// 校：项目存在 + 每个 node 同 tenant 且未软删。空 ids → ClearAll（恢复 ALL）。
+	SetProjectAllowedNodes(ctx context.Context, req SetProjectAllowedNodesRequest) error
+
+	// GetProjectAllowedNodes 取项目当前白名单（无任何条目 → AllNodes=true）。
+	GetProjectAllowedNodes(ctx context.Context, projectID string) (domain.AllowedNodes, error)
+
+	// IsNodeAllowedForProject Scan 调用：项目 + 节点 → 是否允许。
+	IsNodeAllowedForProject(ctx context.Context, projectID, nodeID string) (bool, error)
 }
 
 // CreateProjectRequest 入参。
@@ -128,6 +138,16 @@ type ListNodesResult struct {
 	PageSize int
 }
 
+// SetProjectAllowedNodesRequest 入参。
+//
+// NodeIDs 空切片有特殊语义：清空白名单 → 项目恢复 ALL 默认（所有节点可用）。
+// 这与 "禁用所有节点" 不同（schema 不区分；service 选 ALL 语义对 demo 更友好）。
+type SetProjectAllowedNodesRequest struct {
+	ProjectID string
+	NodeIDs   []string
+	AddedBy   string
+}
+
 // ListProjectsResult 返回。
 type ListProjectsResult struct {
 	Projects []*domain.Project
@@ -147,6 +167,7 @@ type service struct {
 	projects repo.ProjectRepository
 	members  repo.ProjectMemberRepository
 	nodes    repo.NodeRepository
+	allowed  repo.AllowedNodesRepository
 	users    UserLookup
 }
 
@@ -157,12 +178,16 @@ func NewService(
 	projects repo.ProjectRepository,
 	members repo.ProjectMemberRepository,
 	nodes repo.NodeRepository,
+	allowed repo.AllowedNodesRepository,
 	users UserLookup,
 ) (Service, error) {
-	if projects == nil || members == nil || nodes == nil || users == nil {
+	if projects == nil || members == nil || nodes == nil || allowed == nil || users == nil {
 		return nil, errx.New(errx.ErrInternal, "tenancy.NewService: 依赖不能为 nil")
 	}
-	return &service{projects: projects, members: members, nodes: nodes, users: users}, nil
+	return &service{
+		projects: projects, members: members, nodes: nodes,
+		allowed: allowed, users: users,
+	}, nil
 }
 
 // === CreateProject ===
@@ -437,4 +462,69 @@ func (s *service) DeleteNode(ctx context.Context, id string) error {
 		return errx.New(errx.ErrInvalidInput, "id 不能为空")
 	}
 	return s.nodes.SoftDelete(ctx, id)
+}
+
+// === AllowedNodes ===
+
+// SetProjectAllowedNodes 全量替换项目白名单。
+//
+// 流程：
+//  1. 校 project 存在（GetByID；soft-deleted 拒）
+//  2. 空 ids → ClearAll → 恢复 ALL 默认；返
+//  3. 非空 ids → 每个 node 必须存在 + 同 tenant + 未软删；任何一个不满足 → 拒
+//  4. allowed.Set 全量替换
+func (s *service) SetProjectAllowedNodes(ctx context.Context, req SetProjectAllowedNodesRequest) error {
+	if strings.TrimSpace(req.ProjectID) == "" {
+		return errx.New(errx.ErrInvalidInput, "project_id 不能为空")
+	}
+	p, err := s.projects.GetByID(ctx, req.ProjectID)
+	if err != nil {
+		return err
+	}
+	if len(req.NodeIDs) == 0 {
+		return s.allowed.ClearAll(ctx, req.ProjectID)
+	}
+	// 去重
+	seen := make(map[string]struct{}, len(req.NodeIDs))
+	uniq := make([]string, 0, len(req.NodeIDs))
+	for _, id := range req.NodeIDs {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniq = append(uniq, id)
+	}
+	// 每个 node 校 tenant + 存在
+	for _, id := range uniq {
+		n, err := s.nodes.GetByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if n.TenantID != p.TenantID {
+			return errx.New(errx.ErrAuthzTenantMismatch,
+				"节点与项目不在同一租户").
+				WithFields("node_id", id, "node_tenant", n.TenantID,
+					"project_tenant", p.TenantID)
+		}
+	}
+	return s.allowed.Set(ctx, req.ProjectID, uniq, req.AddedBy)
+}
+
+// GetProjectAllowedNodes 取项目白名单。
+func (s *service) GetProjectAllowedNodes(ctx context.Context, projectID string) (domain.AllowedNodes, error) {
+	if strings.TrimSpace(projectID) == "" {
+		return domain.AllowedNodes{}, errx.New(errx.ErrInvalidInput, "project_id 不能为空")
+	}
+	if _, err := s.projects.GetByID(ctx, projectID); err != nil {
+		return domain.AllowedNodes{}, err
+	}
+	return s.allowed.Get(ctx, projectID)
+}
+
+// IsNodeAllowedForProject Scan 调用。
+func (s *service) IsNodeAllowedForProject(ctx context.Context, projectID, nodeID string) (bool, error) {
+	if strings.TrimSpace(projectID) == "" || strings.TrimSpace(nodeID) == "" {
+		return false, errx.New(errx.ErrInvalidInput, "project_id / node_id 不能为空")
+	}
+	return s.allowed.IsAllowed(ctx, projectID, nodeID)
 }

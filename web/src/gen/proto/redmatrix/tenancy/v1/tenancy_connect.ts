@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectRequest, GetProjectResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -181,6 +181,30 @@ export const TenancyService = {
       name: "DeleteNode",
       I: DeleteNodeRequest,
       O: DeleteNodeResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * SetProjectAllowedNodes 全量替换项目白名单（SA / 该项目 PA）。
+     * 空 node_ids = 恢复 ALL 默认（所有节点可用）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.SetProjectAllowedNodes
+     */
+    setProjectAllowedNodes: {
+      name: "SetProjectAllowedNodes",
+      I: SetProjectAllowedNodesRequest,
+      O: SetProjectAllowedNodesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * GetProjectAllowedNodes 取项目白名单。
+     * 返 all_nodes=true 表示 ALL 默认；false 时 node_ids 是显式列表。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.GetProjectAllowedNodes
+     */
+    getProjectAllowedNodes: {
+      name: "GetProjectAllowedNodes",
+      I: GetProjectAllowedNodesRequest,
+      O: GetProjectAllowedNodesResponse,
       kind: MethodKind.Unary,
     },
   }

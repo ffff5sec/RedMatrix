@@ -79,6 +79,12 @@ const (
 	// TenancyServiceDeleteNodeProcedure is the fully-qualified name of the TenancyService's DeleteNode
 	// RPC.
 	TenancyServiceDeleteNodeProcedure = "/redmatrix.tenancy.v1.TenancyService/DeleteNode"
+	// TenancyServiceSetProjectAllowedNodesProcedure is the fully-qualified name of the TenancyService's
+	// SetProjectAllowedNodes RPC.
+	TenancyServiceSetProjectAllowedNodesProcedure = "/redmatrix.tenancy.v1.TenancyService/SetProjectAllowedNodes"
+	// TenancyServiceGetProjectAllowedNodesProcedure is the fully-qualified name of the TenancyService's
+	// GetProjectAllowedNodes RPC.
+	TenancyServiceGetProjectAllowedNodesProcedure = "/redmatrix.tenancy.v1.TenancyService/GetProjectAllowedNodes"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -114,6 +120,12 @@ type TenancyServiceClient interface {
 	DisableNode(context.Context, *connect.Request[v1.DisableNodeRequest]) (*connect.Response[v1.DisableNodeResponse], error)
 	// DeleteNode 软删（SA only）。
 	DeleteNode(context.Context, *connect.Request[v1.DeleteNodeRequest]) (*connect.Response[v1.DeleteNodeResponse], error)
+	// SetProjectAllowedNodes 全量替换项目白名单（SA / 该项目 PA）。
+	// 空 node_ids = 恢复 ALL 默认（所有节点可用）。
+	SetProjectAllowedNodes(context.Context, *connect.Request[v1.SetProjectAllowedNodesRequest]) (*connect.Response[v1.SetProjectAllowedNodesResponse], error)
+	// GetProjectAllowedNodes 取项目白名单。
+	// 返 all_nodes=true 表示 ALL 默认；false 时 node_ids 是显式列表。
+	GetProjectAllowedNodes(context.Context, *connect.Request[v1.GetProjectAllowedNodesRequest]) (*connect.Response[v1.GetProjectAllowedNodesResponse], error)
 }
 
 // NewTenancyServiceClient constructs a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -217,26 +229,40 @@ func NewTenancyServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(tenancyServiceMethods.ByName("DeleteNode")),
 			connect.WithClientOptions(opts...),
 		),
+		setProjectAllowedNodes: connect.NewClient[v1.SetProjectAllowedNodesRequest, v1.SetProjectAllowedNodesResponse](
+			httpClient,
+			baseURL+TenancyServiceSetProjectAllowedNodesProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("SetProjectAllowedNodes")),
+			connect.WithClientOptions(opts...),
+		),
+		getProjectAllowedNodes: connect.NewClient[v1.GetProjectAllowedNodesRequest, v1.GetProjectAllowedNodesResponse](
+			httpClient,
+			baseURL+TenancyServiceGetProjectAllowedNodesProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("GetProjectAllowedNodes")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // tenancyServiceClient implements TenancyServiceClient.
 type tenancyServiceClient struct {
-	createProject       *connect.Client[v1.CreateProjectRequest, v1.CreateProjectResponse]
-	listProjects        *connect.Client[v1.ListProjectsRequest, v1.ListProjectsResponse]
-	getProject          *connect.Client[v1.GetProjectRequest, v1.GetProjectResponse]
-	archiveProject      *connect.Client[v1.ArchiveProjectRequest, v1.ArchiveProjectResponse]
-	unarchiveProject    *connect.Client[v1.UnarchiveProjectRequest, v1.UnarchiveProjectResponse]
-	deleteProject       *connect.Client[v1.DeleteProjectRequest, v1.DeleteProjectResponse]
-	addProjectMember    *connect.Client[v1.AddProjectMemberRequest, v1.AddProjectMemberResponse]
-	removeProjectMember *connect.Client[v1.RemoveProjectMemberRequest, v1.RemoveProjectMemberResponse]
-	listProjectMembers  *connect.Client[v1.ListProjectMembersRequest, v1.ListProjectMembersResponse]
-	createNode          *connect.Client[v1.CreateNodeRequest, v1.CreateNodeResponse]
-	listNodes           *connect.Client[v1.ListNodesRequest, v1.ListNodesResponse]
-	getNode             *connect.Client[v1.GetNodeRequest, v1.GetNodeResponse]
-	enableNode          *connect.Client[v1.EnableNodeRequest, v1.EnableNodeResponse]
-	disableNode         *connect.Client[v1.DisableNodeRequest, v1.DisableNodeResponse]
-	deleteNode          *connect.Client[v1.DeleteNodeRequest, v1.DeleteNodeResponse]
+	createProject          *connect.Client[v1.CreateProjectRequest, v1.CreateProjectResponse]
+	listProjects           *connect.Client[v1.ListProjectsRequest, v1.ListProjectsResponse]
+	getProject             *connect.Client[v1.GetProjectRequest, v1.GetProjectResponse]
+	archiveProject         *connect.Client[v1.ArchiveProjectRequest, v1.ArchiveProjectResponse]
+	unarchiveProject       *connect.Client[v1.UnarchiveProjectRequest, v1.UnarchiveProjectResponse]
+	deleteProject          *connect.Client[v1.DeleteProjectRequest, v1.DeleteProjectResponse]
+	addProjectMember       *connect.Client[v1.AddProjectMemberRequest, v1.AddProjectMemberResponse]
+	removeProjectMember    *connect.Client[v1.RemoveProjectMemberRequest, v1.RemoveProjectMemberResponse]
+	listProjectMembers     *connect.Client[v1.ListProjectMembersRequest, v1.ListProjectMembersResponse]
+	createNode             *connect.Client[v1.CreateNodeRequest, v1.CreateNodeResponse]
+	listNodes              *connect.Client[v1.ListNodesRequest, v1.ListNodesResponse]
+	getNode                *connect.Client[v1.GetNodeRequest, v1.GetNodeResponse]
+	enableNode             *connect.Client[v1.EnableNodeRequest, v1.EnableNodeResponse]
+	disableNode            *connect.Client[v1.DisableNodeRequest, v1.DisableNodeResponse]
+	deleteNode             *connect.Client[v1.DeleteNodeRequest, v1.DeleteNodeResponse]
+	setProjectAllowedNodes *connect.Client[v1.SetProjectAllowedNodesRequest, v1.SetProjectAllowedNodesResponse]
+	getProjectAllowedNodes *connect.Client[v1.GetProjectAllowedNodesRequest, v1.GetProjectAllowedNodesResponse]
 }
 
 // CreateProject calls redmatrix.tenancy.v1.TenancyService.CreateProject.
@@ -314,6 +340,16 @@ func (c *tenancyServiceClient) DeleteNode(ctx context.Context, req *connect.Requ
 	return c.deleteNode.CallUnary(ctx, req)
 }
 
+// SetProjectAllowedNodes calls redmatrix.tenancy.v1.TenancyService.SetProjectAllowedNodes.
+func (c *tenancyServiceClient) SetProjectAllowedNodes(ctx context.Context, req *connect.Request[v1.SetProjectAllowedNodesRequest]) (*connect.Response[v1.SetProjectAllowedNodesResponse], error) {
+	return c.setProjectAllowedNodes.CallUnary(ctx, req)
+}
+
+// GetProjectAllowedNodes calls redmatrix.tenancy.v1.TenancyService.GetProjectAllowedNodes.
+func (c *tenancyServiceClient) GetProjectAllowedNodes(ctx context.Context, req *connect.Request[v1.GetProjectAllowedNodesRequest]) (*connect.Response[v1.GetProjectAllowedNodesResponse], error) {
+	return c.getProjectAllowedNodes.CallUnary(ctx, req)
+}
+
 // TenancyServiceHandler is an implementation of the redmatrix.tenancy.v1.TenancyService service.
 type TenancyServiceHandler interface {
 	// CreateProject 创建项目（SA only）。name 在租户内唯一。
@@ -347,6 +383,12 @@ type TenancyServiceHandler interface {
 	DisableNode(context.Context, *connect.Request[v1.DisableNodeRequest]) (*connect.Response[v1.DisableNodeResponse], error)
 	// DeleteNode 软删（SA only）。
 	DeleteNode(context.Context, *connect.Request[v1.DeleteNodeRequest]) (*connect.Response[v1.DeleteNodeResponse], error)
+	// SetProjectAllowedNodes 全量替换项目白名单（SA / 该项目 PA）。
+	// 空 node_ids = 恢复 ALL 默认（所有节点可用）。
+	SetProjectAllowedNodes(context.Context, *connect.Request[v1.SetProjectAllowedNodesRequest]) (*connect.Response[v1.SetProjectAllowedNodesResponse], error)
+	// GetProjectAllowedNodes 取项目白名单。
+	// 返 all_nodes=true 表示 ALL 默认；false 时 node_ids 是显式列表。
+	GetProjectAllowedNodes(context.Context, *connect.Request[v1.GetProjectAllowedNodesRequest]) (*connect.Response[v1.GetProjectAllowedNodesResponse], error)
 }
 
 // NewTenancyServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -446,6 +488,18 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 		connect.WithSchema(tenancyServiceMethods.ByName("DeleteNode")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tenancyServiceSetProjectAllowedNodesHandler := connect.NewUnaryHandler(
+		TenancyServiceSetProjectAllowedNodesProcedure,
+		svc.SetProjectAllowedNodes,
+		connect.WithSchema(tenancyServiceMethods.ByName("SetProjectAllowedNodes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	tenancyServiceGetProjectAllowedNodesHandler := connect.NewUnaryHandler(
+		TenancyServiceGetProjectAllowedNodesProcedure,
+		svc.GetProjectAllowedNodes,
+		connect.WithSchema(tenancyServiceMethods.ByName("GetProjectAllowedNodes")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.TenancyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TenancyServiceCreateProjectProcedure:
@@ -478,6 +532,10 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 			tenancyServiceDisableNodeHandler.ServeHTTP(w, r)
 		case TenancyServiceDeleteNodeProcedure:
 			tenancyServiceDeleteNodeHandler.ServeHTTP(w, r)
+		case TenancyServiceSetProjectAllowedNodesProcedure:
+			tenancyServiceSetProjectAllowedNodesHandler.ServeHTTP(w, r)
+		case TenancyServiceGetProjectAllowedNodesProcedure:
+			tenancyServiceGetProjectAllowedNodesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -545,4 +603,12 @@ func (UnimplementedTenancyServiceHandler) DisableNode(context.Context, *connect.
 
 func (UnimplementedTenancyServiceHandler) DeleteNode(context.Context, *connect.Request[v1.DeleteNodeRequest]) (*connect.Response[v1.DeleteNodeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.DeleteNode is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) SetProjectAllowedNodes(context.Context, *connect.Request[v1.SetProjectAllowedNodesRequest]) (*connect.Response[v1.SetProjectAllowedNodesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.SetProjectAllowedNodes is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) GetProjectAllowedNodes(context.Context, *connect.Request[v1.GetProjectAllowedNodesRequest]) (*connect.Response[v1.GetProjectAllowedNodesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.GetProjectAllowedNodes is not implemented"))
 }

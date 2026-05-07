@@ -1446,3 +1446,161 @@ export class DeleteNodeResponse extends Message<DeleteNodeResponse> {
   }
 }
 
+/**
+ * @generated from message redmatrix.tenancy.v1.SetProjectAllowedNodesRequest
+ */
+export class SetProjectAllowedNodesRequest extends Message<SetProjectAllowedNodesRequest> {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId = "";
+
+  /**
+   * 空 = 恢复 ALL 默认（所有节点可用）
+   *
+   * @generated from field: repeated string node_ids = 2;
+   */
+  nodeIds: string[] = [];
+
+  constructor(data?: PartialMessage<SetProjectAllowedNodesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.SetProjectAllowedNodesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "node_ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetProjectAllowedNodesRequest {
+    return new SetProjectAllowedNodesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetProjectAllowedNodesRequest {
+    return new SetProjectAllowedNodesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetProjectAllowedNodesRequest {
+    return new SetProjectAllowedNodesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetProjectAllowedNodesRequest | PlainMessage<SetProjectAllowedNodesRequest> | undefined, b: SetProjectAllowedNodesRequest | PlainMessage<SetProjectAllowedNodesRequest> | undefined): boolean {
+    return proto3.util.equals(SetProjectAllowedNodesRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.SetProjectAllowedNodesResponse
+ */
+export class SetProjectAllowedNodesResponse extends Message<SetProjectAllowedNodesResponse> {
+  constructor(data?: PartialMessage<SetProjectAllowedNodesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.SetProjectAllowedNodesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetProjectAllowedNodesResponse {
+    return new SetProjectAllowedNodesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetProjectAllowedNodesResponse {
+    return new SetProjectAllowedNodesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetProjectAllowedNodesResponse {
+    return new SetProjectAllowedNodesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetProjectAllowedNodesResponse | PlainMessage<SetProjectAllowedNodesResponse> | undefined, b: SetProjectAllowedNodesResponse | PlainMessage<SetProjectAllowedNodesResponse> | undefined): boolean {
+    return proto3.util.equals(SetProjectAllowedNodesResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.GetProjectAllowedNodesRequest
+ */
+export class GetProjectAllowedNodesRequest extends Message<GetProjectAllowedNodesRequest> {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId = "";
+
+  constructor(data?: PartialMessage<GetProjectAllowedNodesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetProjectAllowedNodesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetProjectAllowedNodesRequest {
+    return new GetProjectAllowedNodesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetProjectAllowedNodesRequest {
+    return new GetProjectAllowedNodesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetProjectAllowedNodesRequest {
+    return new GetProjectAllowedNodesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetProjectAllowedNodesRequest | PlainMessage<GetProjectAllowedNodesRequest> | undefined, b: GetProjectAllowedNodesRequest | PlainMessage<GetProjectAllowedNodesRequest> | undefined): boolean {
+    return proto3.util.equals(GetProjectAllowedNodesRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.GetProjectAllowedNodesResponse
+ */
+export class GetProjectAllowedNodesResponse extends Message<GetProjectAllowedNodesResponse> {
+  /**
+   * all_nodes=true → 所有节点可用（白名单为空）；false → node_ids 是显式列表
+   *
+   * @generated from field: bool all_nodes = 1;
+   */
+  allNodes = false;
+
+  /**
+   * @generated from field: repeated string node_ids = 2;
+   */
+  nodeIds: string[] = [];
+
+  constructor(data?: PartialMessage<GetProjectAllowedNodesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetProjectAllowedNodesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "all_nodes", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "node_ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetProjectAllowedNodesResponse {
+    return new GetProjectAllowedNodesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetProjectAllowedNodesResponse {
+    return new GetProjectAllowedNodesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetProjectAllowedNodesResponse {
+    return new GetProjectAllowedNodesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetProjectAllowedNodesResponse | PlainMessage<GetProjectAllowedNodesResponse> | undefined, b: GetProjectAllowedNodesResponse | PlainMessage<GetProjectAllowedNodesResponse> | undefined): boolean {
+    return proto3.util.equals(GetProjectAllowedNodesResponse, a, b);
+  }
+}
+

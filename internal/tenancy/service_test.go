@@ -112,6 +112,55 @@ func (m *mockUserLookup) GetByID(_ context.Context, id string) (*identitydomain.
 	return u, nil
 }
 
+// === mock allowed-nodes repo ===
+
+type mockAllowedRepo struct {
+	rows map[string]map[string]struct{} // projectID → set(nodeID)
+}
+
+func newMockAllowedRepo() *mockAllowedRepo {
+	return &mockAllowedRepo{rows: map[string]map[string]struct{}{}}
+}
+
+func (m *mockAllowedRepo) Set(_ context.Context, projectID string, nodeIDs []string, _ string) error {
+	if len(nodeIDs) == 0 {
+		delete(m.rows, projectID)
+		return nil
+	}
+	set := map[string]struct{}{}
+	for _, id := range nodeIDs {
+		set[id] = struct{}{}
+	}
+	m.rows[projectID] = set
+	return nil
+}
+
+func (m *mockAllowedRepo) ClearAll(_ context.Context, projectID string) error {
+	delete(m.rows, projectID)
+	return nil
+}
+
+func (m *mockAllowedRepo) Get(_ context.Context, projectID string) (domain.AllowedNodes, error) {
+	set, ok := m.rows[projectID]
+	if !ok || len(set) == 0 {
+		return domain.AllowedNodes{AllNodes: true}, nil
+	}
+	ids := make([]string, 0, len(set))
+	for id := range set {
+		ids = append(ids, id)
+	}
+	return domain.AllowedNodes{NodeIDs: ids}, nil
+}
+
+func (m *mockAllowedRepo) IsAllowed(_ context.Context, projectID, nodeID string) (bool, error) {
+	set, ok := m.rows[projectID]
+	if !ok || len(set) == 0 {
+		return true, nil
+	}
+	_, in := set[nodeID]
+	return in, nil
+}
+
 // === mock node repo ===
 
 type mockNodeRepo struct {
@@ -335,8 +384,9 @@ func setupSvc(t *testing.T) (Service, *mockProjectRepo) {
 	r := newMockProjectRepo()
 	mr := newMockMemberRepo()
 	nr := newMockNodeRepo()
+	ar := newMockAllowedRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, users)
+	svc, err := NewService(r, mr, nr, ar, users)
 	require.NoError(t, err)
 	return svc, r
 }
@@ -346,8 +396,9 @@ func setupSvcAll(t *testing.T) (Service, *mockProjectRepo, *mockMemberRepo, *moc
 	r := newMockProjectRepo()
 	mr := newMockMemberRepo()
 	nr := newMockNodeRepo()
+	ar := newMockAllowedRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, users)
+	svc, err := NewService(r, mr, nr, ar, users)
 	require.NoError(t, err)
 	return svc, r, mr, users
 }
@@ -357,16 +408,30 @@ func setupSvcWithNodes(t *testing.T) (Service, *mockNodeRepo) {
 	r := newMockProjectRepo()
 	mr := newMockMemberRepo()
 	nr := newMockNodeRepo()
+	ar := newMockAllowedRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, users)
+	svc, err := NewService(r, mr, nr, ar, users)
 	require.NoError(t, err)
 	return svc, nr
 }
 
+// setupSvcWithAllowed 给 AllowedNodes 测试用：同时拿到 svc + project repo + node repo + allowed repo。
+func setupSvcWithAllowed(t *testing.T) (Service, *mockProjectRepo, *mockNodeRepo, *mockAllowedRepo) {
+	t.Helper()
+	r := newMockProjectRepo()
+	mr := newMockMemberRepo()
+	nr := newMockNodeRepo()
+	ar := newMockAllowedRepo()
+	users := newMockUserLookup()
+	svc, err := NewService(r, mr, nr, ar, users)
+	require.NoError(t, err)
+	return svc, r, nr, ar
+}
+
 func TestNewService_NilDeps(t *testing.T) {
-	_, err := NewService(nil, nil, nil, nil)
+	_, err := NewService(nil, nil, nil, nil, nil)
 	require.Error(t, err)
-	_, err = NewService(newMockProjectRepo(), nil, newMockNodeRepo(), newMockUserLookup())
+	_, err = NewService(newMockProjectRepo(), nil, newMockNodeRepo(), newMockAllowedRepo(), newMockUserLookup())
 	require.Error(t, err)
 }
 
@@ -726,6 +791,156 @@ func TestNodeCRUD_EmptyIDs(t *testing.T) {
 		func() error { return svc.EnableNode(ctx, " ") },
 		func() error { return svc.DisableNode(ctx, " ") },
 		func() error { return svc.DeleteNode(ctx, " ") },
+	} {
+		err := op()
+		require.Error(t, err)
+		c, _ := errx.GetCode(err)
+		assert.Equal(t, errx.ErrInvalidInput, c)
+	}
+}
+
+// === AllowedNodes ===
+
+// 准备一个项目 + 3 个 node 的 fixture（同 tenant）。
+func setupAllowedFixture(t *testing.T) (Service, *mockProjectRepo, *mockNodeRepo, *mockAllowedRepo, string, []string) {
+	t.Helper()
+	svc, projects, nodes, allowed := setupSvcWithAllowed(t)
+
+	p, err := svc.CreateProject(context.Background(),
+		CreateProjectRequest{TenantID: tenantID, Name: "demo"})
+	require.NoError(t, err)
+
+	var nodeIDs []string
+	for _, name := range []string{"n1", "n2", "n3"} {
+		n, err := svc.CreateNode(context.Background(),
+			CreateNodeRequest{TenantID: tenantID, Name: name})
+		require.NoError(t, err)
+		nodeIDs = append(nodeIDs, n.ID)
+	}
+	return svc, projects, nodes, allowed, p.ID, nodeIDs
+}
+
+func TestSetProjectAllowedNodes_Happy(t *testing.T) {
+	svc, _, _, _, projectID, nodeIDs := setupAllowedFixture(t)
+	ctx := context.Background()
+
+	require.NoError(t, svc.SetProjectAllowedNodes(ctx, SetProjectAllowedNodesRequest{
+		ProjectID: projectID,
+		NodeIDs:   []string{nodeIDs[0], nodeIDs[1]},
+	}))
+
+	got, err := svc.GetProjectAllowedNodes(ctx, projectID)
+	require.NoError(t, err)
+	assert.False(t, got.AllNodes)
+	assert.ElementsMatch(t, []string{nodeIDs[0], nodeIDs[1]}, got.NodeIDs)
+}
+
+func TestSetProjectAllowedNodes_Dedup(t *testing.T) {
+	svc, _, _, _, projectID, nodeIDs := setupAllowedFixture(t)
+	ctx := context.Background()
+
+	require.NoError(t, svc.SetProjectAllowedNodes(ctx, SetProjectAllowedNodesRequest{
+		ProjectID: projectID,
+		NodeIDs:   []string{nodeIDs[0], nodeIDs[0], nodeIDs[1]},
+	}))
+	got, err := svc.GetProjectAllowedNodes(ctx, projectID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{nodeIDs[0], nodeIDs[1]}, got.NodeIDs,
+		"重复 id 应去重")
+}
+
+func TestSetProjectAllowedNodes_EmptyClearAll(t *testing.T) {
+	svc, _, _, _, projectID, nodeIDs := setupAllowedFixture(t)
+	ctx := context.Background()
+
+	// 先设白名单
+	require.NoError(t, svc.SetProjectAllowedNodes(ctx,
+		SetProjectAllowedNodesRequest{ProjectID: projectID, NodeIDs: []string{nodeIDs[0]}}))
+
+	// 空 ids → 恢复 ALL
+	require.NoError(t, svc.SetProjectAllowedNodes(ctx,
+		SetProjectAllowedNodesRequest{ProjectID: projectID, NodeIDs: nil}))
+
+	got, _ := svc.GetProjectAllowedNodes(ctx, projectID)
+	assert.True(t, got.AllNodes, "空 ids → 恢复 ALL")
+}
+
+func TestSetProjectAllowedNodes_TenantMismatch(t *testing.T) {
+	svc, _, _, _, projectID, _ := setupAllowedFixture(t)
+	ctx := context.Background()
+
+	// 在另一 tenant 创建一个 node
+	otherNode, err := svc.CreateNode(ctx,
+		CreateNodeRequest{TenantID: otherTID, Name: "other-1"})
+	require.NoError(t, err)
+
+	err = svc.SetProjectAllowedNodes(ctx, SetProjectAllowedNodesRequest{
+		ProjectID: projectID,
+		NodeIDs:   []string{otherNode.ID},
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrAuthzTenantMismatch, c)
+}
+
+func TestSetProjectAllowedNodes_NodeNotFound(t *testing.T) {
+	svc, _, _, _, projectID, _ := setupAllowedFixture(t)
+
+	err := svc.SetProjectAllowedNodes(context.Background(),
+		SetProjectAllowedNodesRequest{
+			ProjectID: projectID,
+			NodeIDs:   []string{"00000000-0000-0000-0000-000000000aaa"},
+		})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeNotFound, c)
+}
+
+func TestSetProjectAllowedNodes_ProjectNotFound(t *testing.T) {
+	svc, _, _, _, _, nodeIDs := setupAllowedFixture(t)
+
+	err := svc.SetProjectAllowedNodes(context.Background(),
+		SetProjectAllowedNodesRequest{ProjectID: "p-ghost", NodeIDs: nodeIDs[:1]})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrProjectNotFound, c)
+}
+
+func TestGetProjectAllowedNodes_DefaultAllNodes(t *testing.T) {
+	svc, _, _, _, projectID, _ := setupAllowedFixture(t)
+	got, err := svc.GetProjectAllowedNodes(context.Background(), projectID)
+	require.NoError(t, err)
+	assert.True(t, got.AllNodes, "新项目默认 ALL")
+}
+
+func TestIsNodeAllowedForProject(t *testing.T) {
+	svc, _, _, _, projectID, nodeIDs := setupAllowedFixture(t)
+	ctx := context.Background()
+
+	// 默认（无白名单）→ 允许
+	ok, err := svc.IsNodeAllowedForProject(ctx, projectID, nodeIDs[0])
+	require.NoError(t, err)
+	assert.True(t, ok)
+
+	// 设白名单 → 仅其中允许
+	require.NoError(t, svc.SetProjectAllowedNodes(ctx, SetProjectAllowedNodesRequest{
+		ProjectID: projectID,
+		NodeIDs:   []string{nodeIDs[1]},
+	}))
+	ok, _ = svc.IsNodeAllowedForProject(ctx, projectID, nodeIDs[0])
+	assert.False(t, ok)
+	ok, _ = svc.IsNodeAllowedForProject(ctx, projectID, nodeIDs[1])
+	assert.True(t, ok)
+}
+
+func TestAllowedNodes_EmptyIDs(t *testing.T) {
+	svc, _ := setupSvc(t)
+	ctx := context.Background()
+	for _, op := range []func() error{
+		func() error { return svc.SetProjectAllowedNodes(ctx, SetProjectAllowedNodesRequest{}) },
+		func() error { _, err := svc.GetProjectAllowedNodes(ctx, " "); return err },
+		func() error { _, err := svc.IsNodeAllowedForProject(ctx, " ", "n"); return err },
+		func() error { _, err := svc.IsNodeAllowedForProject(ctx, "p", " "); return err },
 	} {
 		err := op()
 		require.Error(t, err)

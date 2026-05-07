@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import { tenancyClient, identityClient } from '@/api/transport';
 import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
-import type { Project, ProjectMember } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
+import type { Project, ProjectMember, Node } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
 import type { User } from '@/gen/proto/redmatrix/identity/v1/identity_pb';
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -179,6 +179,80 @@ async function removeMember(userID: string, username: string) {
     memberErr.value = errorMessage(e);
   }
 }
+
+// === Allowed Nodes modal ===
+
+const nodesModalProject = ref<{ id: string; name: string } | null>(null);
+const allowedAllNodes = ref(true);
+const allowedNodeIDs = ref<Set<string>>(new Set());
+const availableNodes = ref<Node[]>([]);
+const nodeNameByID = ref<Record<string, string>>({});
+const nodesLoading = ref(false);
+const nodesErr = ref('');
+
+async function openAllowedNodes(id: string, name: string) {
+  nodesModalProject.value = { id, name };
+  nodesErr.value = '';
+  nodesLoading.value = true;
+  try {
+    const [allowedRes, nodesRes] = await Promise.all([
+      tenancyClient.getProjectAllowedNodes({ projectId: id }),
+      tenancyClient
+        .listNodes({ tenantId: DEFAULT_TENANT_ID, pageSize: 200 })
+        .catch(() => ({ nodes: [] as Node[] })),
+    ]);
+    allowedAllNodes.value = allowedRes.allNodes;
+    allowedNodeIDs.value = new Set(allowedRes.nodeIds);
+    availableNodes.value = nodesRes.nodes;
+    const byID: Record<string, string> = {};
+    for (const n of nodesRes.nodes) byID[n.id] = n.name;
+    nodeNameByID.value = byID;
+  } catch (e) {
+    nodesErr.value = errorMessage(e);
+  } finally {
+    nodesLoading.value = false;
+  }
+}
+
+function closeAllowedNodes() {
+  nodesModalProject.value = null;
+  availableNodes.value = [];
+  allowedNodeIDs.value = new Set();
+  nodeNameByID.value = {};
+}
+
+function toggleNode(id: string) {
+  // 切到显式白名单模式：取消 ALL，开始按 NodeIDs 编辑
+  allowedAllNodes.value = false;
+  const next = new Set(allowedNodeIDs.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  allowedNodeIDs.value = next;
+}
+
+function resetToAllNodes() {
+  allowedAllNodes.value = true;
+  allowedNodeIDs.value = new Set();
+}
+
+async function saveAllowedNodes() {
+  if (!nodesModalProject.value) return;
+  nodesErr.value = '';
+  try {
+    const ids = allowedAllNodes.value ? [] : Array.from(allowedNodeIDs.value);
+    await tenancyClient.setProjectAllowedNodes({
+      projectId: nodesModalProject.value.id,
+      nodeIds: ids,
+    });
+    successMsg.value = '可用节点已更新';
+    closeAllowedNodes();
+  } catch (e) {
+    nodesErr.value = errorMessage(e);
+  }
+}
 </script>
 
 <template>
@@ -235,6 +309,7 @@ async function removeMember(userID: string, username: string) {
             <td v-if="authStore.isSuperAdmin()">
               <div class="row" style="gap: 4px">
                 <button @click="openMembers(p.id, p.name)">成员</button>
+                <button @click="openAllowedNodes(p.id, p.name)">节点</button>
                 <button v-if="p.status === 'active'" @click="archive(p.id, p.name)">
                   归档
                 </button>
@@ -243,7 +318,10 @@ async function removeMember(userID: string, username: string) {
               </div>
             </td>
             <td v-else-if="authStore.isAuthed() && !authStore.isAuditor()">
-              <button @click="openMembers(p.id, p.name)">成员</button>
+              <div class="row" style="gap: 4px">
+                <button @click="openMembers(p.id, p.name)">成员</button>
+                <button @click="openAllowedNodes(p.id, p.name)">节点</button>
+              </div>
             </td>
           </tr>
           <tr v-if="projects.length === 0">
@@ -314,6 +392,70 @@ async function removeMember(userID: string, username: string) {
         <p v-if="authStore.isSuperAdmin()" class="muted">
           仅 PROJECT_ADMIN 角色可加入项目（schema 强制）；先在"用户管理"创建。
         </p>
+      </div>
+    </div>
+
+    <div v-if="nodesModalProject" class="modal-backdrop" @click.self="closeAllowedNodes">
+      <div class="modal" style="min-width: 480px; max-width: 640px">
+        <div class="row" style="justify-content: space-between">
+          <h2>可用节点 · {{ nodesModalProject.name }}</h2>
+          <button @click="closeAllowedNodes">关闭</button>
+        </div>
+        <div v-if="nodesErr" class="error">{{ nodesErr }}</div>
+        <p v-if="nodesLoading" class="muted">加载中…</p>
+
+        <div v-else>
+          <div class="row" style="margin-bottom: 8px">
+            <label>
+              <input
+                type="radio"
+                :checked="allowedAllNodes"
+                @change="resetToAllNodes"
+              />
+              所有节点可用（ALL 默认）
+            </label>
+            <label style="margin-left: 16px">
+              <input
+                type="radio"
+                :checked="!allowedAllNodes"
+                @change="allowedAllNodes = false"
+              />
+              白名单
+            </label>
+          </div>
+
+          <div v-if="!allowedAllNodes">
+            <div v-if="availableNodes.length === 0" class="muted">
+              租户下暂无节点。请先到"节点"Tab 注册。
+            </div>
+            <div v-else class="stack" style="max-height: 280px; overflow: auto; border: 1px solid #e5e7eb; padding: 8px; border-radius: 4px">
+              <label v-for="n in availableNodes" :key="n.id" class="row" style="cursor: pointer">
+                <input
+                  type="checkbox"
+                  :checked="allowedNodeIDs.has(n.id)"
+                  @change="toggleNode(n.id)"
+                />
+                <span class="mono">{{ n.name }}</span>
+                <span class="badge" :style="{ marginLeft: '8px' }">{{ n.status }}</span>
+              </label>
+            </div>
+            <p class="muted" style="margin-top: 8px">
+              已选 {{ allowedNodeIDs.size }} / {{ availableNodes.length }} 个节点。
+              空白名单 = 任何节点都不允许（不同于 ALL）。
+            </p>
+          </div>
+
+          <div v-else class="info">
+            当前所有节点都可用。若切换到白名单，仅勾选的节点可被该项目使用。
+          </div>
+
+          <div class="row" style="margin-top: 12px">
+            <button v-if="authStore.isSuperAdmin() || authStore.isAuthed()" class="primary" @click="saveAllowedNodes">
+              保存
+            </button>
+            <button @click="closeAllowedNodes">取消</button>
+          </div>
+        </div>
       </div>
     </div>
 

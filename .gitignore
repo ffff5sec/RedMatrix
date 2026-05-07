@@ -15,6 +15,7 @@ Thumbs.db
 # === Claude / agent local state ===
 .claude/
 .aider*
+.impeccable/
 
 # === Secrets / env ===
 .env

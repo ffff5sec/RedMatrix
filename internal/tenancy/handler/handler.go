@@ -410,6 +410,98 @@ func (h *Handler) DeleteNode(
 	return connect.NewResponse(&tenancyv1.DeleteNodeResponse{}), nil
 }
 
+// === Project Allowed Nodes ===
+//
+// Set: SA 或该项目的 PA 可调；TA 拒（只读）
+// Get: SA / TA 直放；PA 必须先确认是该项目成员
+
+func (h *Handler) SetProjectAllowedNodes(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.SetProjectAllowedNodesRequest],
+) (*connect.Response[tenancyv1.SetProjectAllowedNodesResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	projectID := req.Msg.GetProjectId()
+	if err := h.requireProjectWriter(ctx, p, projectID); err != nil {
+		return nil, toConnectError(err)
+	}
+
+	if err := h.svc.SetProjectAllowedNodes(ctx, tenancy.SetProjectAllowedNodesRequest{
+		ProjectID: projectID,
+		NodeIDs:   req.Msg.GetNodeIds(),
+		AddedBy:   p.UserID,
+	}); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.SetProjectAllowedNodesResponse{}), nil
+}
+
+func (h *Handler) GetProjectAllowedNodes(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.GetProjectAllowedNodesRequest],
+) (*connect.Response[tenancyv1.GetProjectAllowedNodesResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	projectID := req.Msg.GetProjectId()
+	if err := h.requireProjectReader(ctx, p, projectID); err != nil {
+		return nil, toConnectError(err)
+	}
+
+	got, err := h.svc.GetProjectAllowedNodes(ctx, projectID)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.GetProjectAllowedNodesResponse{
+		AllNodes: got.AllNodes,
+		NodeIds:  got.NodeIDs,
+	}), nil
+}
+
+// requireProjectWriter SA 全权；该项目 PA 也允许；TA / 其他拒。
+func (h *Handler) requireProjectWriter(ctx context.Context, p *auth.UserPrincipal, projectID string) error {
+	switch p.Role {
+	case identitydomain.RoleSuperAdmin:
+		return nil
+	case identitydomain.RoleProjectAdmin:
+		return h.assertProjectMember(ctx, p, projectID)
+	default:
+		return errx.New(errx.ErrAuthzRoleInsufficient,
+			"无权设置项目可用节点").WithFields("role", string(p.Role))
+	}
+}
+
+// requireProjectReader SA / TA 全权；PA 仅自己加入的项目；其他拒。
+func (h *Handler) requireProjectReader(ctx context.Context, p *auth.UserPrincipal, projectID string) error {
+	switch p.Role {
+	case identitydomain.RoleSuperAdmin, identitydomain.RoleTenantAuditor:
+		return nil
+	case identitydomain.RoleProjectAdmin:
+		return h.assertProjectMember(ctx, p, projectID)
+	default:
+		return errx.New(errx.ErrAuthzRoleInsufficient,
+			"无权读项目可用节点").WithFields("role", string(p.Role))
+	}
+}
+
+// assertProjectMember 调 ListProjects(MemberUserID=p.UserID) 看 projectID 是否在其中。
+func (h *Handler) assertProjectMember(ctx context.Context, p *auth.UserPrincipal, projectID string) error {
+	mine, err := h.svc.ListProjects(ctx, tenancy.ListProjectsRequest{MemberUserID: p.UserID})
+	if err != nil {
+		return err
+	}
+	for _, mp := range mine.Projects {
+		if mp.ID == projectID {
+			return nil
+		}
+	}
+	return errx.New(errx.ErrAuthzNotProjectMember,
+		"非项目成员").WithFields("project_id", projectID)
+}
+
 // === conv ===
 
 func projectToProto(p *tenancydomain.Project) *tenancyv1.Project {

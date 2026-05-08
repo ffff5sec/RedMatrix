@@ -34,6 +34,7 @@ interface NavItem {
 }
 
 const navItems = computed<NavItem[]>(() => [
+  { name: 'dashboard', label: '概览', visible: true },
   { name: 'profile', label: '个人', visible: true },
   { name: 'api-keys', label: 'API Keys', visible: true },
   { name: 'projects', label: '项目', visible: true },

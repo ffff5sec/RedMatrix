@@ -15,7 +15,7 @@ function onLoggedIn() {
     router.push(redirect);
     return;
   }
-  router.push({ name: 'profile' });
+  router.push({ name: 'dashboard' });
 }
 </script>
 

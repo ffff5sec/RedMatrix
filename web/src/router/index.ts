@@ -21,6 +21,7 @@ import { authStore } from '@/store/auth';
 
 import AppShell from '@/layouts/AppShell.vue';
 import LoginPanel from '@/views/LoginPanel.vue';
+import Dashboard from '@/views/Dashboard.vue';
 import ProfilePanel from '@/views/ProfilePanel.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
 import ProjectsPanel from '@/views/ProjectsPanel.vue';
@@ -56,7 +57,13 @@ const routes: RouteRecordRaw[] = [
     component: AppShell,
     meta: { requiresAuth: true },
     children: [
-      { path: '', redirect: '/profile' },
+      { path: '', redirect: '/dashboard' },
+      {
+        path: 'dashboard',
+        name: 'dashboard',
+        component: Dashboard,
+        meta: { requiresAuth: true, title: '概览' },
+      },
       {
         path: 'profile',
         name: 'profile',

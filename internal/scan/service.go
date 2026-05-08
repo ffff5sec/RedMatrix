@@ -308,6 +308,8 @@ func (s *service) PullForNode(ctx context.Context, nodeID string) ([]*PulledAssi
 	if err != nil {
 		return nil, err
 	}
+	// 收集涉及到的 taskID（去重）→ aggregator 推 pending → running
+	touched := make(map[string]struct{}, len(pulled))
 	out := make([]*PulledAssignment, 0, len(pulled))
 	for _, a := range pulled {
 		t, err := s.tasks.GetByID(ctx, a.TaskID)
@@ -327,11 +329,20 @@ func (s *service) PullForNode(ctx context.Context, nodeID string) ([]*PulledAssi
 			Target:       t.Target,
 			TargetKind:   t.TargetKind,
 		})
+		touched[t.ID] = struct{}{}
+	}
+	// PR-S4 task 聚合（pending → running）
+	for tID := range touched {
+		if err := s.aggregateTaskStatus(ctx, tID); err != nil && s.logger != nil {
+			s.logger.LogError(ctx, "scan: aggregate after pull failed", err, "task_id", tID)
+		}
 	}
 	return out, nil
 }
 
 // UpdateAssignmentProgress（PR-S3）—— 状态机推进 + 防伪造校验。
+//
+// PR-S4：成功后跑 task 聚合（推 task.status pending → running → completed/failed）。
 func (s *service) UpdateAssignmentProgress(
 	ctx context.Context,
 	callerNodeID, assignmentID string,
@@ -363,7 +374,90 @@ func (s *service) UpdateAssignmentProgress(
 		return errx.New(errx.ErrTaskInvalidState, "终态不可再转").
 			WithFields("current", string(a.Status))
 	}
-	// pulled / running → running 允许（重复 running 用 UpdateStatus CASE 处理 started_at）
-	// pulled / running → completed/failed 允许
-	return s.assignments.UpdateStatus(ctx, assignmentID, status, errMsg)
+	if err := s.assignments.UpdateStatus(ctx, assignmentID, status, errMsg); err != nil {
+		return err
+	}
+
+	// PR-S4 task 聚合：失败仅日志，不影响 agent 报进度的成功语义
+	if err := s.aggregateTaskStatus(ctx, a.TaskID); err != nil {
+		if s.logger != nil {
+			s.logger.LogError(ctx, "scan: aggregate task status failed", err,
+				"task_id", a.TaskID, "assignment_id", assignmentID)
+		}
+	}
+	return nil
+}
+
+// aggregateTaskStatus（PR-S4）—— 根据该 task 全部 assignments 推算 task.status。
+//
+// 规则（与 UI 默认 chip 颜色对齐）：
+//   - 0 assignments：保持 task 原状态（一般 pending；CancelTask 主动改的 canceled 不动）
+//   - 任一 assignment ∈ {running, pulled}：task = running
+//   - 全部终态：
+//   - 任一 failed                           → task = failed
+//   - 任一 completed（可能混 canceled）       → task = completed
+//   - 全 canceled                          → 保持原状态（assignments 极少全 canceled，
+//     而且 task 本身的 canceled 状态由 CancelTask 主动写）
+//   - 否则（全 assigned；agent 还没拉）：task = pending
+//
+// task 终态后不再改（caller 不会触发——agents 不能 update 已 terminal 的 assignment）。
+func (s *service) aggregateTaskStatus(ctx context.Context, taskID string) error {
+	t, err := s.tasks.GetByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	// task 已经被 CancelTask 主动取消，或已落终态 → 不再 aggregator 写
+	if t.Status == domain.TaskCanceled || t.Status.IsTerminal() {
+		return nil
+	}
+
+	list, err := s.assignments.ListByTask(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		return nil
+	}
+
+	allTerminal, anyRunningOrPulled, anyFailed, anyCompleted := true, false, false, false
+	for _, a := range list {
+		switch a.Status {
+		case domain.AssignmentAssigned:
+			allTerminal = false
+		case domain.AssignmentPulled, domain.AssignmentRunning:
+			allTerminal = false
+			anyRunningOrPulled = true
+		case domain.AssignmentCompleted:
+			anyCompleted = true
+		case domain.AssignmentFailed:
+			anyFailed = true
+		}
+	}
+
+	var next domain.TaskStatus
+	switch {
+	case anyRunningOrPulled:
+		next = domain.TaskRunning
+	case allTerminal && anyFailed:
+		next = domain.TaskFailed
+	case allTerminal && anyCompleted:
+		next = domain.TaskCompleted
+	case allTerminal:
+		// 全 canceled — 极少发生；保持 task 原状态
+		return nil
+	default:
+		// 全 assigned，agent 还没拉
+		next = domain.TaskPending
+	}
+
+	if next == t.Status {
+		return nil
+	}
+
+	var finishedAt *string
+	if next.IsTerminal() {
+		ts := s.now().UTC().Format(time.RFC3339)
+		finishedAt = &ts
+	}
+	return s.tasks.UpdateStatus(ctx, taskID, next, finishedAt)
 }

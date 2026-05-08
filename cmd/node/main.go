@@ -41,12 +41,12 @@ func main() {
 
 // agentOptions 是 main 解析后的全部配置。
 type agentOptions struct {
-	serverURL     string // 公网 ConnectRPC URL（Redeem 用）；e.g. https://api.example.com
-	nodeAgentURL  string // mTLS NodeAgent URL；e.g. https://api.example.com:9090
-	dataDir       string // enrollment 落盘目录
-	token         string // 首启 RegistrationToken plaintext（已 enroll 时忽略）
-	nodeName      string // Agent 自报名（租户内唯一）
-	mtlsServerSAN string // 自签 dev cert 时显式 SAN（如 "localhost"）
+	serverURL     string        // 公网 ConnectRPC URL（Redeem 用）；e.g. https://api.example.com
+	nodeAgentURL  string        // mTLS NodeAgent URL；e.g. https://api.example.com:9090
+	dataDir       string        // enrollment 落盘目录
+	token         string        // 首启 RegistrationToken plaintext（已 enroll 时忽略）
+	nodeName      string        // Agent 自报名（租户内唯一）
+	mtlsServerSAN string        // 自签 dev cert 时显式 SAN（如 "localhost"）
 	renewBefore   time.Duration // cert 距过期 ≤ 此值 → 触发续期；默认 7d
 	printVersion  bool
 }

@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+// ScanService（PR-S1 入口）—— 扫描任务 CRUD。
+//
+// MVP 范围：仅任务管理；不含 dispatch / Agent 拉任务 / 结果上报。
+// 路径：/redmatrix.scan.v1.ScanService
+package redmatrix.scan.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+service ScanService {
+  rpc CreateScanTask(CreateScanTaskRequest) returns (CreateScanTaskResponse);
+  rpc ListScanTasks(ListScanTasksRequest) returns (ListScanTasksResponse);
+  rpc GetScanTask(GetScanTaskRequest) returns (GetScanTaskResponse);
+  rpc CancelScanTask(CancelScanTaskRequest) returns (CancelScanTaskResponse);
+  rpc DeleteScanTask(DeleteScanTaskRequest) returns (DeleteScanTaskResponse);
+}
+
+// ScanTask 任务实体（与 schema 一一对应）。
+message ScanTask {
+  string id = 1;
+  string tenant_id = 2;
+  string project_id = 3;
+  string name = 4;
+  string kind = 5;          // port_scan / web_crawl / subdomain / fingerprint
+  string target = 6;
+  string target_kind = 7;   // host / ip / cidr / url
+  string status = 8;        // pending / running / completed / failed / canceled
+  string schedule_kind = 9; // immediate / cron
+  string cron_expr = 10;
+  google.protobuf.Struct settings = 11;
+  string created_by = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+  optional google.protobuf.Timestamp started_at = 15;
+  optional google.protobuf.Timestamp finished_at = 16;
+}
+
+message CreateScanTaskRequest {
+  string project_id = 1;
+  string name = 2;
+  string kind = 3;
+  string target = 4;
+  string target_kind = 5;
+  // 可选：默认 immediate
+  string schedule_kind = 6;
+  string cron_expr = 7;
+  google.protobuf.Struct settings = 8;
+}
+message CreateScanTaskResponse {
+  ScanTask task = 1;
+}
+
+message ListScanTasksRequest {
+  string project_id = 1;
+  optional string status = 2;
+  optional string keyword = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+message ListScanTasksResponse {
+  repeated ScanTask tasks = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetScanTaskRequest { string id = 1; }
+message GetScanTaskResponse { ScanTask task = 1; }
+
+message CancelScanTaskRequest { string id = 1; }
+message CancelScanTaskResponse {}
+
+message DeleteScanTaskRequest { string id = 1; }
+message DeleteScanTaskResponse {}

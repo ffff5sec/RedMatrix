@@ -365,6 +365,16 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			return failExitCode(err)
 		}
 
+		// === 8a₂. ScanService（PR-S1 扫描调度入口）===
+		scMount, err := buildScanMount(pool, authSvc)
+		if err != nil {
+			logger.LogError(ctx, "scan stack init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(scMount.path, scMount.handler)
+		logger.Info("scan service mounted", "path", scMount.path)
+
 		// === 8a₂. Bootstrap tenancy（默认 account，幂等）===
 		// 必须在 identity bootstrap 之前；后续创建非 SA 用户的 tenant_id 来自此处。
 		if err := runTenancyBootstrap(ctx, logger, pool); err != nil {
@@ -419,7 +429,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		logger.Info("http server listening",
 			"addr", actualAddr,
-			"endpoints", []string{"/health", "/ready", "/metrics", idMount.path, tnMount.path},
+			"endpoints", []string{"/health", "/ready", "/metrics", idMount.path, tnMount.path, scMount.path},
 		)
 
 		serverErr := make(chan error, 1)

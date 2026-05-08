@@ -89,6 +89,88 @@ func (r *pgAssignmentRepo) ListByTask(ctx context.Context, taskID string) ([]*do
 	return out, rows.Err()
 }
 
+// === PR-S3 ===
+
+func (r *pgAssignmentRepo) PullForNode(ctx context.Context, nodeID string) ([]*domain.TaskAssignment, error) {
+	if r == nil || r.pool == nil {
+		return nil, errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	rows, err := r.pool.Query(ctx, `
+		WITH updated AS (
+			UPDATE scan_task_assignments
+			   SET status = 'pulled', pulled_at = now()
+			 WHERE node_id = $1::uuid AND status = 'assigned'
+			RETURNING id
+		)
+		`+selectAssignmentSQL+`
+		WHERE id IN (SELECT id FROM updated)
+		ORDER BY assigned_at ASC
+	`, nodeID)
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: pull for node").
+			WithFields("node_id", nodeID)
+	}
+	defer rows.Close()
+	out := []*domain.TaskAssignment{}
+	for rows.Next() {
+		a := &domain.TaskAssignment{}
+		var status string
+		if err := rows.Scan(
+			&a.ID, &a.TaskID, &a.NodeID, &status,
+			&a.AssignedAt, &a.PulledAt, &a.StartedAt, &a.FinishedAt, &a.Error,
+		); err != nil {
+			return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: scan pulled")
+		}
+		a.Status = domain.AssignmentStatus(status)
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+func (r *pgAssignmentRepo) GetByID(ctx context.Context, id string) (*domain.TaskAssignment, error) {
+	if r == nil || r.pool == nil {
+		return nil, errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	row := r.pool.QueryRow(ctx, selectAssignmentSQL+`WHERE id = $1::uuid`, id)
+	a := &domain.TaskAssignment{}
+	var status string
+	if err := row.Scan(
+		&a.ID, &a.TaskID, &a.NodeID, &status,
+		&a.AssignedAt, &a.PulledAt, &a.StartedAt, &a.FinishedAt, &a.Error,
+	); err != nil {
+		return nil, errx.New(errx.ErrTaskNotFound, "assignment 不存在").
+			WithFields("id", id)
+	}
+	a.Status = domain.AssignmentStatus(status)
+	return a, nil
+}
+
+func (r *pgAssignmentRepo) UpdateStatus(ctx context.Context, id string, status domain.AssignmentStatus, errMsg string) error {
+	if r == nil || r.pool == nil {
+		return errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	if !status.Valid() {
+		return errx.New(errx.ErrTaskInvalidState, "status 不合法").
+			WithFields("got", string(status))
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE scan_task_assignments
+		   SET status = $2::varchar,
+		       started_at  = CASE WHEN $2::varchar = 'running'  AND started_at IS NULL THEN now() ELSE started_at END,
+		       finished_at = CASE WHEN $2::varchar IN ('completed','failed') THEN now() ELSE finished_at END,
+		       error       = CASE WHEN $2::varchar = 'failed' THEN $3::text ELSE NULL END
+		 WHERE id = $1::uuid
+	`, id, string(status), errMsg)
+	if err != nil {
+		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: update assignment status").
+			WithFields("id", id)
+	}
+	if tag.RowsAffected() == 0 {
+		return errx.New(errx.ErrTaskNotFound, "assignment 不存在").WithFields("id", id)
+	}
+	return nil
+}
+
 func (r *pgAssignmentRepo) CountByTaskIDs(ctx context.Context, taskIDs []string) (map[string]int, error) {
 	out := map[string]int{}
 	if r == nil || r.pool == nil {

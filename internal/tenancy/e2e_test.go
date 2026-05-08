@@ -55,6 +55,20 @@ func (h *inlineNodeAgentHandler) Heartbeat(
 	}), nil
 }
 
+func (h *inlineNodeAgentHandler) PullTasks(
+	context.Context,
+	*connect.Request[tenancyv1.PullTasksRequest],
+) (*connect.Response[tenancyv1.PullTasksResponse], error) {
+	return connect.NewResponse(&tenancyv1.PullTasksResponse{}), nil
+}
+
+func (h *inlineNodeAgentHandler) ReportTaskProgress(
+	context.Context,
+	*connect.Request[tenancyv1.ReportTaskProgressRequest],
+) (*connect.Response[tenancyv1.ReportTaskProgressResponse], error) {
+	return connect.NewResponse(&tenancyv1.ReportTaskProgressResponse{}), nil
+}
+
 func (h *inlineNodeAgentHandler) ReissueCert(
 	ctx context.Context,
 	_ *connect.Request[tenancyv1.ReissueCertRequest],

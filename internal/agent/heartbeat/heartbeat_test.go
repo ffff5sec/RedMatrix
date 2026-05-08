@@ -62,6 +62,14 @@ func (s *stubClient) Heartbeat(_ context.Context, _ *connect.Request[tenancyv1.H
 	}), nil
 }
 
+func (s *stubClient) PullTasks(_ context.Context, _ *connect.Request[tenancyv1.PullTasksRequest]) (*connect.Response[tenancyv1.PullTasksResponse], error) {
+	return connect.NewResponse(&tenancyv1.PullTasksResponse{}), nil
+}
+
+func (s *stubClient) ReportTaskProgress(_ context.Context, _ *connect.Request[tenancyv1.ReportTaskProgressRequest]) (*connect.Response[tenancyv1.ReportTaskProgressResponse], error) {
+	return connect.NewResponse(&tenancyv1.ReportTaskProgressResponse{}), nil
+}
+
 func (s *stubClient) ReissueCert(_ context.Context, _ *connect.Request[tenancyv1.ReissueCertRequest]) (*connect.Response[tenancyv1.ReissueCertResponse], error) {
 	s.reissueCalls.Add(1)
 	if s.reissueErr != nil {

@@ -28,6 +28,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/enroll"
 	"github.com/ffff5sec/RedMatrix/internal/agent/heartbeat"
 	"github.com/ffff5sec/RedMatrix/internal/agent/store"
+	"github.com/ffff5sec/RedMatrix/internal/agent/tasks"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/version"
 )
@@ -152,10 +153,29 @@ func run(args []string, stdout, stderr io.Writer) error {
 		RenewBefore:   o.renewBefore,
 		RebuildClient: rebuildClient,
 	}
+
+	// === 3. PR-S3 任务拉取循环（goroutine；与 heartbeat 并行）===
+	tl := &tasks.Loop{
+		Client:       naClient,
+		PullInterval: tasks.DefaultPullInterval,
+		ExecDuration: tasks.DefaultExecDuration,
+		Logger:       logger,
+	}
+	taskDone := make(chan error, 1)
+	go func() {
+		err := tl.Run(ctx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			logger.LogError(ctx, "tasks loop exited with error", err)
+		}
+		taskDone <- err
+	}()
+
 	if err := hl.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		fmt.Fprintf(stderr, "redmatrix-node: heartbeat exited: %v\n", err)
 		return err
 	}
+	// 等任务循环退出（heartbeat 退出说明 ctx 已取消，任务循环也应很快收口）
+	<-taskDone
 	logger.Info("redmatrix-node shutting down")
 	return nil
 }

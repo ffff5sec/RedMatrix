@@ -110,6 +110,12 @@ const (
 	// NodeAgentServiceReissueCertProcedure is the fully-qualified name of the NodeAgentService's
 	// ReissueCert RPC.
 	NodeAgentServiceReissueCertProcedure = "/redmatrix.tenancy.v1.NodeAgentService/ReissueCert"
+	// NodeAgentServicePullTasksProcedure is the fully-qualified name of the NodeAgentService's
+	// PullTasks RPC.
+	NodeAgentServicePullTasksProcedure = "/redmatrix.tenancy.v1.NodeAgentService/PullTasks"
+	// NodeAgentServiceReportTaskProgressProcedure is the fully-qualified name of the NodeAgentService's
+	// ReportTaskProgress RPC.
+	NodeAgentServiceReportTaskProgressProcedure = "/redmatrix.tenancy.v1.NodeAgentService/ReportTaskProgress"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -823,6 +829,13 @@ type NodeAgentServiceClient interface {
 	// Agent 在 cert 临过期（默认 cert 寿命剩 7 天）时主动调；
 	// server 不 revoke 旧 cert——agent 切到新 cert 后旧 cert 自然过期。
 	ReissueCert(context.Context, *connect.Request[v1.ReissueCertRequest]) (*connect.Response[v1.ReissueCertResponse], error)
+	// PullTasks 拉取派给本节点的任务（PR-S3）。
+	// 服务端把所有 status='assigned' 的 assignment 原子更新为 'pulled' 并返回，
+	// node_id 由 mTLS 中间件按 cert 指纹注 ctx，agent 不可伪造。
+	PullTasks(context.Context, *connect.Request[v1.PullTasksRequest]) (*connect.Response[v1.PullTasksResponse], error)
+	// ReportTaskProgress 上报任务进度（running / completed / failed）。
+	// 服务端校 assignment.node_id == ctx node_id（同 mTLS 调用方）+ 状态机合法。
+	ReportTaskProgress(context.Context, *connect.Request[v1.ReportTaskProgressRequest]) (*connect.Response[v1.ReportTaskProgressResponse], error)
 }
 
 // NewNodeAgentServiceClient constructs a client for the redmatrix.tenancy.v1.NodeAgentService
@@ -848,13 +861,27 @@ func NewNodeAgentServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(nodeAgentServiceMethods.ByName("ReissueCert")),
 			connect.WithClientOptions(opts...),
 		),
+		pullTasks: connect.NewClient[v1.PullTasksRequest, v1.PullTasksResponse](
+			httpClient,
+			baseURL+NodeAgentServicePullTasksProcedure,
+			connect.WithSchema(nodeAgentServiceMethods.ByName("PullTasks")),
+			connect.WithClientOptions(opts...),
+		),
+		reportTaskProgress: connect.NewClient[v1.ReportTaskProgressRequest, v1.ReportTaskProgressResponse](
+			httpClient,
+			baseURL+NodeAgentServiceReportTaskProgressProcedure,
+			connect.WithSchema(nodeAgentServiceMethods.ByName("ReportTaskProgress")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // nodeAgentServiceClient implements NodeAgentServiceClient.
 type nodeAgentServiceClient struct {
-	heartbeat   *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
-	reissueCert *connect.Client[v1.ReissueCertRequest, v1.ReissueCertResponse]
+	heartbeat          *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
+	reissueCert        *connect.Client[v1.ReissueCertRequest, v1.ReissueCertResponse]
+	pullTasks          *connect.Client[v1.PullTasksRequest, v1.PullTasksResponse]
+	reportTaskProgress *connect.Client[v1.ReportTaskProgressRequest, v1.ReportTaskProgressResponse]
 }
 
 // Heartbeat calls redmatrix.tenancy.v1.NodeAgentService.Heartbeat.
@@ -867,6 +894,16 @@ func (c *nodeAgentServiceClient) ReissueCert(ctx context.Context, req *connect.R
 	return c.reissueCert.CallUnary(ctx, req)
 }
 
+// PullTasks calls redmatrix.tenancy.v1.NodeAgentService.PullTasks.
+func (c *nodeAgentServiceClient) PullTasks(ctx context.Context, req *connect.Request[v1.PullTasksRequest]) (*connect.Response[v1.PullTasksResponse], error) {
+	return c.pullTasks.CallUnary(ctx, req)
+}
+
+// ReportTaskProgress calls redmatrix.tenancy.v1.NodeAgentService.ReportTaskProgress.
+func (c *nodeAgentServiceClient) ReportTaskProgress(ctx context.Context, req *connect.Request[v1.ReportTaskProgressRequest]) (*connect.Response[v1.ReportTaskProgressResponse], error) {
+	return c.reportTaskProgress.CallUnary(ctx, req)
+}
+
 // NodeAgentServiceHandler is an implementation of the redmatrix.tenancy.v1.NodeAgentService
 // service.
 type NodeAgentServiceHandler interface {
@@ -877,6 +914,13 @@ type NodeAgentServiceHandler interface {
 	// Agent 在 cert 临过期（默认 cert 寿命剩 7 天）时主动调；
 	// server 不 revoke 旧 cert——agent 切到新 cert 后旧 cert 自然过期。
 	ReissueCert(context.Context, *connect.Request[v1.ReissueCertRequest]) (*connect.Response[v1.ReissueCertResponse], error)
+	// PullTasks 拉取派给本节点的任务（PR-S3）。
+	// 服务端把所有 status='assigned' 的 assignment 原子更新为 'pulled' 并返回，
+	// node_id 由 mTLS 中间件按 cert 指纹注 ctx，agent 不可伪造。
+	PullTasks(context.Context, *connect.Request[v1.PullTasksRequest]) (*connect.Response[v1.PullTasksResponse], error)
+	// ReportTaskProgress 上报任务进度（running / completed / failed）。
+	// 服务端校 assignment.node_id == ctx node_id（同 mTLS 调用方）+ 状态机合法。
+	ReportTaskProgress(context.Context, *connect.Request[v1.ReportTaskProgressRequest]) (*connect.Response[v1.ReportTaskProgressResponse], error)
 }
 
 // NewNodeAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -898,12 +942,28 @@ func NewNodeAgentServiceHandler(svc NodeAgentServiceHandler, opts ...connect.Han
 		connect.WithSchema(nodeAgentServiceMethods.ByName("ReissueCert")),
 		connect.WithHandlerOptions(opts...),
 	)
+	nodeAgentServicePullTasksHandler := connect.NewUnaryHandler(
+		NodeAgentServicePullTasksProcedure,
+		svc.PullTasks,
+		connect.WithSchema(nodeAgentServiceMethods.ByName("PullTasks")),
+		connect.WithHandlerOptions(opts...),
+	)
+	nodeAgentServiceReportTaskProgressHandler := connect.NewUnaryHandler(
+		NodeAgentServiceReportTaskProgressProcedure,
+		svc.ReportTaskProgress,
+		connect.WithSchema(nodeAgentServiceMethods.ByName("ReportTaskProgress")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.NodeAgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case NodeAgentServiceHeartbeatProcedure:
 			nodeAgentServiceHeartbeatHandler.ServeHTTP(w, r)
 		case NodeAgentServiceReissueCertProcedure:
 			nodeAgentServiceReissueCertHandler.ServeHTTP(w, r)
+		case NodeAgentServicePullTasksProcedure:
+			nodeAgentServicePullTasksHandler.ServeHTTP(w, r)
+		case NodeAgentServiceReportTaskProgressProcedure:
+			nodeAgentServiceReportTaskProgressHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -919,4 +979,12 @@ func (UnimplementedNodeAgentServiceHandler) Heartbeat(context.Context, *connect.
 
 func (UnimplementedNodeAgentServiceHandler) ReissueCert(context.Context, *connect.Request[v1.ReissueCertRequest]) (*connect.Response[v1.ReissueCertResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.ReissueCert is not implemented"))
+}
+
+func (UnimplementedNodeAgentServiceHandler) PullTasks(context.Context, *connect.Request[v1.PullTasksRequest]) (*connect.Response[v1.PullTasksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.PullTasks is not implemented"))
+}
+
+func (UnimplementedNodeAgentServiceHandler) ReportTaskProgress(context.Context, *connect.Request[v1.ReportTaskProgressRequest]) (*connect.Response[v1.ReportTaskProgressResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.ReportTaskProgress is not implemented"))
 }

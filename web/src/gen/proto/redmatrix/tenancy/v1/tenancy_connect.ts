@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, GetStatsRequest, GetStatsResponse, HeartbeatRequest, HeartbeatResponse, ListNodeCertificatesRequest, ListNodeCertificatesResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, GetStatsRequest, GetStatsResponse, HeartbeatRequest, HeartbeatResponse, ListNodeCertificatesRequest, ListNodeCertificatesResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, PullTasksRequest, PullTasksResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, ReportTaskProgressRequest, ReportTaskProgressResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -318,6 +318,31 @@ export const NodeAgentService = {
       name: "ReissueCert",
       I: ReissueCertRequest,
       O: ReissueCertResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * PullTasks 拉取派给本节点的任务（PR-S3）。
+     * 服务端把所有 status='assigned' 的 assignment 原子更新为 'pulled' 并返回，
+     * node_id 由 mTLS 中间件按 cert 指纹注 ctx，agent 不可伪造。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.NodeAgentService.PullTasks
+     */
+    pullTasks: {
+      name: "PullTasks",
+      I: PullTasksRequest,
+      O: PullTasksResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ReportTaskProgress 上报任务进度（running / completed / failed）。
+     * 服务端校 assignment.node_id == ctx node_id（同 mTLS 调用方）+ 状态机合法。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.NodeAgentService.ReportTaskProgress
+     */
+    reportTaskProgress: {
+      name: "ReportTaskProgress",
+      I: ReportTaskProgressRequest,
+      O: ReportTaskProgressResponse,
       kind: MethodKind.Unary,
     },
   }

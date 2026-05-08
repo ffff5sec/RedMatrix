@@ -20,6 +20,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
+	"github.com/ffff5sec/RedMatrix/internal/scan"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy"
 	tenancyhandler "github.com/ffff5sec/RedMatrix/internal/tenancy/handler"
@@ -46,6 +47,7 @@ func startNodeAgentServer(
 	logger *log.Logger,
 	pool *pg.Pool,
 	svc tenancy.Service,
+	scanSvc scan.Service,
 	ca *pki.CA,
 	addr string,
 ) (*nodeAgentServer, error) {
@@ -70,7 +72,7 @@ func startNodeAgentServer(
 	if err != nil {
 		return nil, err
 	}
-	h, err := tenancyhandler.NewNodeAgent(svc)
+	h, err := tenancyhandler.NewNodeAgent(svc, scanSvc)
 	if err != nil {
 		return nil, err
 	}

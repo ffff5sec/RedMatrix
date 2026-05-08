@@ -64,6 +64,26 @@ type Service interface {
 
 	// CountAssignmentsByTaskIDs 列表页一次性拉所有 task 的派发计数（PR-S2）。
 	CountAssignmentsByTaskIDs(ctx context.Context, taskIDs []string) (map[string]int, error)
+
+	// PullForNode（PR-S3 mTLS）：把 nodeID 名下 status='assigned' 的派发单
+	// 原子置 'pulled' 并返；幂等，agent 多次调安全。
+	PullForNode(ctx context.Context, nodeID string) ([]*PulledAssignment, error)
+
+	// UpdateAssignmentProgress（PR-S3 mTLS）：agent 上报进度。
+	// 校 assignment.node_id == callerNodeID（防伪造）+ 状态机合法。
+	// status 仅允许 running / completed / failed。
+	UpdateAssignmentProgress(ctx context.Context, callerNodeID, assignmentID string, status domain.AssignmentStatus, errMsg string) error
+}
+
+// PulledAssignment 是 PullForNode 返的轻封装：assignment 元数据 + 关联的 task
+// 描述（kind / target / target_kind / project_id），让 Agent 一次拿全。
+type PulledAssignment struct {
+	AssignmentID string
+	TaskID       string
+	ProjectID    string
+	Kind         domain.TaskKind
+	Target       string
+	TargetKind   domain.TargetKind
 }
 
 // CreateTaskRequest 入参；handler 从 principal 注 TenantID + CreatedBy。
@@ -274,4 +294,76 @@ func (s *service) CountAssignmentsByTaskIDs(ctx context.Context, taskIDs []strin
 		return map[string]int{}, nil
 	}
 	return s.assignments.CountByTaskIDs(ctx, taskIDs)
+}
+
+// PullForNode（PR-S3）—— assigned → pulled 原子翻转 + 取关联 task 元数据。
+//
+// 不直接 INNER JOIN 是为了让 repo 接口保持纯 assignments；这里 N+1 但
+// MVP 一次 pull 数量 < 50（agent 不会堆积），影响可忽略。
+func (s *service) PullForNode(ctx context.Context, nodeID string) ([]*PulledAssignment, error) {
+	if strings.TrimSpace(nodeID) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "pull 缺 node_id")
+	}
+	pulled, err := s.assignments.PullForNode(ctx, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*PulledAssignment, 0, len(pulled))
+	for _, a := range pulled {
+		t, err := s.tasks.GetByID(ctx, a.TaskID)
+		if err != nil {
+			// task 软删但 assignment 还在 → 跳过（agent 不需做这种孤儿）
+			if s.logger != nil {
+				s.logger.Warn("pull: skip orphan assignment",
+					"assignment_id", a.ID, "task_id", a.TaskID, "err", err.Error())
+			}
+			continue
+		}
+		out = append(out, &PulledAssignment{
+			AssignmentID: a.ID,
+			TaskID:       t.ID,
+			ProjectID:    t.ProjectID,
+			Kind:         t.Kind,
+			Target:       t.Target,
+			TargetKind:   t.TargetKind,
+		})
+	}
+	return out, nil
+}
+
+// UpdateAssignmentProgress（PR-S3）—— 状态机推进 + 防伪造校验。
+func (s *service) UpdateAssignmentProgress(
+	ctx context.Context,
+	callerNodeID, assignmentID string,
+	status domain.AssignmentStatus,
+	errMsg string,
+) error {
+	if strings.TrimSpace(callerNodeID) == "" {
+		return errx.New(errx.ErrInvalidInput, "缺 caller node_id")
+	}
+	if strings.TrimSpace(assignmentID) == "" {
+		return errx.New(errx.ErrInvalidInput, "缺 assignment_id")
+	}
+	switch status {
+	case domain.AssignmentRunning, domain.AssignmentCompleted, domain.AssignmentFailed:
+	default:
+		return errx.New(errx.ErrTaskInvalidState,
+			"status 必须是 running / completed / failed").
+			WithFields("got", string(status))
+	}
+	a, err := s.assignments.GetByID(ctx, assignmentID)
+	if err != nil {
+		return err
+	}
+	if a.NodeID != callerNodeID {
+		return errx.New(errx.ErrTaskNotFound, "assignment 不属于此节点（防伪造）").
+			WithFields("assignment_id", a.ID)
+	}
+	if a.Status.IsTerminal() {
+		return errx.New(errx.ErrTaskInvalidState, "终态不可再转").
+			WithFields("current", string(a.Status))
+	}
+	// pulled / running → running 允许（重复 running 用 UpdateStatus CASE 处理 started_at）
+	// pulled / running → completed/failed 允许
+	return s.assignments.UpdateStatus(ctx, assignmentID, status, errMsg)
 }

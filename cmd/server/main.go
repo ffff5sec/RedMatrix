@@ -357,22 +357,24 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle(tnMount.path, tnMount.handler)
 		logger.Info("tenancy service mounted", "path", tnMount.path)
 
-		// === 8a₁'. NodeAgentService（mTLS-only；Agent 心跳）===
-		nodeAgentSrv, err := startNodeAgentServer(ctx, logger, pool, tenancySvc, ca, cfg.Public.GRPCAddr)
-		if err != nil {
-			logger.LogError(ctx, "node_agent server init failed", err)
-			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
-			return failExitCode(err)
-		}
-
 		// === 8a₂. ScanService（PR-S1 扫描调度入口）===
-		scMount, err := buildScanMount(pool, authSvc, logger)
+		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
+		// 需要注入 scan.Service。
+		scMount, scanSvc, err := buildScanMount(pool, authSvc, logger)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
 			return failExitCode(err)
 		}
 		mux.Handle(scMount.path, scMount.handler)
+
+		// === 8a₁'. NodeAgentService（mTLS-only；Agent 心跳 + 拉任务）===
+		nodeAgentSrv, err := startNodeAgentServer(ctx, logger, pool, tenancySvc, scanSvc, ca, cfg.Public.GRPCAddr)
+		if err != nil {
+			logger.LogError(ctx, "node_agent server init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
 		logger.Info("scan service mounted", "path", scMount.path)
 
 		// === 8a₂. Bootstrap tenancy（默认 account，幂等）===

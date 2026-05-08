@@ -339,6 +339,15 @@ service NodeAgentService {
   // Agent 在 cert 临过期（默认 cert 寿命剩 7 天）时主动调；
   // server 不 revoke 旧 cert——agent 切到新 cert 后旧 cert 自然过期。
   rpc ReissueCert(ReissueCertRequest) returns (ReissueCertResponse);
+
+  // PullTasks 拉取派给本节点的任务（PR-S3）。
+  // 服务端把所有 status='assigned' 的 assignment 原子更新为 'pulled' 并返回，
+  // node_id 由 mTLS 中间件按 cert 指纹注 ctx，agent 不可伪造。
+  rpc PullTasks(PullTasksRequest) returns (PullTasksResponse);
+
+  // ReportTaskProgress 上报任务进度（running / completed / failed）。
+  // 服务端校 assignment.node_id == ctx node_id（同 mTLS 调用方）+ 状态机合法。
+  rpc ReportTaskProgress(ReportTaskProgressRequest) returns (ReportTaskProgressResponse);
 }
 
 message HeartbeatRequest {
@@ -366,6 +375,33 @@ message ReissueCertResponse {
   // RFC3339；下次续期参考。
   string cert_expires_at = 5;
 }
+
+// === PR-S3 任务拉取 / 进度上报 ===
+
+// AssignedTask 是 Agent 拉到的任务承载（task 字段 + assignment id）。
+// 不重复 ScanTask 全字段，仅暴露 Agent 执行所需。
+message AssignedTask {
+  string assignment_id = 1;
+  string task_id = 2;
+  string project_id = 3;
+  string kind = 4; // port_scan / web_crawl / subdomain / fingerprint
+  string target = 5;
+  string target_kind = 6; // host / ip / cidr / url
+}
+
+message PullTasksRequest {}
+message PullTasksResponse {
+  repeated AssignedTask tasks = 1;
+}
+
+message ReportTaskProgressRequest {
+  string assignment_id = 1;
+  // 允许值: running / completed / failed
+  string status = 2;
+  // 仅 status=failed 时填。
+  string error = 3;
+}
+message ReportTaskProgressResponse {}
 
 // ===== NodeCertificate（PR-W6 节点详情页）=====
 

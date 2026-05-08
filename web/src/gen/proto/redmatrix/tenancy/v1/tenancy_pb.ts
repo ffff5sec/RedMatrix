@@ -2237,6 +2237,232 @@ export class ReissueCertResponse extends Message<ReissueCertResponse> {
 }
 
 /**
+ * AssignedTask 是 Agent 拉到的任务承载（task 字段 + assignment id）。
+ * 不重复 ScanTask 全字段，仅暴露 Agent 执行所需。
+ *
+ * @generated from message redmatrix.tenancy.v1.AssignedTask
+ */
+export class AssignedTask extends Message<AssignedTask> {
+  /**
+   * @generated from field: string assignment_id = 1;
+   */
+  assignmentId = "";
+
+  /**
+   * @generated from field: string task_id = 2;
+   */
+  taskId = "";
+
+  /**
+   * @generated from field: string project_id = 3;
+   */
+  projectId = "";
+
+  /**
+   * port_scan / web_crawl / subdomain / fingerprint
+   *
+   * @generated from field: string kind = 4;
+   */
+  kind = "";
+
+  /**
+   * @generated from field: string target = 5;
+   */
+  target = "";
+
+  /**
+   * host / ip / cidr / url
+   *
+   * @generated from field: string target_kind = 6;
+   */
+  targetKind = "";
+
+  constructor(data?: PartialMessage<AssignedTask>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.AssignedTask";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "assignment_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "task_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "target", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "target_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AssignedTask {
+    return new AssignedTask().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AssignedTask {
+    return new AssignedTask().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AssignedTask {
+    return new AssignedTask().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AssignedTask | PlainMessage<AssignedTask> | undefined, b: AssignedTask | PlainMessage<AssignedTask> | undefined): boolean {
+    return proto3.util.equals(AssignedTask, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.PullTasksRequest
+ */
+export class PullTasksRequest extends Message<PullTasksRequest> {
+  constructor(data?: PartialMessage<PullTasksRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.PullTasksRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PullTasksRequest {
+    return new PullTasksRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PullTasksRequest {
+    return new PullTasksRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PullTasksRequest {
+    return new PullTasksRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PullTasksRequest | PlainMessage<PullTasksRequest> | undefined, b: PullTasksRequest | PlainMessage<PullTasksRequest> | undefined): boolean {
+    return proto3.util.equals(PullTasksRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.PullTasksResponse
+ */
+export class PullTasksResponse extends Message<PullTasksResponse> {
+  /**
+   * @generated from field: repeated redmatrix.tenancy.v1.AssignedTask tasks = 1;
+   */
+  tasks: AssignedTask[] = [];
+
+  constructor(data?: PartialMessage<PullTasksResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.PullTasksResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "tasks", kind: "message", T: AssignedTask, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PullTasksResponse {
+    return new PullTasksResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PullTasksResponse {
+    return new PullTasksResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PullTasksResponse {
+    return new PullTasksResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PullTasksResponse | PlainMessage<PullTasksResponse> | undefined, b: PullTasksResponse | PlainMessage<PullTasksResponse> | undefined): boolean {
+    return proto3.util.equals(PullTasksResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ReportTaskProgressRequest
+ */
+export class ReportTaskProgressRequest extends Message<ReportTaskProgressRequest> {
+  /**
+   * @generated from field: string assignment_id = 1;
+   */
+  assignmentId = "";
+
+  /**
+   * 允许值: running / completed / failed
+   *
+   * @generated from field: string status = 2;
+   */
+  status = "";
+
+  /**
+   * 仅 status=failed 时填。
+   *
+   * @generated from field: string error = 3;
+   */
+  error = "";
+
+  constructor(data?: PartialMessage<ReportTaskProgressRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ReportTaskProgressRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "assignment_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ReportTaskProgressRequest {
+    return new ReportTaskProgressRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ReportTaskProgressRequest {
+    return new ReportTaskProgressRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ReportTaskProgressRequest {
+    return new ReportTaskProgressRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ReportTaskProgressRequest | PlainMessage<ReportTaskProgressRequest> | undefined, b: ReportTaskProgressRequest | PlainMessage<ReportTaskProgressRequest> | undefined): boolean {
+    return proto3.util.equals(ReportTaskProgressRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ReportTaskProgressResponse
+ */
+export class ReportTaskProgressResponse extends Message<ReportTaskProgressResponse> {
+  constructor(data?: PartialMessage<ReportTaskProgressResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ReportTaskProgressResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ReportTaskProgressResponse {
+    return new ReportTaskProgressResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ReportTaskProgressResponse {
+    return new ReportTaskProgressResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ReportTaskProgressResponse {
+    return new ReportTaskProgressResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ReportTaskProgressResponse | PlainMessage<ReportTaskProgressResponse> | undefined, b: ReportTaskProgressResponse | PlainMessage<ReportTaskProgressResponse> | undefined): boolean {
+    return proto3.util.equals(ReportTaskProgressResponse, a, b);
+  }
+}
+
+/**
  * NodeCertificate 为审计 / 详情页展示而暴露的 cert 元数据；不含 PEM / private key。
  *
  * @generated from message redmatrix.tenancy.v1.NodeCertificate

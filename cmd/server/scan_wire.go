@@ -23,13 +23,14 @@ type scanMount struct {
 	handler http.Handler
 }
 
-// buildScanMount 装配 scan stack 并返 ConnectRPC mount。
-func buildScanMount(pool *pg.Pool, authSvc auth.Service, logger *log.Logger) (*scanMount, error) {
+// buildScanMount 装配 scan stack 并返 ConnectRPC mount + service（NodeAgentHandler
+// 需要 scanSvc 让 PR-S3 PullTasks / ReportTaskProgress 工作）。
+func buildScanMount(pool *pg.Pool, authSvc auth.Service, logger *log.Logger) (*scanMount, scan.Service, error) {
 	if pool == nil || pool.App == nil {
-		return nil, errx.New(errx.ErrInternal, "buildScanMount: pg.Pool.App 不能为 nil")
+		return nil, nil, errx.New(errx.ErrInternal, "buildScanMount: pg.Pool.App 不能为 nil")
 	}
 	if authSvc == nil {
-		return nil, errx.New(errx.ErrInternal, "buildScanMount: authSvc 不能为 nil")
+		return nil, nil, errx.New(errx.ErrInternal, "buildScanMount: authSvc 不能为 nil")
 	}
 	tasks := scanrepo.NewTaskPG(pool.App)
 	assignments := scanrepo.NewAssignmentPG(pool.App)
@@ -39,12 +40,12 @@ func buildScanMount(pool *pg.Pool, authSvc auth.Service, logger *log.Logger) (*s
 
 	svc, err := scan.NewService(tasks, assignments, projects, nodes, allowed, logger)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	h, err := scanhandler.New(svc, authSvc)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	path, hh := scanv1connect.NewScanServiceHandler(h)
-	return &scanMount{path: path, handler: hh}, nil
+	return &scanMount{path: path, handler: hh}, svc, nil
 }

@@ -40,6 +40,14 @@ type AllowedNodesLookup interface {
 	Get(ctx context.Context, projectID string) (tenancydomain.AllowedNodes, error)
 }
 
+// Indexer 把 scan_results 双写到外部检索（ES）。可空——dev 不装 ES 时
+// service 退化成 PG-only。失败仅日志，绝不影响 ReportResults 的成功语义。
+//
+// 实际类型在 internal/scan/indexer 包；这里只取最小接口避免循环依赖。
+type Indexer interface {
+	Index(ctx context.Context, items []*domain.ScanResult) error
+}
+
 // Service scan 模块业务流接口。
 //
 // 所有 RPC 假设 caller 已经过 handler 层 Authz；service 不查 caller role。
@@ -139,11 +147,12 @@ type service struct {
 	projects    ProjectLookup
 	nodes       NodeLister
 	allowed     AllowedNodesLookup
+	indexer     Indexer // 可空
 	logger      *log.Logger
 	now         func() time.Time
 }
 
-// NewService 构造 scan Service；任一依赖 nil 时返 ErrInternal（logger 可空）。
+// NewService 构造 scan Service；indexer / logger 可空，其余依赖 nil 时返 ErrInternal。
 func NewService(
 	tasks repo.TaskRepository,
 	assignments repo.AssignmentRepository,
@@ -151,6 +160,7 @@ func NewService(
 	projects ProjectLookup,
 	nodes NodeLister,
 	allowed AllowedNodesLookup,
+	indexer Indexer,
 	logger *log.Logger,
 ) (Service, error) {
 	if tasks == nil || assignments == nil || results == nil || projects == nil || nodes == nil || allowed == nil {
@@ -159,7 +169,8 @@ func NewService(
 	return &service{
 		tasks: tasks, assignments: assignments, results: results,
 		projects: projects, nodes: nodes, allowed: allowed,
-		logger: logger, now: time.Now,
+		indexer: indexer,
+		logger:  logger, now: time.Now,
 	}, nil
 }
 
@@ -517,7 +528,19 @@ func (s *service) ReportResults(
 			Data:         it.Data,
 		})
 	}
-	return s.results.InsertBulk(ctx, rows)
+	if err := s.results.InsertBulk(ctx, rows); err != nil {
+		return err
+	}
+
+	// PR-S6 ES 双写：PG 是 source-of-truth，ES 失败仅日志，不回滚 PG。
+	// rows 经过 InsertBulk 后已带 ID / CreatedAt（repo 用 RETURNING 回填）。
+	if s.indexer != nil {
+		if err := s.indexer.Index(ctx, rows); err != nil && s.logger != nil {
+			s.logger.LogError(ctx, "scan: index results to ES failed", err,
+				"task_id", t.ID, "assignment_id", a.ID, "count", len(rows))
+		}
+	}
+	return nil
 }
 
 // ListResultsByTask（PR-S5）—— 详情页直查。

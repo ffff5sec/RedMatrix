@@ -55,9 +55,26 @@ func (r *pgResultRepo) InsertBulk(ctx context.Context, items []*domain.ScanResul
 			itoa(base+2) + `::uuid, $` + itoa(base+3) + `, $` + itoa(base+4) + `::jsonb)`
 		args = append(args, it.TaskID, it.AssignmentID, it.NodeID, string(it.Kind), dataJSON)
 	}
-	q := `INSERT INTO scan_results (task_id, assignment_id, node_id, kind, data) VALUES ` + values
-	if _, err := r.pool.Exec(ctx, q, args...); err != nil {
+	// RETURNING 把 id / created_at 回填到 caller，indexer 双写需要这两个字段。
+	q := `INSERT INTO scan_results (task_id, assignment_id, node_id, kind, data) VALUES ` +
+		values + ` RETURNING id::text, created_at`
+	rows, err := r.pool.Query(ctx, q, args...)
+	if err != nil {
 		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: insert results")
+	}
+	defer rows.Close()
+	idx := 0
+	for rows.Next() {
+		if idx >= len(items) {
+			break
+		}
+		if err := rows.Scan(&items[idx].ID, &items[idx].CreatedAt); err != nil {
+			return errx.Wrap(errx.ErrDatabase, err, "scan.repo: scan returning")
+		}
+		idx++
+	}
+	if err := rows.Err(); err != nil {
+		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: insert results rows")
 	}
 	return nil
 }

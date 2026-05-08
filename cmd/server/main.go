@@ -360,7 +360,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		// === 8a₂. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。
-		scMount, scanSvc, err := buildScanMount(pool, authSvc, logger)
+		scMount, scanSvc, err := buildScanMount(ctx, pool, esClient, authSvc, logger)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

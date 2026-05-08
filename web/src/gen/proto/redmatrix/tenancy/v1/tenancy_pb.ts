@@ -2136,3 +2136,103 @@ export class HeartbeatResponse extends Message<HeartbeatResponse> {
   }
 }
 
+/**
+ * 与 Heartbeat 一样：node_id 不在请求里，由 mTLS 中间件按 cert 指纹注 ctx。
+ *
+ * @generated from message redmatrix.tenancy.v1.ReissueCertRequest
+ */
+export class ReissueCertRequest extends Message<ReissueCertRequest> {
+  constructor(data?: PartialMessage<ReissueCertRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ReissueCertRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ReissueCertRequest {
+    return new ReissueCertRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ReissueCertRequest {
+    return new ReissueCertRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ReissueCertRequest {
+    return new ReissueCertRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ReissueCertRequest | PlainMessage<ReissueCertRequest> | undefined, b: ReissueCertRequest | PlainMessage<ReissueCertRequest> | undefined): boolean {
+    return proto3.util.equals(ReissueCertRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ReissueCertResponse
+ */
+export class ReissueCertResponse extends Message<ReissueCertResponse> {
+  /**
+   * 新 client cert（覆盖旧 cert/key/ca）；server 不返 node_id（节点身份不变）。
+   *
+   * @generated from field: string node_cert_pem = 1;
+   */
+  nodeCertPem = "";
+
+  /**
+   * @generated from field: string node_key_pem = 2;
+   */
+  nodeKeyPem = "";
+
+  /**
+   * @generated from field: string ca_cert_pem = 3;
+   */
+  caCertPem = "";
+
+  /**
+   * SHA-256(DER) hex；mTLS 反查节点 ID 时用。
+   *
+   * @generated from field: string fingerprint = 4;
+   */
+  fingerprint = "";
+
+  /**
+   * RFC3339；下次续期参考。
+   *
+   * @generated from field: string cert_expires_at = 5;
+   */
+  certExpiresAt = "";
+
+  constructor(data?: PartialMessage<ReissueCertResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ReissueCertResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "node_cert_pem", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "node_key_pem", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "ca_cert_pem", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "fingerprint", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "cert_expires_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ReissueCertResponse {
+    return new ReissueCertResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ReissueCertResponse {
+    return new ReissueCertResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ReissueCertResponse {
+    return new ReissueCertResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ReissueCertResponse | PlainMessage<ReissueCertResponse> | undefined, b: ReissueCertResponse | PlainMessage<ReissueCertResponse> | undefined): boolean {
+    return proto3.util.equals(ReissueCertResponse, a, b);
+  }
+}
+

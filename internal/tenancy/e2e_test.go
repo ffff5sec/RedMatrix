@@ -55,6 +55,28 @@ func (h *inlineNodeAgentHandler) Heartbeat(
 	}), nil
 }
 
+func (h *inlineNodeAgentHandler) ReissueCert(
+	ctx context.Context,
+	_ *connect.Request[tenancyv1.ReissueCertRequest],
+) (*connect.Response[tenancyv1.ReissueCertResponse], error) {
+	nodeID := ctxmeta.NodeIDFromContext(ctx)
+	if nodeID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated,
+			errx.New(errx.ErrAuthFailed, "no node_id in ctx"))
+	}
+	res, err := h.svc.ReissueCert(ctx, ReissueCertRequest{NodeID: nodeID})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&tenancyv1.ReissueCertResponse{
+		NodeCertPem:   res.CertPEM,
+		NodeKeyPem:    res.KeyPEM,
+		CaCertPem:     res.CACertPEM,
+		Fingerprint:   res.Fingerprint,
+		CertExpiresAt: res.CertExpiresAt.UTC().Format(time.RFC3339),
+	}), nil
+}
+
 // TestE2E_EnrollAndHeartbeat 端到端验证 PR-T4 D2/D3/D4 整链：
 //
 //	CreateRegistrationToken

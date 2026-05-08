@@ -106,6 +106,11 @@ type Service interface {
 	// 写 last_seen_at，pending/offline → online；错码：node 不存在或 disabled
 	// → ErrNodeNotFound（让 Agent 退出循环）。
 	Heartbeat(ctx context.Context, req HeartbeatRequest) (*HeartbeatResult, error)
+
+	// ReissueCert（PR-T4-D5；mTLS RPC）：用现有 mTLS cert 换一份新 cert。
+	// 不 revoke 旧 cert——agent 落新 cert 后旧 cert 自然过期。
+	// 错码：node 不存在 / disabled / 软删 → ErrNodeNotFound；CA 未注 → ErrInternal。
+	ReissueCert(ctx context.Context, req ReissueCertRequest) (*ReissueCertResult, error)
 }
 
 // CreateProjectRequest 入参。
@@ -200,6 +205,21 @@ type HeartbeatRequest struct {
 type HeartbeatResult struct {
 	ServerTime time.Time
 	Interval   time.Duration
+}
+
+// ReissueCertRequest 入参；NodeID 由 mTLS 中间件注 ctx 后填到此字段，
+// service 不直接信任客户端传值。
+type ReissueCertRequest struct {
+	NodeID string
+}
+
+// ReissueCertResult 返新签 cert 三件套（与 Redeem 同结构，但不带 Node 元数据）。
+type ReissueCertResult struct {
+	CertPEM       string
+	KeyPEM        string
+	CACertPEM     string
+	Fingerprint   string
+	CertExpiresAt time.Time
 }
 
 // RedeemRegistrationTokenRequest 入参。
@@ -741,22 +761,50 @@ func (s *service) issueCertForNode(
 	tokenID string,
 	res *RedeemRegistrationTokenResult,
 ) error {
-	leafKey, err := pki.NewLeafKey()
+	bundle, err := s.signAndPersistNodeCert(ctx, n.ID, tokenID)
 	if err != nil {
 		return err
 	}
+	res.NodeCertPEM = bundle.CertPEM
+	res.NodeKeyPEM = bundle.KeyPEM
+	res.CACertPEM = bundle.CACertPEM
+	res.Fingerprint = bundle.Fingerprint
+	res.CertExpiresAt = bundle.CertExpiresAt
+	return nil
+}
+
+// certBundle 是 sign+持久后吐出的 PEM 三件套 + 元数据（Redeem / Reissue 共用）。
+type certBundle struct {
+	CertPEM       string
+	KeyPEM        string
+	CACertPEM     string
+	Fingerprint   string
+	CertExpiresAt time.Time
+}
+
+// signAndPersistNodeCert 签 leaf + 写 node_certificates 行。
+//
+// tokenID 可空（reissue 路径不挂 token）；Validity 走 pki.DefaultLeafValidity。
+func (s *service) signAndPersistNodeCert(
+	ctx context.Context,
+	nodeID, tokenID string,
+) (*certBundle, error) {
+	leafKey, err := pki.NewLeafKey()
+	if err != nil {
+		return nil, err
+	}
 	leaf, leafCertPEM, err := s.ca.SignLeaf(leafKey.Public(), pki.SignLeafOptions{
-		CommonName: n.ID, // CN = node_id（mTLS 校验时反查 node）
+		CommonName: nodeID, // CN = node_id（mTLS 校验时反查 node）
 		Usage:      pki.LeafUsageClient,
 		Validity:   pki.DefaultLeafValidity,
 		Now:        s.now(),
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	leafKeyPEM, err := pki.MarshalLeafKeyPEM(leafKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	caCertPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
@@ -764,25 +812,25 @@ func (s *service) issueCertForNode(
 	})
 
 	cert := &domain.NodeCertificate{
-		NodeID:        n.ID,
+		NodeID:        nodeID,
 		SerialNumber:  leaf.SerialNumber.String(),
 		Fingerprint:   pki.Fingerprint(leaf),
-		CommonName:    n.ID,
+		CommonName:    nodeID,
 		CertPEM:       string(leafCertPEM),
 		IssuedAt:      leaf.NotBefore.UTC(),
 		ExpiresAt:     leaf.NotAfter.UTC(),
 		IssuedByToken: tokenID,
 	}
 	if err := s.certs.Insert(ctx, cert); err != nil {
-		return err
+		return nil, err
 	}
-
-	res.NodeCertPEM = string(leafCertPEM)
-	res.NodeKeyPEM = string(leafKeyPEM)
-	res.CACertPEM = string(caCertPEM)
-	res.Fingerprint = cert.Fingerprint
-	res.CertExpiresAt = cert.ExpiresAt
-	return nil
+	return &certBundle{
+		CertPEM:       string(leafCertPEM),
+		KeyPEM:        string(leafKeyPEM),
+		CACertPEM:     string(caCertPEM),
+		Fingerprint:   cert.Fingerprint,
+		CertExpiresAt: cert.ExpiresAt,
+	}, nil
 }
 
 // 占位防止 import 未用（pem 在 issueCertForNode 用；x509 留给 D3 mTLS 校验）。
@@ -811,5 +859,37 @@ func (s *service) Heartbeat(ctx context.Context, req HeartbeatRequest) (*Heartbe
 	return &HeartbeatResult{
 		ServerTime: now,
 		Interval:   domain.HeartbeatInterval,
+	}, nil
+}
+
+// ReissueCert（PR-T4-D5；mTLS）：复用 issueCertForNode 路径签新 cert。
+//
+// 校：node 存在 + 未 disabled + 未软删；s.ca / s.certs 必装否则 ErrInternal。
+// 不 revoke 旧 cert——agent 落新 cert 后旧 cert 自然过期，避开切换 race。
+func (s *service) ReissueCert(ctx context.Context, req ReissueCertRequest) (*ReissueCertResult, error) {
+	if strings.TrimSpace(req.NodeID) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "reissue 缺 node_id")
+	}
+	if s.ca == nil || s.certs == nil {
+		return nil, errx.New(errx.ErrInternal, "service: CA / cert repo 未注（reissue 不可用）")
+	}
+	n, err := s.nodes.GetByID(ctx, req.NodeID)
+	if err != nil {
+		return nil, err // GetByID 软删/不存在 → ErrNodeNotFound
+	}
+	if n.Status == domain.NodeDisabled {
+		return nil, errx.New(errx.ErrNodeNotFound, "node 已 disabled，不可续期").
+			WithFields("node_id", n.ID)
+	}
+	bundle, err := s.signAndPersistNodeCert(ctx, n.ID, "")
+	if err != nil {
+		return nil, err
+	}
+	return &ReissueCertResult{
+		CertPEM:       bundle.CertPEM,
+		KeyPEM:        bundle.KeyPEM,
+		CACertPEM:     bundle.CACertPEM,
+		Fingerprint:   bundle.Fingerprint,
+		CertExpiresAt: bundle.CertExpiresAt,
 	}, nil
 }

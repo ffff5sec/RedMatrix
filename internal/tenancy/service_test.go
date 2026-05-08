@@ -1299,6 +1299,78 @@ func TestHeartbeat_EmptyNodeID(t *testing.T) {
 	assert.Equal(t, errx.ErrInvalidInput, c)
 }
 
+// === ReissueCert（PR-T4-D5）===
+
+func TestReissueCert_Happy_NewCertSigned(t *testing.T) {
+	svc, _, cr := setupSvcWithCA(t)
+	tok, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "for-renew"})
+	require.NoError(t, err)
+	rd, err := svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: tok.Plaintext, NodeName: "agent-renew"})
+	require.NoError(t, err)
+	require.NotEmpty(t, rd.Fingerprint)
+	originalFP := rd.Fingerprint
+
+	// 续
+	res, err := svc.ReissueCert(context.Background(), ReissueCertRequest{NodeID: rd.Node.ID})
+	require.NoError(t, err)
+	assert.NotEmpty(t, res.CertPEM)
+	assert.NotEmpty(t, res.KeyPEM)
+	assert.NotEmpty(t, res.CACertPEM)
+	assert.Len(t, res.Fingerprint, 64)
+	assert.NotEqual(t, originalFP, res.Fingerprint, "新 cert 的 fingerprint 必须不同")
+	assert.True(t, res.CertExpiresAt.After(time.Now()), "新 cert 必须未过期")
+
+	// cert repo 现有 2 行（旧 + 新；旧未 revoke）
+	assert.Len(t, cr.rows, 2)
+}
+
+func TestReissueCert_NodeNotFound(t *testing.T) {
+	svc, _, _ := setupSvcWithCA(t)
+	_, err := svc.ReissueCert(context.Background(), ReissueCertRequest{
+		NodeID: "00000000-0000-0000-0000-000000000999",
+	})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeNotFound, c)
+}
+
+func TestReissueCert_DisabledRejected(t *testing.T) {
+	svc, _, _ := setupSvcWithCA(t)
+	tok, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "to-disable"})
+	require.NoError(t, err)
+	rd, err := svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: tok.Plaintext, NodeName: "agent-disable"})
+	require.NoError(t, err)
+
+	// disable
+	require.NoError(t, svc.DisableNode(context.Background(), rd.Node.ID))
+
+	_, err = svc.ReissueCert(context.Background(), ReissueCertRequest{NodeID: rd.Node.ID})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeNotFound, c, "disabled 节点不应能续期")
+}
+
+func TestReissueCert_EmptyNodeID(t *testing.T) {
+	svc, _, _ := setupSvcWithCA(t)
+	_, err := svc.ReissueCert(context.Background(), ReissueCertRequest{})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInvalidInput, c)
+}
+
+func TestReissueCert_NoCA_Internal(t *testing.T) {
+	// 无 CA 装的 svc：用现有 setupSvcWithTokens（不传 ca）
+	svc, _, _ := setupSvcWithTokens(t)
+	_, err := svc.ReissueCert(context.Background(), ReissueCertRequest{NodeID: "x"})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInternal, c)
+}
+
 // === RedeemRegistrationToken + 签 cert（PR-T4-D2）===
 
 type mockCertRepo struct {

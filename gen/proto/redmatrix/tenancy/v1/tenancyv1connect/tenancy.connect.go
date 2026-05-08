@@ -102,6 +102,9 @@ const (
 	// NodeAgentServiceHeartbeatProcedure is the fully-qualified name of the NodeAgentService's
 	// Heartbeat RPC.
 	NodeAgentServiceHeartbeatProcedure = "/redmatrix.tenancy.v1.NodeAgentService/Heartbeat"
+	// NodeAgentServiceReissueCertProcedure is the fully-qualified name of the NodeAgentService's
+	// ReissueCert RPC.
+	NodeAgentServiceReissueCertProcedure = "/redmatrix.tenancy.v1.NodeAgentService/ReissueCert"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -750,6 +753,11 @@ func (UnimplementedTenancyServiceHandler) RedeemRegistrationToken(context.Contex
 type NodeAgentServiceClient interface {
 	// Heartbeat 周期上报（默认 30s/次；服务端写 last_seen_at + pending/offline → online）。
 	Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error)
+	// ReissueCert 续期（PR-T4-D5）：用现有 mTLS cert 换一份新 cert。
+	//
+	// Agent 在 cert 临过期（默认 cert 寿命剩 7 天）时主动调；
+	// server 不 revoke 旧 cert——agent 切到新 cert 后旧 cert 自然过期。
+	ReissueCert(context.Context, *connect.Request[v1.ReissueCertRequest]) (*connect.Response[v1.ReissueCertResponse], error)
 }
 
 // NewNodeAgentServiceClient constructs a client for the redmatrix.tenancy.v1.NodeAgentService
@@ -769,12 +777,19 @@ func NewNodeAgentServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(nodeAgentServiceMethods.ByName("Heartbeat")),
 			connect.WithClientOptions(opts...),
 		),
+		reissueCert: connect.NewClient[v1.ReissueCertRequest, v1.ReissueCertResponse](
+			httpClient,
+			baseURL+NodeAgentServiceReissueCertProcedure,
+			connect.WithSchema(nodeAgentServiceMethods.ByName("ReissueCert")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // nodeAgentServiceClient implements NodeAgentServiceClient.
 type nodeAgentServiceClient struct {
-	heartbeat *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
+	heartbeat   *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
+	reissueCert *connect.Client[v1.ReissueCertRequest, v1.ReissueCertResponse]
 }
 
 // Heartbeat calls redmatrix.tenancy.v1.NodeAgentService.Heartbeat.
@@ -782,11 +797,21 @@ func (c *nodeAgentServiceClient) Heartbeat(ctx context.Context, req *connect.Req
 	return c.heartbeat.CallUnary(ctx, req)
 }
 
+// ReissueCert calls redmatrix.tenancy.v1.NodeAgentService.ReissueCert.
+func (c *nodeAgentServiceClient) ReissueCert(ctx context.Context, req *connect.Request[v1.ReissueCertRequest]) (*connect.Response[v1.ReissueCertResponse], error) {
+	return c.reissueCert.CallUnary(ctx, req)
+}
+
 // NodeAgentServiceHandler is an implementation of the redmatrix.tenancy.v1.NodeAgentService
 // service.
 type NodeAgentServiceHandler interface {
 	// Heartbeat 周期上报（默认 30s/次；服务端写 last_seen_at + pending/offline → online）。
 	Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error)
+	// ReissueCert 续期（PR-T4-D5）：用现有 mTLS cert 换一份新 cert。
+	//
+	// Agent 在 cert 临过期（默认 cert 寿命剩 7 天）时主动调；
+	// server 不 revoke 旧 cert——agent 切到新 cert 后旧 cert 自然过期。
+	ReissueCert(context.Context, *connect.Request[v1.ReissueCertRequest]) (*connect.Response[v1.ReissueCertResponse], error)
 }
 
 // NewNodeAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -802,10 +827,18 @@ func NewNodeAgentServiceHandler(svc NodeAgentServiceHandler, opts ...connect.Han
 		connect.WithSchema(nodeAgentServiceMethods.ByName("Heartbeat")),
 		connect.WithHandlerOptions(opts...),
 	)
+	nodeAgentServiceReissueCertHandler := connect.NewUnaryHandler(
+		NodeAgentServiceReissueCertProcedure,
+		svc.ReissueCert,
+		connect.WithSchema(nodeAgentServiceMethods.ByName("ReissueCert")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.NodeAgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case NodeAgentServiceHeartbeatProcedure:
 			nodeAgentServiceHeartbeatHandler.ServeHTTP(w, r)
+		case NodeAgentServiceReissueCertProcedure:
+			nodeAgentServiceReissueCertHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -817,4 +850,8 @@ type UnimplementedNodeAgentServiceHandler struct{}
 
 func (UnimplementedNodeAgentServiceHandler) Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.Heartbeat is not implemented"))
+}
+
+func (UnimplementedNodeAgentServiceHandler) ReissueCert(context.Context, *connect.Request[v1.ReissueCertRequest]) (*connect.Response[v1.ReissueCertResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.ReissueCert is not implemented"))
 }

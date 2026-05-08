@@ -325,6 +325,12 @@ message RedeemRegistrationTokenResponse {
 service NodeAgentService {
   // Heartbeat 周期上报（默认 30s/次；服务端写 last_seen_at + pending/offline → online）。
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // ReissueCert 续期（PR-T4-D5）：用现有 mTLS cert 换一份新 cert。
+  //
+  // Agent 在 cert 临过期（默认 cert 寿命剩 7 天）时主动调；
+  // server 不 revoke 旧 cert——agent 切到新 cert 后旧 cert 自然过期。
+  rpc ReissueCert(ReissueCertRequest) returns (ReissueCertResponse);
 }
 
 message HeartbeatRequest {
@@ -337,4 +343,18 @@ message HeartbeatResponse {
   string server_time = 1;
   // 下次心跳期望延迟秒数（30s）。Agent 应叠 ±10% jitter 防雪崩。
   int32 interval_seconds = 2;
+}
+
+message ReissueCertRequest {
+  // 与 Heartbeat 一样：node_id 不在请求里，由 mTLS 中间件按 cert 指纹注 ctx。
+}
+message ReissueCertResponse {
+  // 新 client cert（覆盖旧 cert/key/ca）；server 不返 node_id（节点身份不变）。
+  string node_cert_pem = 1;
+  string node_key_pem = 2;
+  string ca_cert_pem = 3;
+  // SHA-256(DER) hex；mTLS 反查节点 ID 时用。
+  string fingerprint = 4;
+  // RFC3339；下次续期参考。
+  string cert_expires_at = 5;
 }

@@ -57,3 +57,26 @@ func (h *NodeAgentHandler) Heartbeat(
 		IntervalSeconds: int32(res.Interval.Seconds()),
 	}), nil
 }
+
+// ReissueCert（PR-T4-D5）—— 续期；node_id 同 Heartbeat 由 mTLS 中间件注 ctx。
+func (h *NodeAgentHandler) ReissueCert(
+	ctx context.Context,
+	_ *connect.Request[tenancyv1.ReissueCertRequest],
+) (*connect.Response[tenancyv1.ReissueCertResponse], error) {
+	nodeID := ctxmeta.NodeIDFromContext(ctx)
+	if nodeID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated,
+			errx.New(errx.ErrAuthFailed, "mTLS 中间件未注入 node_id"))
+	}
+	res, err := h.svc.ReissueCert(ctx, tenancy.ReissueCertRequest{NodeID: nodeID})
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.ReissueCertResponse{
+		NodeCertPem:   res.CertPEM,
+		NodeKeyPem:    res.KeyPEM,
+		CaCertPem:     res.CACertPEM,
+		Fingerprint:   res.Fingerprint,
+		CertExpiresAt: res.CertExpiresAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+	}), nil
+}

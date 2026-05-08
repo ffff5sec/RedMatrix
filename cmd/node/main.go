@@ -21,7 +21,9 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/agent/client"
 	"github.com/ffff5sec/RedMatrix/internal/agent/enroll"
 	"github.com/ffff5sec/RedMatrix/internal/agent/heartbeat"
@@ -45,6 +47,7 @@ type agentOptions struct {
 	token         string // 首启 RegistrationToken plaintext（已 enroll 时忽略）
 	nodeName      string // Agent 自报名（租户内唯一）
 	mtlsServerSAN string // 自签 dev cert 时显式 SAN（如 "localhost"）
+	renewBefore   time.Duration // cert 距过期 ≤ 此值 → 触发续期；默认 7d
 	printVersion  bool
 }
 
@@ -63,10 +66,18 @@ func parseFlags(args []string) (*agentOptions, error) {
 		"Agent 自报名（租户内唯一）；env REDMATRIX_NODE_NAME")
 	fs.StringVar(&o.mtlsServerSAN, "mtls-server-name", os.Getenv("REDMATRIX_MTLS_SERVER_NAME"),
 		"mTLS ServerName 校验目标（自签 dev 用，e.g. localhost）；env REDMATRIX_MTLS_SERVER_NAME")
+	renewStr := envOr("REDMATRIX_RENEW_BEFORE", heartbeat.DefaultRenewBefore.String())
+	fs.StringVar(&renewStr, "renew-before", renewStr,
+		"cert 距过期 ≤ 此值时触发续期（Go duration: 7d/1h/30s）；env REDMATRIX_RENEW_BEFORE")
 	fs.BoolVar(&o.printVersion, "version", false, "打印版本并退出")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
+	d, err := time.ParseDuration(renewStr)
+	if err != nil {
+		return nil, fmt.Errorf("解析 -renew-before %q: %w", renewStr, err)
+	}
+	o.renewBefore = d
 	return o, nil
 }
 
@@ -122,7 +133,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if o.mtlsServerSAN != "" {
 		mtlsOpts = append(mtlsOpts, client.WithServerName(o.mtlsServerSAN))
 	}
-	naClient, err := client.MTLSNodeAgent(o.nodeAgentURL, en, mtlsOpts...)
+	// 工厂闭包：rebuild 时复用 nodeAgentURL + 同 mtlsOpts，仅换 enrollment。
+	rebuildClient := func(en *store.Enrollment) (tenancyv1connect.NodeAgentServiceClient, error) {
+		return client.MTLSNodeAgent(o.nodeAgentURL, en, mtlsOpts...)
+	}
+	naClient, err := rebuildClient(en)
 	if err != nil {
 		return err
 	}
@@ -131,6 +146,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 		Client:  naClient,
 		Version: version.Version,
 		Logger:  logger,
+		// PR-T4-D5：续期能力
+		Store:         st,
+		Enrollment:    en,
+		RenewBefore:   o.renewBefore,
+		RebuildClient: rebuildClient,
 	}
 	if err := hl.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		fmt.Fprintf(stderr, "redmatrix-node: heartbeat exited: %v\n", err)

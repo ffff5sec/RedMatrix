@@ -116,6 +116,11 @@ type Service interface {
 	// 不返回 PEM 内容，只回元数据。SA / Auditor 调；handler 层加角色守卫。
 	ListCertsByNode(ctx context.Context, nodeID string) ([]*domain.NodeCertificate, error)
 
+	// RevokeCert（PR-T4-D6；SA only）：撤销某 cert（写 revoked_at = now）。
+	// 撤销后 mTLS 中间件下次反查 fingerprint 时 IsValid 返 false → 拒。
+	// 已撤销幂等。
+	RevokeCert(ctx context.Context, certID string) error
+
 	// GetStats（PR-W7 Dashboard）：聚合项目 / 节点 / 令牌 KPI。
 	// MVP 实现走 list + 内存计数；后续优化为 SQL GROUP BY single round-trip。
 	GetStats(ctx context.Context, tenantID string) (*StatsResult, error)
@@ -926,6 +931,17 @@ func (s *service) ListCertsByNode(ctx context.Context, nodeID string) ([]*domain
 	}
 	// node 是否存在 / 软删 都不挡：审计需要看历史
 	return s.certs.ListByNode(ctx, nodeID)
+}
+
+// RevokeCert（PR-T4-D6）—— 撤销 cert；幂等（COALESCE 保留首次 revoked_at）。
+func (s *service) RevokeCert(ctx context.Context, certID string) error {
+	if strings.TrimSpace(certID) == "" {
+		return errx.New(errx.ErrInvalidInput, "revoke 缺 cert_id")
+	}
+	if s.certs == nil {
+		return errx.New(errx.ErrInternal, "service: cert repo 未注")
+	}
+	return s.certs.Revoke(ctx, certID)
 }
 
 // GetStats（PR-W7）—— 聚合 dashboard KPI。

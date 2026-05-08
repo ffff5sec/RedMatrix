@@ -134,6 +134,18 @@ function copyText(s: string) {
   toast.info('已复制到剪贴板');
 }
 
+async function revokeCert(certID: string, fingerprint: string) {
+  const short = fingerprint.slice(0, 12) + '…';
+  if (!confirm(`撤销证书 ${short}？\n撤销后，使用此 cert 的 Agent mTLS 调用会立即被拒。`)) return;
+  try {
+    await tenancyClient.revokeNodeCertificate({ id: certID });
+    toast.warning(`证书 ${short} 已撤销`);
+    await refresh();
+  } catch (e) {
+    toast.error(errorMessage(e));
+  }
+}
+
 function shortFP(fp: string): string {
   if (!fp) return '-';
   return fp.slice(0, 12) + '…' + fp.slice(-6);
@@ -245,6 +257,13 @@ function shortFP(fp: string): string {
               </td>
               <td>
                 <button class="link-btn" @click="copyText(c.fingerprint)">复制</button>
+                <button
+                  v-if="authStore.isSuperAdmin() && !c.revokedAt"
+                  class="link-btn link-btn-danger"
+                  @click="revokeCert(c.id, c.fingerprint)"
+                >
+                  撤销
+                </button>
               </td>
             </tr>
           </tbody>
@@ -348,6 +367,12 @@ function shortFP(fp: string): string {
   padding: 2px 6px;
 }
 .link-btn:hover { text-decoration: underline; }
+.link-btn-danger {
+  color: #dc2626;
+}
+.link-btn-danger:hover {
+  color: #b91c1c;
+}
 
 .dot {
   display: inline-block;

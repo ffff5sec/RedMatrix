@@ -90,6 +90,10 @@ service TenancyService {
   // 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
   rpc ListNodeCertificates(ListNodeCertificatesRequest) returns (ListNodeCertificatesResponse);
 
+  // RevokeNodeCertificate 撤销节点 cert（SA only；PR-T4-D6）。
+  // 撤销后 mTLS 中间件下次反查 fingerprint 时 IsValid() = false → 拒。
+  rpc RevokeNodeCertificate(RevokeNodeCertificateRequest) returns (RevokeNodeCertificateResponse);
+
   // GetStats 概览页 KPI 一次拉齐（PR-W7；SA / Auditor only）。
   // 替代 dashboard 的 list * 3 客户端聚合。
   rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
@@ -426,6 +430,11 @@ message ListNodeCertificatesRequest {
 message ListNodeCertificatesResponse {
   repeated NodeCertificate certificates = 1;
 }
+
+message RevokeNodeCertificateRequest {
+  string id = 1;
+}
+message RevokeNodeCertificateResponse {}
 
 // ===== Stats（PR-W7 Dashboard）=====
 

@@ -634,6 +634,24 @@ func (h *Handler) GetStats(
 	}), nil
 }
 
+// RevokeNodeCertificate（PR-T4-D6；SA only）。
+func (h *Handler) RevokeNodeCertificate(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.RevokeNodeCertificateRequest],
+) (*connect.Response[tenancyv1.RevokeNodeCertificateResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, adminOnly...); err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := h.svc.RevokeCert(ctx, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.RevokeNodeCertificateResponse{}), nil
+}
+
 // ListNodeCertificates（PR-W6 节点详情页；SA / Auditor only）。
 func (h *Handler) ListNodeCertificates(
 	ctx context.Context,

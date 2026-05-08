@@ -102,6 +102,9 @@ const (
 	// TenancyServiceListNodeCertificatesProcedure is the fully-qualified name of the TenancyService's
 	// ListNodeCertificates RPC.
 	TenancyServiceListNodeCertificatesProcedure = "/redmatrix.tenancy.v1.TenancyService/ListNodeCertificates"
+	// TenancyServiceRevokeNodeCertificateProcedure is the fully-qualified name of the TenancyService's
+	// RevokeNodeCertificate RPC.
+	TenancyServiceRevokeNodeCertificateProcedure = "/redmatrix.tenancy.v1.TenancyService/RevokeNodeCertificate"
 	// TenancyServiceGetStatsProcedure is the fully-qualified name of the TenancyService's GetStats RPC.
 	TenancyServiceGetStatsProcedure = "/redmatrix.tenancy.v1.TenancyService/GetStats"
 	// NodeAgentServiceHeartbeatProcedure is the fully-qualified name of the NodeAgentService's
@@ -170,6 +173,9 @@ type TenancyServiceClient interface {
 	// ListNodeCertificates 列某节点全部 cert（含已撤 / 已过期），SA / Auditor only。
 	// 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
 	ListNodeCertificates(context.Context, *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error)
+	// RevokeNodeCertificate 撤销节点 cert（SA only；PR-T4-D6）。
+	// 撤销后 mTLS 中间件下次反查 fingerprint 时 IsValid() = false → 拒。
+	RevokeNodeCertificate(context.Context, *connect.Request[v1.RevokeNodeCertificateRequest]) (*connect.Response[v1.RevokeNodeCertificateResponse], error)
 	// GetStats 概览页 KPI 一次拉齐（PR-W7；SA / Auditor only）。
 	// 替代 dashboard 的 list * 3 客户端聚合。
 	GetStats(context.Context, *connect.Request[v1.GetStatsRequest]) (*connect.Response[v1.GetStatsResponse], error)
@@ -318,6 +324,12 @@ func NewTenancyServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(tenancyServiceMethods.ByName("ListNodeCertificates")),
 			connect.WithClientOptions(opts...),
 		),
+		revokeNodeCertificate: connect.NewClient[v1.RevokeNodeCertificateRequest, v1.RevokeNodeCertificateResponse](
+			httpClient,
+			baseURL+TenancyServiceRevokeNodeCertificateProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("RevokeNodeCertificate")),
+			connect.WithClientOptions(opts...),
+		),
 		getStats: connect.NewClient[v1.GetStatsRequest, v1.GetStatsResponse](
 			httpClient,
 			baseURL+TenancyServiceGetStatsProcedure,
@@ -351,6 +363,7 @@ type tenancyServiceClient struct {
 	revokeRegistrationToken *connect.Client[v1.RevokeRegistrationTokenRequest, v1.RevokeRegistrationTokenResponse]
 	redeemRegistrationToken *connect.Client[v1.RedeemRegistrationTokenRequest, v1.RedeemRegistrationTokenResponse]
 	listNodeCertificates    *connect.Client[v1.ListNodeCertificatesRequest, v1.ListNodeCertificatesResponse]
+	revokeNodeCertificate   *connect.Client[v1.RevokeNodeCertificateRequest, v1.RevokeNodeCertificateResponse]
 	getStats                *connect.Client[v1.GetStatsRequest, v1.GetStatsResponse]
 }
 
@@ -464,6 +477,11 @@ func (c *tenancyServiceClient) ListNodeCertificates(ctx context.Context, req *co
 	return c.listNodeCertificates.CallUnary(ctx, req)
 }
 
+// RevokeNodeCertificate calls redmatrix.tenancy.v1.TenancyService.RevokeNodeCertificate.
+func (c *tenancyServiceClient) RevokeNodeCertificate(ctx context.Context, req *connect.Request[v1.RevokeNodeCertificateRequest]) (*connect.Response[v1.RevokeNodeCertificateResponse], error) {
+	return c.revokeNodeCertificate.CallUnary(ctx, req)
+}
+
 // GetStats calls redmatrix.tenancy.v1.TenancyService.GetStats.
 func (c *tenancyServiceClient) GetStats(ctx context.Context, req *connect.Request[v1.GetStatsRequest]) (*connect.Response[v1.GetStatsResponse], error) {
 	return c.getStats.CallUnary(ctx, req)
@@ -521,6 +539,9 @@ type TenancyServiceHandler interface {
 	// ListNodeCertificates 列某节点全部 cert（含已撤 / 已过期），SA / Auditor only。
 	// 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
 	ListNodeCertificates(context.Context, *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error)
+	// RevokeNodeCertificate 撤销节点 cert（SA only；PR-T4-D6）。
+	// 撤销后 mTLS 中间件下次反查 fingerprint 时 IsValid() = false → 拒。
+	RevokeNodeCertificate(context.Context, *connect.Request[v1.RevokeNodeCertificateRequest]) (*connect.Response[v1.RevokeNodeCertificateResponse], error)
 	// GetStats 概览页 KPI 一次拉齐（PR-W7；SA / Auditor only）。
 	// 替代 dashboard 的 list * 3 客户端聚合。
 	GetStats(context.Context, *connect.Request[v1.GetStatsRequest]) (*connect.Response[v1.GetStatsResponse], error)
@@ -665,6 +686,12 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 		connect.WithSchema(tenancyServiceMethods.ByName("ListNodeCertificates")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tenancyServiceRevokeNodeCertificateHandler := connect.NewUnaryHandler(
+		TenancyServiceRevokeNodeCertificateProcedure,
+		svc.RevokeNodeCertificate,
+		connect.WithSchema(tenancyServiceMethods.ByName("RevokeNodeCertificate")),
+		connect.WithHandlerOptions(opts...),
+	)
 	tenancyServiceGetStatsHandler := connect.NewUnaryHandler(
 		TenancyServiceGetStatsProcedure,
 		svc.GetStats,
@@ -717,6 +744,8 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 			tenancyServiceRedeemRegistrationTokenHandler.ServeHTTP(w, r)
 		case TenancyServiceListNodeCertificatesProcedure:
 			tenancyServiceListNodeCertificatesHandler.ServeHTTP(w, r)
+		case TenancyServiceRevokeNodeCertificateProcedure:
+			tenancyServiceRevokeNodeCertificateHandler.ServeHTTP(w, r)
 		case TenancyServiceGetStatsProcedure:
 			tenancyServiceGetStatsHandler.ServeHTTP(w, r)
 		default:
@@ -814,6 +843,10 @@ func (UnimplementedTenancyServiceHandler) RedeemRegistrationToken(context.Contex
 
 func (UnimplementedTenancyServiceHandler) ListNodeCertificates(context.Context, *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.ListNodeCertificates is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) RevokeNodeCertificate(context.Context, *connect.Request[v1.RevokeNodeCertificateRequest]) (*connect.Response[v1.RevokeNodeCertificateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.RevokeNodeCertificate is not implemented"))
 }
 
 func (UnimplementedTenancyServiceHandler) GetStats(context.Context, *connect.Request[v1.GetStatsRequest]) (*connect.Response[v1.GetStatsResponse], error) {

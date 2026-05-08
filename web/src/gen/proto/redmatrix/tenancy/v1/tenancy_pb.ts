@@ -2634,6 +2634,74 @@ export class ListNodeCertificatesResponse extends Message<ListNodeCertificatesRe
 }
 
 /**
+ * @generated from message redmatrix.tenancy.v1.RevokeNodeCertificateRequest
+ */
+export class RevokeNodeCertificateRequest extends Message<RevokeNodeCertificateRequest> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<RevokeNodeCertificateRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.RevokeNodeCertificateRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RevokeNodeCertificateRequest {
+    return new RevokeNodeCertificateRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RevokeNodeCertificateRequest {
+    return new RevokeNodeCertificateRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RevokeNodeCertificateRequest {
+    return new RevokeNodeCertificateRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RevokeNodeCertificateRequest | PlainMessage<RevokeNodeCertificateRequest> | undefined, b: RevokeNodeCertificateRequest | PlainMessage<RevokeNodeCertificateRequest> | undefined): boolean {
+    return proto3.util.equals(RevokeNodeCertificateRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.RevokeNodeCertificateResponse
+ */
+export class RevokeNodeCertificateResponse extends Message<RevokeNodeCertificateResponse> {
+  constructor(data?: PartialMessage<RevokeNodeCertificateResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.RevokeNodeCertificateResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RevokeNodeCertificateResponse {
+    return new RevokeNodeCertificateResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RevokeNodeCertificateResponse {
+    return new RevokeNodeCertificateResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RevokeNodeCertificateResponse {
+    return new RevokeNodeCertificateResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RevokeNodeCertificateResponse | PlainMessage<RevokeNodeCertificateResponse> | undefined, b: RevokeNodeCertificateResponse | PlainMessage<RevokeNodeCertificateResponse> | undefined): boolean {
+    return proto3.util.equals(RevokeNodeCertificateResponse, a, b);
+  }
+}
+
+/**
  * @generated from message redmatrix.tenancy.v1.GetStatsRequest
  */
 export class GetStatsRequest extends Message<GetStatsRequest> {

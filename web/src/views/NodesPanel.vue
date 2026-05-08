@@ -4,7 +4,10 @@ import { tenancyClient } from '@/api/transport';
 import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
 import { formatRelativeTime, formatAbsoluteTime } from '@/util/relativeTime';
+import { useToast } from '@/composables/useToast';
 import type { Node, RegistrationToken } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
+
+const toast = useToast();
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -16,12 +19,9 @@ const filterStatus = ref('');
 const filterKeyword = ref('');
 
 const loading = ref(false);
-const errMsg = ref('');
-const successMsg = ref('');
 
 async function refresh() {
   loading.value = true;
-  errMsg.value = '';
   try {
     const r = await tenancyClient.listNodes({
       tenantId: DEFAULT_TENANT_ID,
@@ -33,7 +33,7 @@ async function refresh() {
     nodes.value = r.nodes;
     total.value = r.total;
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     loading.value = false;
   }
@@ -71,7 +71,6 @@ const submitting = ref(false);
 async function create() {
   if (submitting.value) return;
   submitting.value = true;
-  errMsg.value = '';
   try {
     const caps = newN.value.capabilities
       .split(',')
@@ -85,47 +84,44 @@ async function create() {
     });
     showCreate.value = false;
     newN.value = { name: '', version: '', capabilities: '' };
-    successMsg.value = '节点已注册（pending）';
+    toast.success('节点已注册（pending）');
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     submitting.value = false;
   }
 }
 
 async function enable(id: string, name: string) {
-  errMsg.value = '';
   try {
     await tenancyClient.enableNode({ id });
-    successMsg.value = `${name} 已启用（pending）`;
+    toast.success(`${name} 已启用（pending）`);
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
 async function disable(id: string, name: string) {
   if (!confirm(`禁用 ${name}？`)) return;
-  errMsg.value = '';
   try {
     await tenancyClient.disableNode({ id });
-    successMsg.value = `${name} 已禁用`;
+    toast.warning(`${name} 已禁用`);
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
 async function del(id: string, name: string) {
   if (!confirm(`删除节点 ${name}？该操作不可撤销（MVP 软删，名称可重新使用）。`)) return;
-  errMsg.value = '';
   try {
     await tenancyClient.deleteNode({ id });
-    successMsg.value = `${name} 已删除`;
+    toast.success(`${name} 已删除`);
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
@@ -161,19 +157,17 @@ function statusDot(s: string) {
 const showTokens = ref(false);
 const tokens = ref<RegistrationToken[]>([]);
 const tokensLoading = ref(false);
-const tokensErr = ref('');
 const newToken = ref({ name: '', ttlHours: 1 });
 const tokenSubmitting = ref(false);
 const lastPlaintext = ref<{ name: string; plaintext: string } | null>(null);
 
 async function refreshTokens() {
   tokensLoading.value = true;
-  tokensErr.value = '';
   try {
     const r = await tenancyClient.listRegistrationTokens({ tenantId: DEFAULT_TENANT_ID });
     tokens.value = r.tokens;
   } catch (e) {
-    tokensErr.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     tokensLoading.value = false;
   }
@@ -187,7 +181,6 @@ async function toggleTokens() {
 async function createToken() {
   if (tokenSubmitting.value) return;
   tokenSubmitting.value = true;
-  tokensErr.value = '';
   try {
     const r = await tenancyClient.createRegistrationToken({
       tenantId: DEFAULT_TENANT_ID,
@@ -196,9 +189,10 @@ async function createToken() {
     });
     lastPlaintext.value = { name: newToken.value.name, plaintext: r.plaintext };
     newToken.value = { name: '', ttlHours: 1 };
+    toast.success(`令牌 ${lastPlaintext.value.name} 已生成（plaintext 仅显示一次）`);
     await refreshTokens();
   } catch (e) {
-    tokensErr.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     tokenSubmitting.value = false;
   }
@@ -206,12 +200,12 @@ async function createToken() {
 
 async function revokeToken(id: string, name: string) {
   if (!confirm(`撤销注册令牌 ${name}？已撤销不可恢复（请重新创建）。`)) return;
-  tokensErr.value = '';
   try {
     await tenancyClient.revokeRegistrationToken({ id });
+    toast.warning(`令牌 ${name} 已撤销`);
     await refreshTokens();
   } catch (e) {
-    tokensErr.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
@@ -245,8 +239,6 @@ function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
       </p>
 
       <div v-if="showTokens">
-        <div v-if="tokensErr" class="error">{{ tokensErr }}</div>
-
         <div v-if="lastPlaintext" class="info">
           <strong>新令牌已创建（仅本次显示）·{{ lastPlaintext.name }}：</strong>
           <code class="mono" style="display: block; margin-top: 4px; word-break: break-all">{{ lastPlaintext.plaintext }}</code>
@@ -342,9 +334,6 @@ function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
           注册节点
         </button>
       </div>
-
-      <div v-if="errMsg" class="error">{{ errMsg }}</div>
-      <div v-if="successMsg" class="success">{{ successMsg }}</div>
 
       <table>
         <thead>

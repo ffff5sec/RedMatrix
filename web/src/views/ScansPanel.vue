@@ -218,7 +218,9 @@ function targetKindLabel(k: string) {
         </thead>
         <tbody>
           <tr v-for="t in tasks" :key="t.id">
-            <td>{{ t.name }}</td>
+            <td>
+              <router-link :to="`/scans/${t.id}`" class="task-link">{{ t.name }}</router-link>
+            </td>
             <td class="muted">{{ projectName.get(t.projectId) || t.projectId.slice(0, 8) }}</td>
             <td>
               <span class="chip">{{ kindLabel(t.kind) }}</span>
@@ -385,6 +387,14 @@ function targetKindLabel(k: string) {
 .badge.blue {
   background: rgba(59, 130, 246, 0.16);
   color: #1d4ed8;
+}
+
+.task-link {
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+}
+.task-link:hover {
+  text-decoration: underline;
 }
 
 .modal-mask {

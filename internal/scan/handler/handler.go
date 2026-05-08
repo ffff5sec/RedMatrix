@@ -169,6 +169,32 @@ func (h *Handler) DeleteScanTask(
 	return connect.NewResponse(&scanv1.DeleteScanTaskResponse{}), nil
 }
 
+func (h *Handler) ListTaskAssignments(
+	ctx context.Context,
+	req *connect.Request[scanv1.ListTaskAssignmentsRequest],
+) (*connect.Response[scanv1.ListTaskAssignmentsResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	out, err := h.svc.ListAssignmentsByTask(ctx, req.Msg.GetTaskId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	pb := make([]*scanv1.TaskAssignment, 0, len(out))
+	for _, a := range out {
+		pb = append(pb, assignmentToProto(a))
+	}
+	//nolint:gosec // 派发数 ≤ 200 经派发逻辑钳制
+	return connect.NewResponse(&scanv1.ListTaskAssignmentsResponse{
+		Assignments: pb,
+		Total:       int32(len(pb)),
+	}), nil
+}
+
 // === conv ===
 
 func taskToProto(t *scandomain.ScanTask) *scanv1.ScanTask {
@@ -198,6 +224,30 @@ func taskToProto(t *scandomain.ScanTask) *scanv1.ScanTask {
 	}
 	if t.FinishedAt != nil {
 		out.FinishedAt = timestamppb.New(*t.FinishedAt)
+	}
+	return out
+}
+
+func assignmentToProto(a *scandomain.TaskAssignment) *scanv1.TaskAssignment {
+	if a == nil {
+		return nil
+	}
+	out := &scanv1.TaskAssignment{
+		Id:         a.ID,
+		TaskId:     a.TaskID,
+		NodeId:     a.NodeID,
+		Status:     string(a.Status),
+		AssignedAt: timestamppb.New(a.AssignedAt),
+		Error:      a.Error,
+	}
+	if a.PulledAt != nil {
+		out.PulledAt = timestamppb.New(*a.PulledAt)
+	}
+	if a.StartedAt != nil {
+		out.StartedAt = timestamppb.New(*a.StartedAt)
+	}
+	if a.FinishedAt != nil {
+		out.FinishedAt = timestamppb.New(*a.FinishedAt)
 	}
 	return out
 }

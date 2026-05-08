@@ -25,6 +25,7 @@ import Dashboard from '@/views/Dashboard.vue';
 import ProfilePanel from '@/views/ProfilePanel.vue';
 import NodeDetail from '@/views/NodeDetail.vue';
 import ScansPanel from '@/views/ScansPanel.vue';
+import ScanDetail from '@/views/ScanDetail.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
 import ProjectsPanel from '@/views/ProjectsPanel.vue';
 import NodesPanel from '@/views/NodesPanel.vue';
@@ -89,6 +90,12 @@ const routes: RouteRecordRaw[] = [
         name: 'scans',
         component: ScansPanel,
         meta: { requiresAuth: true, title: '扫描任务' },
+      },
+      {
+        path: 'scans/:id',
+        name: 'scan-detail',
+        component: ScanDetail,
+        meta: { requiresAuth: true, title: '任务详情' },
       },
       {
         path: 'nodes',

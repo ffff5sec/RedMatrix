@@ -6,8 +6,8 @@ syntax = "proto3";
 // 路径：/redmatrix.scan.v1.ScanService
 package redmatrix.scan.v1;
 
-import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 service ScanService {
   rpc CreateScanTask(CreateScanTaskRequest) returns (CreateScanTaskResponse);
@@ -15,6 +15,9 @@ service ScanService {
   rpc GetScanTask(GetScanTaskRequest) returns (GetScanTaskResponse);
   rpc CancelScanTask(CancelScanTaskRequest) returns (CancelScanTaskResponse);
   rpc DeleteScanTask(DeleteScanTaskRequest) returns (DeleteScanTaskResponse);
+
+  // ListTaskAssignments 详情页：列任务全部派发单（PR-S2）。
+  rpc ListTaskAssignments(ListTaskAssignmentsRequest) returns (ListTaskAssignmentsResponse);
 }
 
 // ScanTask 任务实体（与 schema 一一对应）。
@@ -23,10 +26,10 @@ message ScanTask {
   string tenant_id = 2;
   string project_id = 3;
   string name = 4;
-  string kind = 5;          // port_scan / web_crawl / subdomain / fingerprint
+  string kind = 5; // port_scan / web_crawl / subdomain / fingerprint
   string target = 6;
-  string target_kind = 7;   // host / ip / cidr / url
-  string status = 8;        // pending / running / completed / failed / canceled
+  string target_kind = 7; // host / ip / cidr / url
+  string status = 8; // pending / running / completed / failed / canceled
   string schedule_kind = 9; // immediate / cron
   string cron_expr = 10;
   google.protobuf.Struct settings = 11;
@@ -66,11 +69,42 @@ message ListScanTasksResponse {
   int32 page_size = 4;
 }
 
-message GetScanTaskRequest { string id = 1; }
-message GetScanTaskResponse { ScanTask task = 1; }
+message GetScanTaskRequest {
+  string id = 1;
+}
+message GetScanTaskResponse {
+  ScanTask task = 1;
+}
 
-message CancelScanTaskRequest { string id = 1; }
+message CancelScanTaskRequest {
+  string id = 1;
+}
 message CancelScanTaskResponse {}
 
-message DeleteScanTaskRequest { string id = 1; }
+message DeleteScanTaskRequest {
+  string id = 1;
+}
 message DeleteScanTaskResponse {}
+
+// ===== TaskAssignment（PR-S2）=====
+
+message TaskAssignment {
+  string id = 1;
+  string task_id = 2;
+  string node_id = 3;
+  string status = 4; // assigned / pulled / running / completed / failed
+  google.protobuf.Timestamp assigned_at = 5;
+  optional google.protobuf.Timestamp pulled_at = 6;
+  optional google.protobuf.Timestamp started_at = 7;
+  optional google.protobuf.Timestamp finished_at = 8;
+  string error = 9;
+}
+
+message ListTaskAssignmentsRequest {
+  string task_id = 1;
+}
+message ListTaskAssignmentsResponse {
+  repeated TaskAssignment assignments = 1;
+  // 派发计数（与 ScanTask.task_count 对齐；MVP 等同 len(assignments)）。
+  int32 total = 2;
+}

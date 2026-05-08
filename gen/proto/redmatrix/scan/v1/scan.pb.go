@@ -730,11 +730,216 @@ func (*DeleteScanTaskResponse) Descriptor() ([]byte, []int) {
 	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{10}
 }
 
+type TaskAssignment struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TaskId        string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	NodeId        string                 `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"` // assigned / pulled / running / completed / failed
+	AssignedAt    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=assigned_at,json=assignedAt,proto3" json:"assigned_at,omitempty"`
+	PulledAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=pulled_at,json=pulledAt,proto3,oneof" json:"pulled_at,omitempty"`
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=started_at,json=startedAt,proto3,oneof" json:"started_at,omitempty"`
+	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=finished_at,json=finishedAt,proto3,oneof" json:"finished_at,omitempty"`
+	Error         string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaskAssignment) Reset() {
+	*x = TaskAssignment{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaskAssignment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaskAssignment) ProtoMessage() {}
+
+func (x *TaskAssignment) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaskAssignment.ProtoReflect.Descriptor instead.
+func (*TaskAssignment) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *TaskAssignment) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *TaskAssignment) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *TaskAssignment) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *TaskAssignment) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *TaskAssignment) GetAssignedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AssignedAt
+	}
+	return nil
+}
+
+func (x *TaskAssignment) GetPulledAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.PulledAt
+	}
+	return nil
+}
+
+func (x *TaskAssignment) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *TaskAssignment) GetFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return nil
+}
+
+func (x *TaskAssignment) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ListTaskAssignmentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTaskAssignmentsRequest) Reset() {
+	*x = ListTaskAssignmentsRequest{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTaskAssignmentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTaskAssignmentsRequest) ProtoMessage() {}
+
+func (x *ListTaskAssignmentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTaskAssignmentsRequest.ProtoReflect.Descriptor instead.
+func (*ListTaskAssignmentsRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListTaskAssignmentsRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+type ListTaskAssignmentsResponse struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Assignments []*TaskAssignment      `protobuf:"bytes,1,rep,name=assignments,proto3" json:"assignments,omitempty"`
+	// 派发计数（与 ScanTask.task_count 对齐；MVP 等同 len(assignments)）。
+	Total         int32 `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTaskAssignmentsResponse) Reset() {
+	*x = ListTaskAssignmentsResponse{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTaskAssignmentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTaskAssignmentsResponse) ProtoMessage() {}
+
+func (x *ListTaskAssignmentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTaskAssignmentsResponse.ProtoReflect.Descriptor instead.
+func (*ListTaskAssignmentsResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ListTaskAssignmentsResponse) GetAssignments() []*TaskAssignment {
+	if x != nil {
+		return x.Assignments
+	}
+	return nil
+}
+
+func (x *ListTaskAssignmentsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 var File_redmatrix_scan_v1_scan_proto protoreflect.FileDescriptor
 
 const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\n" +
-	"\x1credmatrix/scan/v1/scan.proto\x12\x11redmatrix.scan.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xfc\x04\n" +
+	"\x1credmatrix/scan/v1/scan.proto\x12\x11redmatrix.scan.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfc\x04\n" +
 	"\bScanTask\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1d\n" +
@@ -799,13 +1004,36 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\x16CancelScanTaskResponse\"'\n" +
 	"\x15DeleteScanTaskRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x18\n" +
-	"\x16DeleteScanTaskResponse2\x84\x04\n" +
+	"\x16DeleteScanTaskResponse\"\xaa\x03\n" +
+	"\x0eTaskAssignment\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x17\n" +
+	"\anode_id\x18\x03 \x01(\tR\x06nodeId\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12;\n" +
+	"\vassigned_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"assignedAt\x12<\n" +
+	"\tpulled_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\bpulledAt\x88\x01\x01\x12>\n" +
+	"\n" +
+	"started_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampH\x01R\tstartedAt\x88\x01\x01\x12@\n" +
+	"\vfinished_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampH\x02R\n" +
+	"finishedAt\x88\x01\x01\x12\x14\n" +
+	"\x05error\x18\t \x01(\tR\x05errorB\f\n" +
+	"\n" +
+	"_pulled_atB\r\n" +
+	"\v_started_atB\x0e\n" +
+	"\f_finished_at\"5\n" +
+	"\x1aListTaskAssignmentsRequest\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\"x\n" +
+	"\x1bListTaskAssignmentsResponse\x12C\n" +
+	"\vassignments\x18\x01 \x03(\v2!.redmatrix.scan.v1.TaskAssignmentR\vassignments\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total2\xfa\x04\n" +
 	"\vScanService\x12e\n" +
 	"\x0eCreateScanTask\x12(.redmatrix.scan.v1.CreateScanTaskRequest\x1a).redmatrix.scan.v1.CreateScanTaskResponse\x12b\n" +
 	"\rListScanTasks\x12'.redmatrix.scan.v1.ListScanTasksRequest\x1a(.redmatrix.scan.v1.ListScanTasksResponse\x12\\\n" +
 	"\vGetScanTask\x12%.redmatrix.scan.v1.GetScanTaskRequest\x1a&.redmatrix.scan.v1.GetScanTaskResponse\x12e\n" +
 	"\x0eCancelScanTask\x12(.redmatrix.scan.v1.CancelScanTaskRequest\x1a).redmatrix.scan.v1.CancelScanTaskResponse\x12e\n" +
-	"\x0eDeleteScanTask\x12(.redmatrix.scan.v1.DeleteScanTaskRequest\x1a).redmatrix.scan.v1.DeleteScanTaskResponseB\xca\x01\n" +
+	"\x0eDeleteScanTask\x12(.redmatrix.scan.v1.DeleteScanTaskRequest\x1a).redmatrix.scan.v1.DeleteScanTaskResponse\x12t\n" +
+	"\x13ListTaskAssignments\x12-.redmatrix.scan.v1.ListTaskAssignmentsRequest\x1a..redmatrix.scan.v1.ListTaskAssignmentsResponseB\xca\x01\n" +
 	"\x15com.redmatrix.scan.v1B\tScanProtoP\x01Z@github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1;scanv1\xa2\x02\x03RSX\xaa\x02\x11Redmatrix.Scan.V1\xca\x02\x11Redmatrix\\Scan\\V1\xe2\x02\x1dRedmatrix\\Scan\\V1\\GPBMetadata\xea\x02\x13Redmatrix::Scan::V1b\x06proto3"
 
 var (
@@ -820,47 +1048,57 @@ func file_redmatrix_scan_v1_scan_proto_rawDescGZIP() []byte {
 	return file_redmatrix_scan_v1_scan_proto_rawDescData
 }
 
-var file_redmatrix_scan_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_redmatrix_scan_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_redmatrix_scan_v1_scan_proto_goTypes = []any{
-	(*ScanTask)(nil),               // 0: redmatrix.scan.v1.ScanTask
-	(*CreateScanTaskRequest)(nil),  // 1: redmatrix.scan.v1.CreateScanTaskRequest
-	(*CreateScanTaskResponse)(nil), // 2: redmatrix.scan.v1.CreateScanTaskResponse
-	(*ListScanTasksRequest)(nil),   // 3: redmatrix.scan.v1.ListScanTasksRequest
-	(*ListScanTasksResponse)(nil),  // 4: redmatrix.scan.v1.ListScanTasksResponse
-	(*GetScanTaskRequest)(nil),     // 5: redmatrix.scan.v1.GetScanTaskRequest
-	(*GetScanTaskResponse)(nil),    // 6: redmatrix.scan.v1.GetScanTaskResponse
-	(*CancelScanTaskRequest)(nil),  // 7: redmatrix.scan.v1.CancelScanTaskRequest
-	(*CancelScanTaskResponse)(nil), // 8: redmatrix.scan.v1.CancelScanTaskResponse
-	(*DeleteScanTaskRequest)(nil),  // 9: redmatrix.scan.v1.DeleteScanTaskRequest
-	(*DeleteScanTaskResponse)(nil), // 10: redmatrix.scan.v1.DeleteScanTaskResponse
-	(*structpb.Struct)(nil),        // 11: google.protobuf.Struct
-	(*timestamppb.Timestamp)(nil),  // 12: google.protobuf.Timestamp
+	(*ScanTask)(nil),                    // 0: redmatrix.scan.v1.ScanTask
+	(*CreateScanTaskRequest)(nil),       // 1: redmatrix.scan.v1.CreateScanTaskRequest
+	(*CreateScanTaskResponse)(nil),      // 2: redmatrix.scan.v1.CreateScanTaskResponse
+	(*ListScanTasksRequest)(nil),        // 3: redmatrix.scan.v1.ListScanTasksRequest
+	(*ListScanTasksResponse)(nil),       // 4: redmatrix.scan.v1.ListScanTasksResponse
+	(*GetScanTaskRequest)(nil),          // 5: redmatrix.scan.v1.GetScanTaskRequest
+	(*GetScanTaskResponse)(nil),         // 6: redmatrix.scan.v1.GetScanTaskResponse
+	(*CancelScanTaskRequest)(nil),       // 7: redmatrix.scan.v1.CancelScanTaskRequest
+	(*CancelScanTaskResponse)(nil),      // 8: redmatrix.scan.v1.CancelScanTaskResponse
+	(*DeleteScanTaskRequest)(nil),       // 9: redmatrix.scan.v1.DeleteScanTaskRequest
+	(*DeleteScanTaskResponse)(nil),      // 10: redmatrix.scan.v1.DeleteScanTaskResponse
+	(*TaskAssignment)(nil),              // 11: redmatrix.scan.v1.TaskAssignment
+	(*ListTaskAssignmentsRequest)(nil),  // 12: redmatrix.scan.v1.ListTaskAssignmentsRequest
+	(*ListTaskAssignmentsResponse)(nil), // 13: redmatrix.scan.v1.ListTaskAssignmentsResponse
+	(*structpb.Struct)(nil),             // 14: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil),       // 15: google.protobuf.Timestamp
 }
 var file_redmatrix_scan_v1_scan_proto_depIdxs = []int32{
-	11, // 0: redmatrix.scan.v1.ScanTask.settings:type_name -> google.protobuf.Struct
-	12, // 1: redmatrix.scan.v1.ScanTask.created_at:type_name -> google.protobuf.Timestamp
-	12, // 2: redmatrix.scan.v1.ScanTask.updated_at:type_name -> google.protobuf.Timestamp
-	12, // 3: redmatrix.scan.v1.ScanTask.started_at:type_name -> google.protobuf.Timestamp
-	12, // 4: redmatrix.scan.v1.ScanTask.finished_at:type_name -> google.protobuf.Timestamp
-	11, // 5: redmatrix.scan.v1.CreateScanTaskRequest.settings:type_name -> google.protobuf.Struct
+	14, // 0: redmatrix.scan.v1.ScanTask.settings:type_name -> google.protobuf.Struct
+	15, // 1: redmatrix.scan.v1.ScanTask.created_at:type_name -> google.protobuf.Timestamp
+	15, // 2: redmatrix.scan.v1.ScanTask.updated_at:type_name -> google.protobuf.Timestamp
+	15, // 3: redmatrix.scan.v1.ScanTask.started_at:type_name -> google.protobuf.Timestamp
+	15, // 4: redmatrix.scan.v1.ScanTask.finished_at:type_name -> google.protobuf.Timestamp
+	14, // 5: redmatrix.scan.v1.CreateScanTaskRequest.settings:type_name -> google.protobuf.Struct
 	0,  // 6: redmatrix.scan.v1.CreateScanTaskResponse.task:type_name -> redmatrix.scan.v1.ScanTask
 	0,  // 7: redmatrix.scan.v1.ListScanTasksResponse.tasks:type_name -> redmatrix.scan.v1.ScanTask
 	0,  // 8: redmatrix.scan.v1.GetScanTaskResponse.task:type_name -> redmatrix.scan.v1.ScanTask
-	1,  // 9: redmatrix.scan.v1.ScanService.CreateScanTask:input_type -> redmatrix.scan.v1.CreateScanTaskRequest
-	3,  // 10: redmatrix.scan.v1.ScanService.ListScanTasks:input_type -> redmatrix.scan.v1.ListScanTasksRequest
-	5,  // 11: redmatrix.scan.v1.ScanService.GetScanTask:input_type -> redmatrix.scan.v1.GetScanTaskRequest
-	7,  // 12: redmatrix.scan.v1.ScanService.CancelScanTask:input_type -> redmatrix.scan.v1.CancelScanTaskRequest
-	9,  // 13: redmatrix.scan.v1.ScanService.DeleteScanTask:input_type -> redmatrix.scan.v1.DeleteScanTaskRequest
-	2,  // 14: redmatrix.scan.v1.ScanService.CreateScanTask:output_type -> redmatrix.scan.v1.CreateScanTaskResponse
-	4,  // 15: redmatrix.scan.v1.ScanService.ListScanTasks:output_type -> redmatrix.scan.v1.ListScanTasksResponse
-	6,  // 16: redmatrix.scan.v1.ScanService.GetScanTask:output_type -> redmatrix.scan.v1.GetScanTaskResponse
-	8,  // 17: redmatrix.scan.v1.ScanService.CancelScanTask:output_type -> redmatrix.scan.v1.CancelScanTaskResponse
-	10, // 18: redmatrix.scan.v1.ScanService.DeleteScanTask:output_type -> redmatrix.scan.v1.DeleteScanTaskResponse
-	14, // [14:19] is the sub-list for method output_type
-	9,  // [9:14] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	15, // 9: redmatrix.scan.v1.TaskAssignment.assigned_at:type_name -> google.protobuf.Timestamp
+	15, // 10: redmatrix.scan.v1.TaskAssignment.pulled_at:type_name -> google.protobuf.Timestamp
+	15, // 11: redmatrix.scan.v1.TaskAssignment.started_at:type_name -> google.protobuf.Timestamp
+	15, // 12: redmatrix.scan.v1.TaskAssignment.finished_at:type_name -> google.protobuf.Timestamp
+	11, // 13: redmatrix.scan.v1.ListTaskAssignmentsResponse.assignments:type_name -> redmatrix.scan.v1.TaskAssignment
+	1,  // 14: redmatrix.scan.v1.ScanService.CreateScanTask:input_type -> redmatrix.scan.v1.CreateScanTaskRequest
+	3,  // 15: redmatrix.scan.v1.ScanService.ListScanTasks:input_type -> redmatrix.scan.v1.ListScanTasksRequest
+	5,  // 16: redmatrix.scan.v1.ScanService.GetScanTask:input_type -> redmatrix.scan.v1.GetScanTaskRequest
+	7,  // 17: redmatrix.scan.v1.ScanService.CancelScanTask:input_type -> redmatrix.scan.v1.CancelScanTaskRequest
+	9,  // 18: redmatrix.scan.v1.ScanService.DeleteScanTask:input_type -> redmatrix.scan.v1.DeleteScanTaskRequest
+	12, // 19: redmatrix.scan.v1.ScanService.ListTaskAssignments:input_type -> redmatrix.scan.v1.ListTaskAssignmentsRequest
+	2,  // 20: redmatrix.scan.v1.ScanService.CreateScanTask:output_type -> redmatrix.scan.v1.CreateScanTaskResponse
+	4,  // 21: redmatrix.scan.v1.ScanService.ListScanTasks:output_type -> redmatrix.scan.v1.ListScanTasksResponse
+	6,  // 22: redmatrix.scan.v1.ScanService.GetScanTask:output_type -> redmatrix.scan.v1.GetScanTaskResponse
+	8,  // 23: redmatrix.scan.v1.ScanService.CancelScanTask:output_type -> redmatrix.scan.v1.CancelScanTaskResponse
+	10, // 24: redmatrix.scan.v1.ScanService.DeleteScanTask:output_type -> redmatrix.scan.v1.DeleteScanTaskResponse
+	13, // 25: redmatrix.scan.v1.ScanService.ListTaskAssignments:output_type -> redmatrix.scan.v1.ListTaskAssignmentsResponse
+	20, // [20:26] is the sub-list for method output_type
+	14, // [14:20] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_redmatrix_scan_v1_scan_proto_init() }
@@ -870,13 +1108,14 @@ func file_redmatrix_scan_v1_scan_proto_init() {
 	}
 	file_redmatrix_scan_v1_scan_proto_msgTypes[0].OneofWrappers = []any{}
 	file_redmatrix_scan_v1_scan_proto_msgTypes[3].OneofWrappers = []any{}
+	file_redmatrix_scan_v1_scan_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redmatrix_scan_v1_scan_proto_rawDesc), len(file_redmatrix_scan_v1_scan_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

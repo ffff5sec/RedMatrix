@@ -592,3 +592,172 @@ export class DeleteScanTaskResponse extends Message<DeleteScanTaskResponse> {
   }
 }
 
+/**
+ * @generated from message redmatrix.scan.v1.TaskAssignment
+ */
+export class TaskAssignment extends Message<TaskAssignment> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string task_id = 2;
+   */
+  taskId = "";
+
+  /**
+   * @generated from field: string node_id = 3;
+   */
+  nodeId = "";
+
+  /**
+   * assigned / pulled / running / completed / failed
+   *
+   * @generated from field: string status = 4;
+   */
+  status = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp assigned_at = 5;
+   */
+  assignedAt?: Timestamp;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp pulled_at = 6;
+   */
+  pulledAt?: Timestamp;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp started_at = 7;
+   */
+  startedAt?: Timestamp;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp finished_at = 8;
+   */
+  finishedAt?: Timestamp;
+
+  /**
+   * @generated from field: string error = 9;
+   */
+  error = "";
+
+  constructor(data?: PartialMessage<TaskAssignment>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.TaskAssignment";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "task_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "node_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "assigned_at", kind: "message", T: Timestamp },
+    { no: 6, name: "pulled_at", kind: "message", T: Timestamp, opt: true },
+    { no: 7, name: "started_at", kind: "message", T: Timestamp, opt: true },
+    { no: 8, name: "finished_at", kind: "message", T: Timestamp, opt: true },
+    { no: 9, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TaskAssignment {
+    return new TaskAssignment().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TaskAssignment {
+    return new TaskAssignment().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TaskAssignment {
+    return new TaskAssignment().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: TaskAssignment | PlainMessage<TaskAssignment> | undefined, b: TaskAssignment | PlainMessage<TaskAssignment> | undefined): boolean {
+    return proto3.util.equals(TaskAssignment, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.ListTaskAssignmentsRequest
+ */
+export class ListTaskAssignmentsRequest extends Message<ListTaskAssignmentsRequest> {
+  /**
+   * @generated from field: string task_id = 1;
+   */
+  taskId = "";
+
+  constructor(data?: PartialMessage<ListTaskAssignmentsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.ListTaskAssignmentsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "task_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListTaskAssignmentsRequest {
+    return new ListTaskAssignmentsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListTaskAssignmentsRequest {
+    return new ListTaskAssignmentsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListTaskAssignmentsRequest {
+    return new ListTaskAssignmentsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListTaskAssignmentsRequest | PlainMessage<ListTaskAssignmentsRequest> | undefined, b: ListTaskAssignmentsRequest | PlainMessage<ListTaskAssignmentsRequest> | undefined): boolean {
+    return proto3.util.equals(ListTaskAssignmentsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.ListTaskAssignmentsResponse
+ */
+export class ListTaskAssignmentsResponse extends Message<ListTaskAssignmentsResponse> {
+  /**
+   * @generated from field: repeated redmatrix.scan.v1.TaskAssignment assignments = 1;
+   */
+  assignments: TaskAssignment[] = [];
+
+  /**
+   * 派发计数（与 ScanTask.task_count 对齐；MVP 等同 len(assignments)）。
+   *
+   * @generated from field: int32 total = 2;
+   */
+  total = 0;
+
+  constructor(data?: PartialMessage<ListTaskAssignmentsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.ListTaskAssignmentsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "assignments", kind: "message", T: TaskAssignment, repeated: true },
+    { no: 2, name: "total", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListTaskAssignmentsResponse {
+    return new ListTaskAssignmentsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListTaskAssignmentsResponse {
+    return new ListTaskAssignmentsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListTaskAssignmentsResponse {
+    return new ListTaskAssignmentsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListTaskAssignmentsResponse | PlainMessage<ListTaskAssignmentsResponse> | undefined, b: ListTaskAssignmentsResponse | PlainMessage<ListTaskAssignmentsResponse> | undefined): boolean {
+    return proto3.util.equals(ListTaskAssignmentsResponse, a, b);
+  }
+}
+

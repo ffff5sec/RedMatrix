@@ -9,6 +9,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1/scanv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
+	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/scan"
 	scanhandler "github.com/ffff5sec/RedMatrix/internal/scan/handler"
 	scanrepo "github.com/ffff5sec/RedMatrix/internal/scan/repo"
@@ -23,7 +24,7 @@ type scanMount struct {
 }
 
 // buildScanMount 装配 scan stack 并返 ConnectRPC mount。
-func buildScanMount(pool *pg.Pool, authSvc auth.Service) (*scanMount, error) {
+func buildScanMount(pool *pg.Pool, authSvc auth.Service, logger *log.Logger) (*scanMount, error) {
 	if pool == nil || pool.App == nil {
 		return nil, errx.New(errx.ErrInternal, "buildScanMount: pg.Pool.App 不能为 nil")
 	}
@@ -31,8 +32,12 @@ func buildScanMount(pool *pg.Pool, authSvc auth.Service) (*scanMount, error) {
 		return nil, errx.New(errx.ErrInternal, "buildScanMount: authSvc 不能为 nil")
 	}
 	tasks := scanrepo.NewTaskPG(pool.App)
+	assignments := scanrepo.NewAssignmentPG(pool.App)
 	projects := tenancyrepo.NewProjectPG(pool.App)
-	svc, err := scan.NewService(tasks, projects)
+	nodes := tenancyrepo.NewNodePG(pool.App)
+	allowed := tenancyrepo.NewAllowedNodesPG(pool.App)
+
+	svc, err := scan.NewService(tasks, assignments, projects, nodes, allowed, logger)
 	if err != nil {
 		return nil, err
 	}

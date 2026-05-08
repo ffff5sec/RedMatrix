@@ -8,7 +8,7 @@
 // MVP 范围：仅任务管理；不含 dispatch / Agent 拉任务 / 结果上报。
 // 路径：/redmatrix.scan.v1.ScanService
 
-import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanTasksRequest, ListScanTasksResponse } from "./scan_pb.js";
+import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse } from "./scan_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -60,6 +60,17 @@ export const ScanService = {
       name: "DeleteScanTask",
       I: DeleteScanTaskRequest,
       O: DeleteScanTaskResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListTaskAssignments 详情页：列任务全部派发单（PR-S2）。
+     *
+     * @generated from rpc redmatrix.scan.v1.ScanService.ListTaskAssignments
+     */
+    listTaskAssignments: {
+      name: "ListTaskAssignments",
+      I: ListTaskAssignmentsRequest,
+      O: ListTaskAssignmentsResponse,
       kind: MethodKind.Unary,
     },
   }

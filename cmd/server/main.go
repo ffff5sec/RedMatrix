@@ -366,7 +366,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 
 		// === 8a₂. ScanService（PR-S1 扫描调度入口）===
-		scMount, err := buildScanMount(pool, authSvc)
+		scMount, err := buildScanMount(pool, authSvc, logger)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

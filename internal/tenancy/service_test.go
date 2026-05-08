@@ -12,6 +12,7 @@ import (
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	tenancycrypto "github.com/ffff5sec/RedMatrix/internal/tenancy/crypto"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy/domain"
+	"github.com/ffff5sec/RedMatrix/internal/tenancy/pki"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
 )
 
@@ -468,7 +469,7 @@ func setupSvc(t *testing.T) (Service, *mockProjectRepo) {
 	ar := newMockAllowedRepo()
 	tr := newMockTokenRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, ar, tr, users)
+	svc, err := NewService(r, mr, nr, ar, tr, nil, users, nil)
 	require.NoError(t, err)
 	return svc, r
 }
@@ -481,7 +482,7 @@ func setupSvcAll(t *testing.T) (Service, *mockProjectRepo, *mockMemberRepo, *moc
 	ar := newMockAllowedRepo()
 	tr := newMockTokenRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, ar, tr, users)
+	svc, err := NewService(r, mr, nr, ar, tr, nil, users, nil)
 	require.NoError(t, err)
 	return svc, r, mr, users
 }
@@ -494,7 +495,7 @@ func setupSvcWithNodes(t *testing.T) (Service, *mockNodeRepo) {
 	ar := newMockAllowedRepo()
 	tr := newMockTokenRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, ar, tr, users)
+	svc, err := NewService(r, mr, nr, ar, tr, nil, users, nil)
 	require.NoError(t, err)
 	return svc, nr
 }
@@ -508,7 +509,7 @@ func setupSvcWithAllowed(t *testing.T) (Service, *mockProjectRepo, *mockNodeRepo
 	ar := newMockAllowedRepo()
 	tr := newMockTokenRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, ar, tr, users)
+	svc, err := NewService(r, mr, nr, ar, tr, nil, users, nil)
 	require.NoError(t, err)
 	return svc, r, nr, ar
 }
@@ -522,16 +523,16 @@ func setupSvcWithTokens(t *testing.T) (Service, *mockNodeRepo, *mockTokenRepo) {
 	ar := newMockAllowedRepo()
 	tr := newMockTokenRepo()
 	users := newMockUserLookup()
-	svc, err := NewService(r, mr, nr, ar, tr, users)
+	svc, err := NewService(r, mr, nr, ar, tr, nil, users, nil)
 	require.NoError(t, err)
 	return svc, nr, tr
 }
 
 func TestNewService_NilDeps(t *testing.T) {
-	_, err := NewService(nil, nil, nil, nil, nil, nil)
+	_, err := NewService(nil, nil, nil, nil, nil, nil, nil, nil)
 	require.Error(t, err)
 	_, err = NewService(newMockProjectRepo(), nil, newMockNodeRepo(),
-		newMockAllowedRepo(), newMockTokenRepo(), newMockUserLookup())
+		newMockAllowedRepo(), newMockTokenRepo(), nil, newMockUserLookup(), nil)
 	require.Error(t, err)
 }
 
@@ -1215,6 +1216,145 @@ func TestRedeemRegistrationToken_AlreadyUsed_DoubleSpendBlocked(t *testing.T) {
 	require.Error(t, err)
 	c, _ := errx.GetCode(err)
 	assert.Equal(t, errx.ErrNodeRegistrationTokenInvalid, c)
+}
+
+// === RedeemRegistrationToken + 签 cert（PR-T4-D2）===
+
+type mockCertRepo struct {
+	rows      map[string]*domain.NodeCertificate
+	insertErr error
+}
+
+func newMockCertRepo() *mockCertRepo {
+	return &mockCertRepo{rows: map[string]*domain.NodeCertificate{}}
+}
+
+func (m *mockCertRepo) Insert(_ context.Context, c *domain.NodeCertificate) error {
+	if m.insertErr != nil {
+		return m.insertErr
+	}
+	if err := c.ValidateForCreate(); err != nil {
+		return err
+	}
+	c.ID = "00000000-0000-0000-0000-" + padID(len(m.rows)+1)
+	m.rows[c.ID] = c
+	return nil
+}
+
+func padID(n int) string {
+	s := "000000000000"
+	for i := 0; n > 0 && i < len(s); i++ {
+		s = s[:len(s)-1-i] + string(rune('0'+(n%10))) + s[len(s)-i:]
+		n /= 10
+	}
+	return s
+}
+
+func (m *mockCertRepo) GetBySerial(_ context.Context, serial string) (*domain.NodeCertificate, error) {
+	for _, c := range m.rows {
+		if c.SerialNumber == serial {
+			return c, nil
+		}
+	}
+	return nil, errx.New(errx.ErrNodeCertExpired, "not found")
+}
+
+func (m *mockCertRepo) GetByFingerprint(_ context.Context, fp string) (*domain.NodeCertificate, error) {
+	for _, c := range m.rows {
+		if c.Fingerprint == fp {
+			return c, nil
+		}
+	}
+	return nil, errx.New(errx.ErrNodeCertExpired, "not found")
+}
+
+func (m *mockCertRepo) ListByNode(_ context.Context, nodeID string) ([]*domain.NodeCertificate, error) {
+	out := []*domain.NodeCertificate{}
+	for _, c := range m.rows {
+		if c.NodeID == nodeID {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+func (m *mockCertRepo) Revoke(_ context.Context, id string) error {
+	c, ok := m.rows[id]
+	if !ok {
+		return errx.New(errx.ErrNodeCertExpired, "not found")
+	}
+	if c.RevokedAt == nil {
+		now := time.Now().UTC()
+		c.RevokedAt = &now
+	}
+	return nil
+}
+
+// setupSvcWithCA 给 D2 测试用：装一个真 CA + mockCertRepo + 全 mock，返 svc + 三件套。
+func setupSvcWithCA(t *testing.T) (Service, *mockTokenRepo, *mockCertRepo) {
+	t.Helper()
+	ca, err := pki.GenerateCA(pki.GenerateCAOptions{})
+	require.NoError(t, err)
+	pr := newMockProjectRepo()
+	mr := newMockMemberRepo()
+	nr := newMockNodeRepo()
+	ar := newMockAllowedRepo()
+	tr := newMockTokenRepo()
+	cr := newMockCertRepo()
+	users := newMockUserLookup()
+	svc, err := NewService(pr, mr, nr, ar, tr, cr, users, ca)
+	require.NoError(t, err)
+	return svc, tr, cr
+}
+
+func TestRedeemRegistrationToken_IssuesCert(t *testing.T) {
+	svc, _, cr := setupSvcWithCA(t)
+	gen, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "with-ca"})
+	require.NoError(t, err)
+
+	rd, err := svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{
+			Plaintext: gen.Plaintext,
+			NodeName:  "agent-secure",
+			Version:   "1.0.0",
+		})
+	require.NoError(t, err)
+	require.NotNil(t, rd.Node)
+
+	// cert 字段全填
+	assert.NotEmpty(t, rd.NodeCertPEM, "node cert PEM 应被签发")
+	assert.NotEmpty(t, rd.NodeKeyPEM, "node key PEM 应返还")
+	assert.NotEmpty(t, rd.CACertPEM, "CA cert PEM 应返还")
+	assert.Len(t, rd.Fingerprint, 64, "fingerprint 必须是 SHA-256 hex")
+	assert.True(t, rd.CertExpiresAt.After(time.Now()), "cert 必须未过期")
+
+	// repo 已落
+	assert.Len(t, cr.rows, 1)
+	for _, c := range cr.rows {
+		assert.Equal(t, rd.Node.ID, c.NodeID)
+		assert.Equal(t, rd.Fingerprint, c.Fingerprint)
+		assert.Equal(t, rd.Node.ID, c.CommonName)
+	}
+}
+
+func TestRedeemRegistrationToken_NoCA_SkipsCertIssuance(t *testing.T) {
+	// 没注 CA → 旧路径：仅返 Node，cert 字段全空
+	svc, _, _ := setupSvcWithTokens(t)
+	gen, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "no-ca"})
+	require.NoError(t, err)
+
+	rd, err := svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{
+			Plaintext: gen.Plaintext,
+			NodeName:  "agent-plain",
+		})
+	require.NoError(t, err)
+	assert.Empty(t, rd.NodeCertPEM)
+	assert.Empty(t, rd.NodeKeyPEM)
+	assert.Empty(t, rd.CACertPEM)
+	assert.Empty(t, rd.Fingerprint)
 }
 
 func TestRedeemRegistrationToken_Revoked(t *testing.T) {

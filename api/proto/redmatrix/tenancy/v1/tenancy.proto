@@ -303,4 +303,13 @@ message RedeemRegistrationTokenRequest {
 }
 message RedeemRegistrationTokenResponse {
   Node node = 1;
+  // 节点首次签发的 client cert（mTLS 用；server 不留 key）。
+  string node_cert_pem = 2;
+  string node_key_pem = 3;
+  // server 持的 root CA（Agent 校验 server cert 用）。
+  string ca_cert_pem = 4;
+  // SHA-256(DER) hex；server 后续 mTLS 反查节点 ID。
+  string fingerprint = 5;
+  // RFC3339；Agent 提前续期参考。
+  string cert_expires_at = 6;
 }

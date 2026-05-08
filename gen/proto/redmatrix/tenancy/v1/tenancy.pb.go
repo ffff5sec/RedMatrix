@@ -2380,8 +2380,17 @@ func (x *RedeemRegistrationTokenRequest) GetVersion() string {
 }
 
 type RedeemRegistrationTokenResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Node          *Node                  `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Node  *Node                  `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	// 节点首次签发的 client cert（mTLS 用；server 不留 key）。
+	NodeCertPem string `protobuf:"bytes,2,opt,name=node_cert_pem,json=nodeCertPem,proto3" json:"node_cert_pem,omitempty"`
+	NodeKeyPem  string `protobuf:"bytes,3,opt,name=node_key_pem,json=nodeKeyPem,proto3" json:"node_key_pem,omitempty"`
+	// server 持的 root CA（Agent 校验 server cert 用）。
+	CaCertPem string `protobuf:"bytes,4,opt,name=ca_cert_pem,json=caCertPem,proto3" json:"ca_cert_pem,omitempty"`
+	// SHA-256(DER) hex；server 后续 mTLS 反查节点 ID。
+	Fingerprint string `protobuf:"bytes,5,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	// RFC3339；Agent 提前续期参考。
+	CertExpiresAt string `protobuf:"bytes,6,opt,name=cert_expires_at,json=certExpiresAt,proto3" json:"cert_expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2421,6 +2430,41 @@ func (x *RedeemRegistrationTokenResponse) GetNode() *Node {
 		return x.Node
 	}
 	return nil
+}
+
+func (x *RedeemRegistrationTokenResponse) GetNodeCertPem() string {
+	if x != nil {
+		return x.NodeCertPem
+	}
+	return ""
+}
+
+func (x *RedeemRegistrationTokenResponse) GetNodeKeyPem() string {
+	if x != nil {
+		return x.NodeKeyPem
+	}
+	return ""
+}
+
+func (x *RedeemRegistrationTokenResponse) GetCaCertPem() string {
+	if x != nil {
+		return x.CaCertPem
+	}
+	return ""
+}
+
+func (x *RedeemRegistrationTokenResponse) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *RedeemRegistrationTokenResponse) GetCertExpiresAt() string {
+	if x != nil {
+		return x.CertExpiresAt
+	}
+	return ""
 }
 
 var File_redmatrix_tenancy_v1_tenancy_proto protoreflect.FileDescriptor
@@ -2598,9 +2642,15 @@ const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
 	"\x1eRedeemRegistrationTokenRequest\x12\x1c\n" +
 	"\tplaintext\x18\x01 \x01(\tR\tplaintext\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\"Q\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\"\x81\x02\n" +
 	"\x1fRedeemRegistrationTokenResponse\x12.\n" +
-	"\x04node\x18\x01 \x01(\v2\x1a.redmatrix.tenancy.v1.NodeR\x04node2\xde\x12\n" +
+	"\x04node\x18\x01 \x01(\v2\x1a.redmatrix.tenancy.v1.NodeR\x04node\x12\"\n" +
+	"\rnode_cert_pem\x18\x02 \x01(\tR\vnodeCertPem\x12 \n" +
+	"\fnode_key_pem\x18\x03 \x01(\tR\n" +
+	"nodeKeyPem\x12\x1e\n" +
+	"\vca_cert_pem\x18\x04 \x01(\tR\tcaCertPem\x12 \n" +
+	"\vfingerprint\x18\x05 \x01(\tR\vfingerprint\x12&\n" +
+	"\x0fcert_expires_at\x18\x06 \x01(\tR\rcertExpiresAt2\xde\x12\n" +
 	"\x0eTenancyService\x12h\n" +
 	"\rCreateProject\x12*.redmatrix.tenancy.v1.CreateProjectRequest\x1a+.redmatrix.tenancy.v1.CreateProjectResponse\x12e\n" +
 	"\fListProjects\x12).redmatrix.tenancy.v1.ListProjectsRequest\x1a*.redmatrix.tenancy.v1.ListProjectsResponse\x12_\n" +

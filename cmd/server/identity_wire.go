@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/identity/v1/identityv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/config"
@@ -20,6 +23,7 @@ import (
 	rmredis "github.com/ffff5sec/RedMatrix/internal/storage/redis"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy"
 	tenancyhandler "github.com/ffff5sec/RedMatrix/internal/tenancy/handler"
+	"github.com/ffff5sec/RedMatrix/internal/tenancy/pki"
 	tenancyrepo "github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
 
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
@@ -84,10 +88,11 @@ func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*
 	return &identityHandlerMount{path: path, handler: h}, authSvc, nil
 }
 
-// buildTenancyMount 装配 tenancy 模块（Project CRUD），返回 ConnectRPC mount。
+// buildTenancyMount 装配 tenancy 模块（Project CRUD + Node + Token + Cert），
+// 返回 ConnectRPC mount。
 //
-// 依赖：pgxpool.App（projects 表读写）+ identity Auth Service（共享 RequireAuth）。
-func buildTenancyMount(pool *pg.Pool, authSvc auth.Service) (*identityHandlerMount, error) {
+// 依赖：pgxpool.App + identity Auth Service + 节点签发用 CA。
+func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA) (*identityHandlerMount, error) {
 	if pool == nil || pool.App == nil {
 		return nil, errx.New(errx.ErrInternal, "buildTenancyMount: pg.Pool.App 不能为 nil")
 	}
@@ -100,8 +105,9 @@ func buildTenancyMount(pool *pg.Pool, authSvc auth.Service) (*identityHandlerMou
 	nodes := tenancyrepo.NewNodePG(pool.App)
 	allowed := tenancyrepo.NewAllowedNodesPG(pool.App)
 	tokens := tenancyrepo.NewRegistrationTokenPG(pool.App)
+	certs := tenancyrepo.NewNodeCertificatePG(pool.App)
 	users := repo.NewPG(pool.App) // 复用 identity 的 user repo（同 pool）
-	svc, err := tenancy.NewService(projects, members, nodes, allowed, tokens, users)
+	svc, err := tenancy.NewService(projects, members, nodes, allowed, tokens, certs, users, ca)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +117,80 @@ func buildTenancyMount(pool *pg.Pool, authSvc auth.Service) (*identityHandlerMou
 	}
 	path, hh := tenancyv1connect.NewTenancyServiceHandler(h)
 	return &identityHandlerMount{path: path, handler: hh}, nil
+}
+
+// ensureCA 启动期保证根 CA 落地：
+//
+//	$DATA_DIR/pki/ca.crt + ca.key（PEM）；缺则生成 + 0600 写盘。
+//
+// 路径优先级：env PKI_CA_CERT_PATH / PKI_CA_KEY_PATH > env DATA_DIR/pki/ >
+// "./data/pki/"。运维可用 env 替换外部签发的 CA。
+func ensureCA(logger *log.Logger) (*pki.CA, error) {
+	certPath, keyPath := caPaths()
+
+	certPEM, certErr := os.ReadFile(certPath)
+	keyPEM, keyErr := os.ReadFile(keyPath)
+	switch {
+	case certErr == nil && keyErr == nil:
+		ca, err := pki.LoadCAPEM(certPEM, keyPEM)
+		if err != nil {
+			return nil, errx.Wrap(errx.ErrInternal, err, "ensureCA: 加载已存在 CA 失败").
+				WithFields("cert_path", certPath, "key_path", keyPath)
+		}
+		logger.Info("tenancy CA loaded", "cert_path", certPath)
+		return ca, nil
+	case errors.Is(certErr, os.ErrNotExist) && errors.Is(keyErr, os.ErrNotExist):
+		// 首启：生成 + 持久
+	default:
+		// 半状态（只缺一个）= 致命：可能上次写崩
+		return nil, errx.New(errx.ErrInternal,
+			"ensureCA: cert/key 状态不一致，需手动清理或恢复").
+			WithFields("cert_path", certPath, "key_path", keyPath,
+				"cert_err", fmt.Sprint(certErr), "key_err", fmt.Sprint(keyErr))
+	}
+
+	ca, err := pki.GenerateCA(pki.GenerateCAOptions{})
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrInternal, err, "ensureCA: 生成 CA 失败")
+	}
+	newCertPEM, newKeyPEM, err := pki.MarshalCAPEM(ca)
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrInternal, err, "ensureCA: marshal CA 失败")
+	}
+	if err := os.MkdirAll(filepath.Dir(certPath), 0o700); err != nil {
+		return nil, errx.Wrap(errx.ErrInternal, err, "ensureCA: 创建 PKI 目录失败").
+			WithFields("dir", filepath.Dir(certPath))
+	}
+	if err := os.WriteFile(certPath, newCertPEM, 0o600); err != nil {
+		return nil, errx.Wrap(errx.ErrInternal, err, "ensureCA: 写 CA cert 失败").
+			WithFields("path", certPath)
+	}
+	if err := os.WriteFile(keyPath, newKeyPEM, 0o600); err != nil {
+		return nil, errx.Wrap(errx.ErrInternal, err, "ensureCA: 写 CA key 失败").
+			WithFields("path", keyPath)
+	}
+	logger.Info("tenancy CA generated", "cert_path", certPath, "key_path", keyPath)
+	return ca, nil
+}
+
+// caPaths 解析 CA cert/key 落盘位置。
+func caPaths() (certPath, keyPath string) {
+	certPath = os.Getenv("PKI_CA_CERT_PATH")
+	keyPath = os.Getenv("PKI_CA_KEY_PATH")
+	if certPath != "" && keyPath != "" {
+		return certPath, keyPath
+	}
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "data"
+	}
+	if certPath == "" {
+		certPath = filepath.Join(dataDir, "pki", "ca.crt")
+	}
+	if keyPath == "" {
+		keyPath = filepath.Join(dataDir, "pki", "ca.key")
+	}
+	return certPath, keyPath
 }
 
 // runTenancyBootstrap 启动期落地默认 account（幂等）。

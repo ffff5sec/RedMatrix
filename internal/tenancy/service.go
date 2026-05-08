@@ -2,6 +2,8 @@ package tenancy
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"strings"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	tenancycrypto "github.com/ffff5sec/RedMatrix/internal/tenancy/crypto"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy/domain"
+	"github.com/ffff5sec/RedMatrix/internal/tenancy/pki"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
 )
 
@@ -189,8 +192,18 @@ type RedeemRegistrationTokenRequest struct {
 }
 
 // RedeemRegistrationTokenResult 返回。
+//
+// PR-T4-D2 起：若 service 注入了 CA，Redeem 时一并签发节点 cert：
+//   - NodeCertPEM / NodeKeyPEM 一次性返给 Agent（key 不入库）
+//   - CACertPEM 让 Agent 校验 server cert
+//   - Fingerprint = SHA-256(DER) hex（节点身份；mTLS 校验用）
 type RedeemRegistrationTokenResult struct {
-	Node *domain.Node
+	Node          *domain.Node
+	NodeCertPEM   string // 空：service 未注入 CA（与旧路径兼容）
+	NodeKeyPEM    string
+	CACertPEM     string
+	Fingerprint   string
+	CertExpiresAt time.Time
 }
 
 // ListProjectsResult 返回。
@@ -214,27 +227,33 @@ type service struct {
 	nodes    repo.NodeRepository
 	allowed  repo.AllowedNodesRepository
 	tokens   repo.RegistrationTokenRepository
+	certs    repo.NodeCertificateRepository
 	users    UserLookup
+	ca       *pki.CA // 可空：nil 时 Redeem 不签发 cert（与现有测试兼容）
 	now      func() time.Time
 }
 
 // NewService 构造 tenancy Service。
 //
 // users 用于 AddProjectMember 校验目标用户合法（role==ProjectAdmin + tenant 匹配）。
+// certs / ca 可空：仅在 PR-T4-D2 起的"Redeem 时签发 cert"路径用；nil → 不签发。
 func NewService(
 	projects repo.ProjectRepository,
 	members repo.ProjectMemberRepository,
 	nodes repo.NodeRepository,
 	allowed repo.AllowedNodesRepository,
 	tokens repo.RegistrationTokenRepository,
+	certs repo.NodeCertificateRepository,
 	users UserLookup,
+	ca *pki.CA,
 ) (Service, error) {
 	if projects == nil || members == nil || nodes == nil || allowed == nil || tokens == nil || users == nil {
 		return nil, errx.New(errx.ErrInternal, "tenancy.NewService: 依赖不能为 nil")
 	}
 	return &service{
 		projects: projects, members: members, nodes: nodes,
-		allowed: allowed, tokens: tokens, users: users,
+		allowed: allowed, tokens: tokens, certs: certs, users: users,
+		ca:  ca,
 		now: time.Now,
 	}, nil
 }
@@ -673,17 +692,80 @@ func (s *service) RedeemRegistrationToken(ctx context.Context, req RedeemRegistr
 		TenantID: tok.TenantID,
 		Name:     req.NodeName,
 		Version:  req.Version,
-		Status:   domain.NodePending, // PR-T4-D 心跳上线后转 online
+		Status:   domain.NodePending, // PR-T4-D3 心跳上线后转 online
 	}
 	if err := s.nodes.Insert(ctx, n); err != nil {
 		return nil, err
 	}
 
-	// 标 used；失败仅记 caller（不回滚 node：MVP 容忍 token 再用，运维可手动 Revoke）
+	// 标 used；失败仅透传（不回滚 node：MVP 容忍 token 再用，运维可手动 Revoke）
 	if err := s.tokens.MarkUsed(ctx, tok.ID); err != nil {
-		// caller 可见（透传），运维需排查
 		return nil, err
 	}
 
-	return &RedeemRegistrationTokenResult{Node: n}, nil
+	res := &RedeemRegistrationTokenResult{Node: n}
+
+	// PR-T4-D2：若注了 CA + certs repo，签发节点 cert + 持久
+	if s.ca != nil && s.certs != nil {
+		if err := s.issueCertForNode(ctx, n, tok.ID, res); err != nil {
+			// cert 签发失败不回滚 node（已 marked used）；让 Agent 重试 / 手动签发
+			return nil, err
+		}
+	}
+
+	return res, nil
 }
+
+// issueCertForNode 用 CA 签发节点 client cert + 持久；填充 res 的 cert 相关字段。
+func (s *service) issueCertForNode(
+	ctx context.Context,
+	n *domain.Node,
+	tokenID string,
+	res *RedeemRegistrationTokenResult,
+) error {
+	leafKey, err := pki.NewLeafKey()
+	if err != nil {
+		return err
+	}
+	leaf, leafCertPEM, err := s.ca.SignLeaf(leafKey.Public(), pki.SignLeafOptions{
+		CommonName: n.ID, // CN = node_id（mTLS 校验时反查 node）
+		Usage:      pki.LeafUsageClient,
+		Validity:   pki.DefaultLeafValidity,
+		Now:        s.now(),
+	})
+	if err != nil {
+		return err
+	}
+	leafKeyPEM, err := pki.MarshalLeafKeyPEM(leafKey)
+	if err != nil {
+		return err
+	}
+	caCertPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: s.ca.Cert.Raw,
+	})
+
+	cert := &domain.NodeCertificate{
+		NodeID:        n.ID,
+		SerialNumber:  leaf.SerialNumber.String(),
+		Fingerprint:   pki.Fingerprint(leaf),
+		CommonName:    n.ID,
+		CertPEM:       string(leafCertPEM),
+		IssuedAt:      leaf.NotBefore.UTC(),
+		ExpiresAt:     leaf.NotAfter.UTC(),
+		IssuedByToken: tokenID,
+	}
+	if err := s.certs.Insert(ctx, cert); err != nil {
+		return err
+	}
+
+	res.NodeCertPEM = string(leafCertPEM)
+	res.NodeKeyPEM = string(leafKeyPEM)
+	res.CACertPEM = string(caCertPEM)
+	res.Fingerprint = cert.Fingerprint
+	res.CertExpiresAt = cert.ExpiresAt
+	return nil
+}
+
+// 占位防止 import 未用（pem 在 issueCertForNode 用；x509 留给 D3 mTLS 校验）。
+var _ = x509.ParseCertificate

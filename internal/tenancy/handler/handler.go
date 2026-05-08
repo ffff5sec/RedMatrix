@@ -590,9 +590,17 @@ func (h *Handler) RedeemRegistrationToken(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	return connect.NewResponse(&tenancyv1.RedeemRegistrationTokenResponse{
-		Node: nodeToProto(res.Node),
-	}), nil
+	out := &tenancyv1.RedeemRegistrationTokenResponse{
+		Node:        nodeToProto(res.Node),
+		NodeCertPem: res.NodeCertPEM,
+		NodeKeyPem:  res.NodeKeyPEM,
+		CaCertPem:   res.CACertPEM,
+		Fingerprint: res.Fingerprint,
+	}
+	if !res.CertExpiresAt.IsZero() {
+		out.CertExpiresAt = res.CertExpiresAt.UTC().Format(time.RFC3339)
+	}
+	return connect.NewResponse(out), nil
 }
 
 // === conv ===

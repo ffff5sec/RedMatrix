@@ -341,7 +341,14 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		logger.Info("identity service mounted", "path", idMount.path)
 
 		// === 8a₁. TenancyService（ConnectRPC）===
-		tnMount, err := buildTenancyMount(pool, authSvc)
+		// 启动期 ensure CA：缺则生成；用于 RegistrationToken Redeem 签节点 cert。
+		ca, err := ensureCA(logger)
+		if err != nil {
+			logger.LogError(ctx, "tenancy CA init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		tnMount, err := buildTenancyMount(pool, authSvc, ca)
 		if err != nil {
 			logger.LogError(ctx, "tenancy stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

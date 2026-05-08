@@ -1981,6 +1981,39 @@ export class RedeemRegistrationTokenResponse extends Message<RedeemRegistrationT
    */
   node?: Node;
 
+  /**
+   * 节点首次签发的 client cert（mTLS 用；server 不留 key）。
+   *
+   * @generated from field: string node_cert_pem = 2;
+   */
+  nodeCertPem = "";
+
+  /**
+   * @generated from field: string node_key_pem = 3;
+   */
+  nodeKeyPem = "";
+
+  /**
+   * server 持的 root CA（Agent 校验 server cert 用）。
+   *
+   * @generated from field: string ca_cert_pem = 4;
+   */
+  caCertPem = "";
+
+  /**
+   * SHA-256(DER) hex；server 后续 mTLS 反查节点 ID。
+   *
+   * @generated from field: string fingerprint = 5;
+   */
+  fingerprint = "";
+
+  /**
+   * RFC3339；Agent 提前续期参考。
+   *
+   * @generated from field: string cert_expires_at = 6;
+   */
+  certExpiresAt = "";
+
   constructor(data?: PartialMessage<RedeemRegistrationTokenResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1990,6 +2023,11 @@ export class RedeemRegistrationTokenResponse extends Message<RedeemRegistrationT
   static readonly typeName = "redmatrix.tenancy.v1.RedeemRegistrationTokenResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "node", kind: "message", T: Node },
+    { no: 2, name: "node_cert_pem", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "node_key_pem", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "ca_cert_pem", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "fingerprint", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "cert_expires_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RedeemRegistrationTokenResponse {

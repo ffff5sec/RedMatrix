@@ -348,7 +348,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
 			return failExitCode(err)
 		}
-		tnMount, err := buildTenancyMount(pool, authSvc, ca)
+		tnMount, tenancySvc, err := buildTenancyMount(pool, authSvc, ca)
 		if err != nil {
 			logger.LogError(ctx, "tenancy stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -356,6 +356,14 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		mux.Handle(tnMount.path, tnMount.handler)
 		logger.Info("tenancy service mounted", "path", tnMount.path)
+
+		// === 8a₁'. NodeAgentService（mTLS-only；Agent 心跳）===
+		nodeAgentSrv, err := startNodeAgentServer(ctx, logger, pool, tenancySvc, ca, cfg.Public.GRPCAddr)
+		if err != nil {
+			logger.LogError(ctx, "node_agent server init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
 
 		// === 8a₂. Bootstrap tenancy（默认 account，幂等）===
 		// 必须在 identity bootstrap 之前；后续创建非 SA 用户的 tenant_id 来自此处。
@@ -441,6 +449,13 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			return 1
 		}
 		logger.Info("http server shutdown complete")
+
+		// node_agent mTLS server（可空）也优雅关
+		if err := nodeAgentSrv.shutdown(defaultShutdownTimeout); err != nil {
+			logger.LogError(shutdownCtx, "node_agent shutdown error", err)
+		} else if nodeAgentSrv != nil {
+			logger.Info("node_agent shutdown complete")
+		}
 
 		// 等 Relay goroutine 退出（ctx 已取消触发优雅退出）
 		relayWG.Wait()

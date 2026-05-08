@@ -185,6 +185,35 @@ func (r *pgNodeRepo) UpdateStatus(ctx context.Context, id string, status domain.
 	return nil
 }
 
+func (r *pgNodeRepo) TouchLastSeen(ctx context.Context, id string, ts time.Time) error {
+	if r == nil || r.pool == nil {
+		return errx.New(errx.ErrInternal, "tenancy.repo: nil pool")
+	}
+	// status 旧值 ∈ {pending, offline} → 升 online；其他（online/disabled）保持。
+	// disabled 行被 WHERE 拦掉，避免被 heartbeat 复活。
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE nodes
+		   SET last_seen_at = $2,
+		       status = CASE
+		           WHEN status IN ('pending', 'offline') THEN 'online'
+		           ELSE status
+		       END,
+		       updated_at = now()
+		 WHERE id = $1::uuid
+		   AND deleted_at IS NULL
+		   AND status <> 'disabled'
+	`, id, ts.UTC())
+	if err != nil {
+		return errx.Wrap(errx.ErrDatabase, err, "tenancy.repo: touch last_seen_at").
+			WithFields("node_id", id)
+	}
+	if tag.RowsAffected() == 0 {
+		return errx.New(errx.ErrNodeNotFound, "node 不存在或已禁用").
+			WithFields("node_id", id)
+	}
+	return nil
+}
+
 func (r *pgNodeRepo) SoftDelete(ctx context.Context, id string) error {
 	if r == nil || r.pool == nil {
 		return errx.New(errx.ErrInternal, "tenancy.repo: nil pool")

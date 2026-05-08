@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, HeartbeatRequest, HeartbeatResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -251,6 +251,35 @@ export const TenancyService = {
       name: "RedeemRegistrationToken",
       I: RedeemRegistrationTokenRequest,
       O: RedeemRegistrationTokenResponse,
+      kind: MethodKind.Unary,
+    },
+  }
+} as const;
+
+/**
+ * NodeAgentService 是 mTLS-only 的节点上报通道（PR-T4-D3）。
+ *
+ * 与 TenancyService 同包但端点分离：
+ *   - TenancyService → 浏览器 / SA 走 cookie/JWT
+ *   - NodeAgentService → Agent 走 client cert（peer cert SHA-256 反查 node_id）
+ *
+ * 业务上不复用 TenancyService 是为了让"哪些 RPC 走 mTLS"由 mount 路径决定，
+ * 而不是每个方法注解；同时方便 Agent 端只生成本服务的 client。
+ *
+ * @generated from service redmatrix.tenancy.v1.NodeAgentService
+ */
+export const NodeAgentService = {
+  typeName: "redmatrix.tenancy.v1.NodeAgentService",
+  methods: {
+    /**
+     * Heartbeat 周期上报（默认 30s/次；服务端写 last_seen_at + pending/offline → online）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.NodeAgentService.Heartbeat
+     */
+    heartbeat: {
+      name: "Heartbeat",
+      I: HeartbeatRequest,
+      O: HeartbeatResponse,
       kind: MethodKind.Unary,
     },
   }

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	"github.com/ffff5sec/RedMatrix/internal/tenancy/domain"
 )
@@ -24,6 +25,12 @@ type NodeRepository interface {
 
 	// UpdateStatus 改 status（含 disabled / online / offline）。幂等。
 	UpdateStatus(ctx context.Context, id string, status domain.NodeStatus) error
+
+	// TouchLastSeen 写心跳：更新 last_seen_at = ts；若原状态是 pending / offline
+	// 则同步置为 online。disabled / 软删 行不动（避免被 Heartbeat 复活）。
+	//
+	// 行不存在 / disabled / 软删 → 返 ErrNodeNotFound（caller 让 Agent 退出循环）。
+	TouchLastSeen(ctx context.Context, id string, ts time.Time) error
 
 	// SoftDelete 把 deleted_at = now()；后续查询全部排除。
 	SoftDelete(ctx context.Context, id string) error

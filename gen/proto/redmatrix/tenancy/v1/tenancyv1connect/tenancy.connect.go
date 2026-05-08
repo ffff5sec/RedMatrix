@@ -25,6 +25,8 @@ const _ = connect.IsAtLeastVersion1_13_0
 const (
 	// TenancyServiceName is the fully-qualified name of the TenancyService service.
 	TenancyServiceName = "redmatrix.tenancy.v1.TenancyService"
+	// NodeAgentServiceName is the fully-qualified name of the NodeAgentService service.
+	NodeAgentServiceName = "redmatrix.tenancy.v1.NodeAgentService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -97,6 +99,9 @@ const (
 	// TenancyServiceRedeemRegistrationTokenProcedure is the fully-qualified name of the
 	// TenancyService's RedeemRegistrationToken RPC.
 	TenancyServiceRedeemRegistrationTokenProcedure = "/redmatrix.tenancy.v1.TenancyService/RedeemRegistrationToken"
+	// NodeAgentServiceHeartbeatProcedure is the fully-qualified name of the NodeAgentService's
+	// Heartbeat RPC.
+	NodeAgentServiceHeartbeatProcedure = "/redmatrix.tenancy.v1.NodeAgentService/Heartbeat"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -739,4 +744,77 @@ func (UnimplementedTenancyServiceHandler) RevokeRegistrationToken(context.Contex
 
 func (UnimplementedTenancyServiceHandler) RedeemRegistrationToken(context.Context, *connect.Request[v1.RedeemRegistrationTokenRequest]) (*connect.Response[v1.RedeemRegistrationTokenResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.RedeemRegistrationToken is not implemented"))
+}
+
+// NodeAgentServiceClient is a client for the redmatrix.tenancy.v1.NodeAgentService service.
+type NodeAgentServiceClient interface {
+	// Heartbeat 周期上报（默认 30s/次；服务端写 last_seen_at + pending/offline → online）。
+	Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error)
+}
+
+// NewNodeAgentServiceClient constructs a client for the redmatrix.tenancy.v1.NodeAgentService
+// service. By default, it uses the Connect protocol with the binary Protobuf Codec, asks for
+// gzipped responses, and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply
+// the connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewNodeAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) NodeAgentServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	nodeAgentServiceMethods := v1.File_redmatrix_tenancy_v1_tenancy_proto.Services().ByName("NodeAgentService").Methods()
+	return &nodeAgentServiceClient{
+		heartbeat: connect.NewClient[v1.HeartbeatRequest, v1.HeartbeatResponse](
+			httpClient,
+			baseURL+NodeAgentServiceHeartbeatProcedure,
+			connect.WithSchema(nodeAgentServiceMethods.ByName("Heartbeat")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// nodeAgentServiceClient implements NodeAgentServiceClient.
+type nodeAgentServiceClient struct {
+	heartbeat *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
+}
+
+// Heartbeat calls redmatrix.tenancy.v1.NodeAgentService.Heartbeat.
+func (c *nodeAgentServiceClient) Heartbeat(ctx context.Context, req *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error) {
+	return c.heartbeat.CallUnary(ctx, req)
+}
+
+// NodeAgentServiceHandler is an implementation of the redmatrix.tenancy.v1.NodeAgentService
+// service.
+type NodeAgentServiceHandler interface {
+	// Heartbeat 周期上报（默认 30s/次；服务端写 last_seen_at + pending/offline → online）。
+	Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error)
+}
+
+// NewNodeAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
+// path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewNodeAgentServiceHandler(svc NodeAgentServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	nodeAgentServiceMethods := v1.File_redmatrix_tenancy_v1_tenancy_proto.Services().ByName("NodeAgentService").Methods()
+	nodeAgentServiceHeartbeatHandler := connect.NewUnaryHandler(
+		NodeAgentServiceHeartbeatProcedure,
+		svc.Heartbeat,
+		connect.WithSchema(nodeAgentServiceMethods.ByName("Heartbeat")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/redmatrix.tenancy.v1.NodeAgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case NodeAgentServiceHeartbeatProcedure:
+			nodeAgentServiceHeartbeatHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedNodeAgentServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedNodeAgentServiceHandler struct{}
+
+func (UnimplementedNodeAgentServiceHandler) Heartbeat(context.Context, *connect.Request[v1.HeartbeatRequest]) (*connect.Response[v1.HeartbeatResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.Heartbeat is not implemented"))
 }

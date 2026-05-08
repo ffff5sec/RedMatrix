@@ -2467,6 +2467,106 @@ func (x *RedeemRegistrationTokenResponse) GetCertExpiresAt() string {
 	return ""
 }
 
+type HeartbeatRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 注意：node_id 不在请求里。中间件按 mTLS peer cert SHA-256 反查 → 注入
+	// ctx；Agent 即使伪造 node_id 也无效。
+	Version       string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"` // Agent 自报版本（可选）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HeartbeatRequest) Reset() {
+	*x = HeartbeatRequest{}
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeartbeatRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeartbeatRequest) ProtoMessage() {}
+
+func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeartbeatRequest.ProtoReflect.Descriptor instead.
+func (*HeartbeatRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *HeartbeatRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+type HeartbeatResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 服务端"现在"时刻 RFC3339；Agent 用来纠时钟漂移。
+	ServerTime string `protobuf:"bytes,1,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
+	// 下次心跳期望延迟秒数（30s）。Agent 应叠 ±10% jitter 防雪崩。
+	IntervalSeconds int32 `protobuf:"varint,2,opt,name=interval_seconds,json=intervalSeconds,proto3" json:"interval_seconds,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *HeartbeatResponse) Reset() {
+	*x = HeartbeatResponse{}
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeartbeatResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeartbeatResponse) ProtoMessage() {}
+
+func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_tenancy_v1_tenancy_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeartbeatResponse.ProtoReflect.Descriptor instead.
+func (*HeartbeatResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *HeartbeatResponse) GetServerTime() string {
+	if x != nil {
+		return x.ServerTime
+	}
+	return ""
+}
+
+func (x *HeartbeatResponse) GetIntervalSeconds() int32 {
+	if x != nil {
+		return x.IntervalSeconds
+	}
+	return 0
+}
+
 var File_redmatrix_tenancy_v1_tenancy_proto protoreflect.FileDescriptor
 
 const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
@@ -2650,7 +2750,13 @@ const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
 	"nodeKeyPem\x12\x1e\n" +
 	"\vca_cert_pem\x18\x04 \x01(\tR\tcaCertPem\x12 \n" +
 	"\vfingerprint\x18\x05 \x01(\tR\vfingerprint\x12&\n" +
-	"\x0fcert_expires_at\x18\x06 \x01(\tR\rcertExpiresAt2\xde\x12\n" +
+	"\x0fcert_expires_at\x18\x06 \x01(\tR\rcertExpiresAt\",\n" +
+	"\x10HeartbeatRequest\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\"_\n" +
+	"\x11HeartbeatResponse\x12\x1f\n" +
+	"\vserver_time\x18\x01 \x01(\tR\n" +
+	"serverTime\x12)\n" +
+	"\x10interval_seconds\x18\x02 \x01(\x05R\x0fintervalSeconds2\xde\x12\n" +
 	"\x0eTenancyService\x12h\n" +
 	"\rCreateProject\x12*.redmatrix.tenancy.v1.CreateProjectRequest\x1a+.redmatrix.tenancy.v1.CreateProjectResponse\x12e\n" +
 	"\fListProjects\x12).redmatrix.tenancy.v1.ListProjectsRequest\x1a*.redmatrix.tenancy.v1.ListProjectsResponse\x12_\n" +
@@ -2676,7 +2782,9 @@ const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
 	"\x17CreateRegistrationToken\x124.redmatrix.tenancy.v1.CreateRegistrationTokenRequest\x1a5.redmatrix.tenancy.v1.CreateRegistrationTokenResponse\x12\x83\x01\n" +
 	"\x16ListRegistrationTokens\x123.redmatrix.tenancy.v1.ListRegistrationTokensRequest\x1a4.redmatrix.tenancy.v1.ListRegistrationTokensResponse\x12\x86\x01\n" +
 	"\x17RevokeRegistrationToken\x124.redmatrix.tenancy.v1.RevokeRegistrationTokenRequest\x1a5.redmatrix.tenancy.v1.RevokeRegistrationTokenResponse\x12\x86\x01\n" +
-	"\x17RedeemRegistrationToken\x124.redmatrix.tenancy.v1.RedeemRegistrationTokenRequest\x1a5.redmatrix.tenancy.v1.RedeemRegistrationTokenResponseB\xe2\x01\n" +
+	"\x17RedeemRegistrationToken\x124.redmatrix.tenancy.v1.RedeemRegistrationTokenRequest\x1a5.redmatrix.tenancy.v1.RedeemRegistrationTokenResponse2p\n" +
+	"\x10NodeAgentService\x12\\\n" +
+	"\tHeartbeat\x12&.redmatrix.tenancy.v1.HeartbeatRequest\x1a'.redmatrix.tenancy.v1.HeartbeatResponseB\xe2\x01\n" +
 	"\x18com.redmatrix.tenancy.v1B\fTenancyProtoP\x01ZFgithub.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1;tenancyv1\xa2\x02\x03RTX\xaa\x02\x14Redmatrix.Tenancy.V1\xca\x02\x14Redmatrix\\Tenancy\\V1\xe2\x02 Redmatrix\\Tenancy\\V1\\GPBMetadata\xea\x02\x16Redmatrix::Tenancy::V1b\x06proto3"
 
 var (
@@ -2691,7 +2799,7 @@ func file_redmatrix_tenancy_v1_tenancy_proto_rawDescGZIP() []byte {
 	return file_redmatrix_tenancy_v1_tenancy_proto_rawDescData
 }
 
-var file_redmatrix_tenancy_v1_tenancy_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
+var file_redmatrix_tenancy_v1_tenancy_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_redmatrix_tenancy_v1_tenancy_proto_goTypes = []any{
 	(*Project)(nil),                         // 0: redmatrix.tenancy.v1.Project
 	(*CreateProjectRequest)(nil),            // 1: redmatrix.tenancy.v1.CreateProjectRequest
@@ -2739,27 +2847,29 @@ var file_redmatrix_tenancy_v1_tenancy_proto_goTypes = []any{
 	(*RevokeRegistrationTokenResponse)(nil), // 43: redmatrix.tenancy.v1.RevokeRegistrationTokenResponse
 	(*RedeemRegistrationTokenRequest)(nil),  // 44: redmatrix.tenancy.v1.RedeemRegistrationTokenRequest
 	(*RedeemRegistrationTokenResponse)(nil), // 45: redmatrix.tenancy.v1.RedeemRegistrationTokenResponse
-	(*timestamppb.Timestamp)(nil),           // 46: google.protobuf.Timestamp
+	(*HeartbeatRequest)(nil),                // 46: redmatrix.tenancy.v1.HeartbeatRequest
+	(*HeartbeatResponse)(nil),               // 47: redmatrix.tenancy.v1.HeartbeatResponse
+	(*timestamppb.Timestamp)(nil),           // 48: google.protobuf.Timestamp
 }
 var file_redmatrix_tenancy_v1_tenancy_proto_depIdxs = []int32{
-	46, // 0: redmatrix.tenancy.v1.Project.created_at:type_name -> google.protobuf.Timestamp
-	46, // 1: redmatrix.tenancy.v1.Project.updated_at:type_name -> google.protobuf.Timestamp
-	46, // 2: redmatrix.tenancy.v1.Project.archived_at:type_name -> google.protobuf.Timestamp
+	48, // 0: redmatrix.tenancy.v1.Project.created_at:type_name -> google.protobuf.Timestamp
+	48, // 1: redmatrix.tenancy.v1.Project.updated_at:type_name -> google.protobuf.Timestamp
+	48, // 2: redmatrix.tenancy.v1.Project.archived_at:type_name -> google.protobuf.Timestamp
 	0,  // 3: redmatrix.tenancy.v1.CreateProjectResponse.project:type_name -> redmatrix.tenancy.v1.Project
 	0,  // 4: redmatrix.tenancy.v1.ListProjectsResponse.projects:type_name -> redmatrix.tenancy.v1.Project
 	0,  // 5: redmatrix.tenancy.v1.GetProjectResponse.project:type_name -> redmatrix.tenancy.v1.Project
-	46, // 6: redmatrix.tenancy.v1.ProjectMember.added_at:type_name -> google.protobuf.Timestamp
+	48, // 6: redmatrix.tenancy.v1.ProjectMember.added_at:type_name -> google.protobuf.Timestamp
 	13, // 7: redmatrix.tenancy.v1.ListProjectMembersResponse.members:type_name -> redmatrix.tenancy.v1.ProjectMember
-	46, // 8: redmatrix.tenancy.v1.Node.last_seen_at:type_name -> google.protobuf.Timestamp
-	46, // 9: redmatrix.tenancy.v1.Node.created_at:type_name -> google.protobuf.Timestamp
-	46, // 10: redmatrix.tenancy.v1.Node.updated_at:type_name -> google.protobuf.Timestamp
+	48, // 8: redmatrix.tenancy.v1.Node.last_seen_at:type_name -> google.protobuf.Timestamp
+	48, // 9: redmatrix.tenancy.v1.Node.created_at:type_name -> google.protobuf.Timestamp
+	48, // 10: redmatrix.tenancy.v1.Node.updated_at:type_name -> google.protobuf.Timestamp
 	20, // 11: redmatrix.tenancy.v1.CreateNodeResponse.node:type_name -> redmatrix.tenancy.v1.Node
 	20, // 12: redmatrix.tenancy.v1.ListNodesResponse.nodes:type_name -> redmatrix.tenancy.v1.Node
 	20, // 13: redmatrix.tenancy.v1.GetNodeResponse.node:type_name -> redmatrix.tenancy.v1.Node
-	46, // 14: redmatrix.tenancy.v1.RegistrationToken.expires_at:type_name -> google.protobuf.Timestamp
-	46, // 15: redmatrix.tenancy.v1.RegistrationToken.used_at:type_name -> google.protobuf.Timestamp
-	46, // 16: redmatrix.tenancy.v1.RegistrationToken.revoked_at:type_name -> google.protobuf.Timestamp
-	46, // 17: redmatrix.tenancy.v1.RegistrationToken.created_at:type_name -> google.protobuf.Timestamp
+	48, // 14: redmatrix.tenancy.v1.RegistrationToken.expires_at:type_name -> google.protobuf.Timestamp
+	48, // 15: redmatrix.tenancy.v1.RegistrationToken.used_at:type_name -> google.protobuf.Timestamp
+	48, // 16: redmatrix.tenancy.v1.RegistrationToken.revoked_at:type_name -> google.protobuf.Timestamp
+	48, // 17: redmatrix.tenancy.v1.RegistrationToken.created_at:type_name -> google.protobuf.Timestamp
 	37, // 18: redmatrix.tenancy.v1.CreateRegistrationTokenResponse.token:type_name -> redmatrix.tenancy.v1.RegistrationToken
 	37, // 19: redmatrix.tenancy.v1.ListRegistrationTokensResponse.tokens:type_name -> redmatrix.tenancy.v1.RegistrationToken
 	20, // 20: redmatrix.tenancy.v1.RedeemRegistrationTokenResponse.node:type_name -> redmatrix.tenancy.v1.Node
@@ -2784,29 +2894,31 @@ var file_redmatrix_tenancy_v1_tenancy_proto_depIdxs = []int32{
 	40, // 39: redmatrix.tenancy.v1.TenancyService.ListRegistrationTokens:input_type -> redmatrix.tenancy.v1.ListRegistrationTokensRequest
 	42, // 40: redmatrix.tenancy.v1.TenancyService.RevokeRegistrationToken:input_type -> redmatrix.tenancy.v1.RevokeRegistrationTokenRequest
 	44, // 41: redmatrix.tenancy.v1.TenancyService.RedeemRegistrationToken:input_type -> redmatrix.tenancy.v1.RedeemRegistrationTokenRequest
-	2,  // 42: redmatrix.tenancy.v1.TenancyService.CreateProject:output_type -> redmatrix.tenancy.v1.CreateProjectResponse
-	4,  // 43: redmatrix.tenancy.v1.TenancyService.ListProjects:output_type -> redmatrix.tenancy.v1.ListProjectsResponse
-	6,  // 44: redmatrix.tenancy.v1.TenancyService.GetProject:output_type -> redmatrix.tenancy.v1.GetProjectResponse
-	8,  // 45: redmatrix.tenancy.v1.TenancyService.ArchiveProject:output_type -> redmatrix.tenancy.v1.ArchiveProjectResponse
-	10, // 46: redmatrix.tenancy.v1.TenancyService.UnarchiveProject:output_type -> redmatrix.tenancy.v1.UnarchiveProjectResponse
-	12, // 47: redmatrix.tenancy.v1.TenancyService.DeleteProject:output_type -> redmatrix.tenancy.v1.DeleteProjectResponse
-	15, // 48: redmatrix.tenancy.v1.TenancyService.AddProjectMember:output_type -> redmatrix.tenancy.v1.AddProjectMemberResponse
-	17, // 49: redmatrix.tenancy.v1.TenancyService.RemoveProjectMember:output_type -> redmatrix.tenancy.v1.RemoveProjectMemberResponse
-	19, // 50: redmatrix.tenancy.v1.TenancyService.ListProjectMembers:output_type -> redmatrix.tenancy.v1.ListProjectMembersResponse
-	22, // 51: redmatrix.tenancy.v1.TenancyService.CreateNode:output_type -> redmatrix.tenancy.v1.CreateNodeResponse
-	24, // 52: redmatrix.tenancy.v1.TenancyService.ListNodes:output_type -> redmatrix.tenancy.v1.ListNodesResponse
-	26, // 53: redmatrix.tenancy.v1.TenancyService.GetNode:output_type -> redmatrix.tenancy.v1.GetNodeResponse
-	28, // 54: redmatrix.tenancy.v1.TenancyService.EnableNode:output_type -> redmatrix.tenancy.v1.EnableNodeResponse
-	30, // 55: redmatrix.tenancy.v1.TenancyService.DisableNode:output_type -> redmatrix.tenancy.v1.DisableNodeResponse
-	32, // 56: redmatrix.tenancy.v1.TenancyService.DeleteNode:output_type -> redmatrix.tenancy.v1.DeleteNodeResponse
-	34, // 57: redmatrix.tenancy.v1.TenancyService.SetProjectAllowedNodes:output_type -> redmatrix.tenancy.v1.SetProjectAllowedNodesResponse
-	36, // 58: redmatrix.tenancy.v1.TenancyService.GetProjectAllowedNodes:output_type -> redmatrix.tenancy.v1.GetProjectAllowedNodesResponse
-	39, // 59: redmatrix.tenancy.v1.TenancyService.CreateRegistrationToken:output_type -> redmatrix.tenancy.v1.CreateRegistrationTokenResponse
-	41, // 60: redmatrix.tenancy.v1.TenancyService.ListRegistrationTokens:output_type -> redmatrix.tenancy.v1.ListRegistrationTokensResponse
-	43, // 61: redmatrix.tenancy.v1.TenancyService.RevokeRegistrationToken:output_type -> redmatrix.tenancy.v1.RevokeRegistrationTokenResponse
-	45, // 62: redmatrix.tenancy.v1.TenancyService.RedeemRegistrationToken:output_type -> redmatrix.tenancy.v1.RedeemRegistrationTokenResponse
-	42, // [42:63] is the sub-list for method output_type
-	21, // [21:42] is the sub-list for method input_type
+	46, // 42: redmatrix.tenancy.v1.NodeAgentService.Heartbeat:input_type -> redmatrix.tenancy.v1.HeartbeatRequest
+	2,  // 43: redmatrix.tenancy.v1.TenancyService.CreateProject:output_type -> redmatrix.tenancy.v1.CreateProjectResponse
+	4,  // 44: redmatrix.tenancy.v1.TenancyService.ListProjects:output_type -> redmatrix.tenancy.v1.ListProjectsResponse
+	6,  // 45: redmatrix.tenancy.v1.TenancyService.GetProject:output_type -> redmatrix.tenancy.v1.GetProjectResponse
+	8,  // 46: redmatrix.tenancy.v1.TenancyService.ArchiveProject:output_type -> redmatrix.tenancy.v1.ArchiveProjectResponse
+	10, // 47: redmatrix.tenancy.v1.TenancyService.UnarchiveProject:output_type -> redmatrix.tenancy.v1.UnarchiveProjectResponse
+	12, // 48: redmatrix.tenancy.v1.TenancyService.DeleteProject:output_type -> redmatrix.tenancy.v1.DeleteProjectResponse
+	15, // 49: redmatrix.tenancy.v1.TenancyService.AddProjectMember:output_type -> redmatrix.tenancy.v1.AddProjectMemberResponse
+	17, // 50: redmatrix.tenancy.v1.TenancyService.RemoveProjectMember:output_type -> redmatrix.tenancy.v1.RemoveProjectMemberResponse
+	19, // 51: redmatrix.tenancy.v1.TenancyService.ListProjectMembers:output_type -> redmatrix.tenancy.v1.ListProjectMembersResponse
+	22, // 52: redmatrix.tenancy.v1.TenancyService.CreateNode:output_type -> redmatrix.tenancy.v1.CreateNodeResponse
+	24, // 53: redmatrix.tenancy.v1.TenancyService.ListNodes:output_type -> redmatrix.tenancy.v1.ListNodesResponse
+	26, // 54: redmatrix.tenancy.v1.TenancyService.GetNode:output_type -> redmatrix.tenancy.v1.GetNodeResponse
+	28, // 55: redmatrix.tenancy.v1.TenancyService.EnableNode:output_type -> redmatrix.tenancy.v1.EnableNodeResponse
+	30, // 56: redmatrix.tenancy.v1.TenancyService.DisableNode:output_type -> redmatrix.tenancy.v1.DisableNodeResponse
+	32, // 57: redmatrix.tenancy.v1.TenancyService.DeleteNode:output_type -> redmatrix.tenancy.v1.DeleteNodeResponse
+	34, // 58: redmatrix.tenancy.v1.TenancyService.SetProjectAllowedNodes:output_type -> redmatrix.tenancy.v1.SetProjectAllowedNodesResponse
+	36, // 59: redmatrix.tenancy.v1.TenancyService.GetProjectAllowedNodes:output_type -> redmatrix.tenancy.v1.GetProjectAllowedNodesResponse
+	39, // 60: redmatrix.tenancy.v1.TenancyService.CreateRegistrationToken:output_type -> redmatrix.tenancy.v1.CreateRegistrationTokenResponse
+	41, // 61: redmatrix.tenancy.v1.TenancyService.ListRegistrationTokens:output_type -> redmatrix.tenancy.v1.ListRegistrationTokensResponse
+	43, // 62: redmatrix.tenancy.v1.TenancyService.RevokeRegistrationToken:output_type -> redmatrix.tenancy.v1.RevokeRegistrationTokenResponse
+	45, // 63: redmatrix.tenancy.v1.TenancyService.RedeemRegistrationToken:output_type -> redmatrix.tenancy.v1.RedeemRegistrationTokenResponse
+	47, // 64: redmatrix.tenancy.v1.NodeAgentService.Heartbeat:output_type -> redmatrix.tenancy.v1.HeartbeatResponse
+	43, // [43:65] is the sub-list for method output_type
+	21, // [21:43] is the sub-list for method input_type
 	21, // [21:21] is the sub-list for extension type_name
 	21, // [21:21] is the sub-list for extension extendee
 	0,  // [0:21] is the sub-list for field type_name
@@ -2828,9 +2940,9 @@ func file_redmatrix_tenancy_v1_tenancy_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redmatrix_tenancy_v1_tenancy_proto_rawDesc), len(file_redmatrix_tenancy_v1_tenancy_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   46,
+			NumMessages:   48,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_redmatrix_tenancy_v1_tenancy_proto_goTypes,
 		DependencyIndexes: file_redmatrix_tenancy_v1_tenancy_proto_depIdxs,

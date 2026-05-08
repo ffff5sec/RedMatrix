@@ -60,6 +60,40 @@ func (n *Node) IsDeleted() bool {
 // NodeNameMaxLen 与 schema VARCHAR(64) 一致。
 const NodeNameMaxLen = 64
 
+// HeartbeatInterval 是 Agent 心跳期望发包间隔（默认值；后续可下放配置）。
+//
+// MVP 30s：兼顾"快感知掉线"和"不要把 PG 写穿"。
+const HeartbeatInterval = 30 * time.Second
+
+// NodeOfflineGrace 是判定 online→offline 的阈值（2× HeartbeatInterval）。
+//
+// 给一次丢包冗余；server 侧周期 sweeper 用本常量。
+const NodeOfflineGrace = 2 * HeartbeatInterval
+
+// DeriveStatus 从持久化 (Status, LastSeenAt) 推算 "now 此刻应该是什么状态"。
+//
+// 用途：List 视图实时纠正 stale 状态；周期 sweeper 也用本逻辑。
+//
+// 规则：
+//   - disabled / 软删 / pending（从未连过）→ 原样返
+//   - online 但 last_seen_at 距 now > NodeOfflineGrace → 返 offline
+//   - 其他 → 原样
+func (n *Node) DeriveStatus(now time.Time) NodeStatus {
+	if n == nil {
+		return ""
+	}
+	if n.Status == NodeDisabled || n.IsDeleted() {
+		return n.Status
+	}
+	if n.LastSeenAt == nil {
+		return n.Status
+	}
+	if n.Status == NodeOnline && now.Sub(*n.LastSeenAt) > NodeOfflineGrace {
+		return NodeOffline
+	}
+	return n.Status
+}
+
 // ValidateForCreate 跑 INSERT 前的全部域内规则。
 func (n *Node) ValidateForCreate() error {
 	if n == nil {

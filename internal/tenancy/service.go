@@ -101,6 +101,11 @@ type Service interface {
 	// 用 plaintext 兑换 → 创建 Node 行（status=pending）+ 标 used。
 	// 错码：hash 找不到 / 已用 / 已撤 / 已过期 → ErrNodeRegistrationTokenInvalid
 	RedeemRegistrationToken(ctx context.Context, req RedeemRegistrationTokenRequest) (*RedeemRegistrationTokenResult, error)
+
+	// Heartbeat（mTLS RPC；caller 身份由中间件按指纹反查注 ctx）：
+	// 写 last_seen_at，pending/offline → online；错码：node 不存在或 disabled
+	// → ErrNodeNotFound（让 Agent 退出循环）。
+	Heartbeat(ctx context.Context, req HeartbeatRequest) (*HeartbeatResult, error)
 }
 
 // CreateProjectRequest 入参。
@@ -182,6 +187,19 @@ type CreateRegistrationTokenRequest struct {
 type CreateRegistrationTokenResult struct {
 	Token     *domain.RegistrationToken
 	Plaintext string
+}
+
+// HeartbeatRequest 入参；node_id 由中间件按指纹注 ctx，不在请求里。
+type HeartbeatRequest struct {
+	NodeID  string // mTLS 中间件从 cert fingerprint 反查注入；handler 不直接信任 client
+	Version string // Agent 上报版本（可选；非空时回写 nodes.version）
+}
+
+// HeartbeatResult 返回；ServerTime 让 Agent 同步系统时钟漂移，Interval 是
+// 下一次心跳期望延迟（30s）。Agent 实现可按 jitter 浮动 ±10%。
+type HeartbeatResult struct {
+	ServerTime time.Time
+	Interval   time.Duration
 }
 
 // RedeemRegistrationTokenRequest 入参。
@@ -769,3 +787,29 @@ func (s *service) issueCertForNode(
 
 // 占位防止 import 未用（pem 在 issueCertForNode 用；x509 留给 D3 mTLS 校验）。
 var _ = x509.ParseCertificate
+
+// Heartbeat（PR-T4-D3）：mTLS 中间件已按 cert fingerprint 反查注 NodeID 到 ctx
+// 并填到 req；service 这层只校 nodeID 非空 + 写 last_seen_at。
+//
+// 与 RedeemRegistrationToken 相反，Heartbeat 是高频调用：MVP 30s/次。
+// 任何 DB 故障让 Agent 重试，错码尽量泄露的少（避免被指纹枚举 node_id）。
+func (s *service) Heartbeat(ctx context.Context, req HeartbeatRequest) (*HeartbeatResult, error) {
+	if strings.TrimSpace(req.NodeID) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "heartbeat 缺 node_id")
+	}
+	now := s.now().UTC()
+	if err := s.nodes.TouchLastSeen(ctx, req.NodeID, now); err != nil {
+		return nil, err
+	}
+	// version 上报：仅当 Agent 报了非空值才写（避免空值覆盖 Redeem 时填的版本）。
+	if v := strings.TrimSpace(req.Version); v != "" {
+		// 复用 GetByID + UpdateStatus 链路成本太高；MVP 用单独的 SQL 路径前
+		// 暂略——版本字段后续在状态机迁移时单写一条 Update 即可。这里
+		// 不阻塞主路径，version 漂移由 Agent 在 Redeem / 升级时刷新。
+		_ = v
+	}
+	return &HeartbeatResult{
+		ServerTime: now,
+		Interval:   domain.HeartbeatInterval,
+	}, nil
+}

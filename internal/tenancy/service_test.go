@@ -326,6 +326,19 @@ func (m *mockNodeRepo) UpdateStatus(_ context.Context, id string, status domain.
 	return nil
 }
 
+func (m *mockNodeRepo) TouchLastSeen(_ context.Context, id string, ts time.Time) error {
+	n, ok := m.rows[id]
+	if !ok || n.DeletedAt != nil || n.Status == domain.NodeDisabled {
+		return errx.New(errx.ErrNodeNotFound, "not found / disabled")
+	}
+	t := ts.UTC()
+	n.LastSeenAt = &t
+	if n.Status == domain.NodePending || n.Status == domain.NodeOffline {
+		n.Status = domain.NodeOnline
+	}
+	return nil
+}
+
 func (m *mockNodeRepo) SoftDelete(_ context.Context, id string) error {
 	n, ok := m.rows[id]
 	if !ok {
@@ -1216,6 +1229,74 @@ func TestRedeemRegistrationToken_AlreadyUsed_DoubleSpendBlocked(t *testing.T) {
 	require.Error(t, err)
 	c, _ := errx.GetCode(err)
 	assert.Equal(t, errx.ErrNodeRegistrationTokenInvalid, c)
+}
+
+// === Heartbeat（PR-T4-D3）===
+
+func TestHeartbeat_Happy_PendingToOnline(t *testing.T) {
+	svc, nr, _ := setupSvcWithTokens(t)
+	res, err := svc.CreateRegistrationToken(context.Background(),
+		CreateRegistrationTokenRequest{TenantID: tenantID, Name: "hb"})
+	require.NoError(t, err)
+	rd, err := svc.RedeemRegistrationToken(context.Background(),
+		RedeemRegistrationTokenRequest{Plaintext: res.Plaintext, NodeName: "agent-hb"})
+	require.NoError(t, err)
+	require.Equal(t, domain.NodePending, nr.rows[rd.Node.ID].Status)
+
+	hb, err := svc.Heartbeat(context.Background(), HeartbeatRequest{NodeID: rd.Node.ID})
+	require.NoError(t, err)
+	assert.Equal(t, domain.HeartbeatInterval, hb.Interval)
+	assert.False(t, hb.ServerTime.IsZero())
+
+	persisted := nr.rows[rd.Node.ID]
+	assert.Equal(t, domain.NodeOnline, persisted.Status, "首次 heartbeat 应推 pending→online")
+	assert.NotNil(t, persisted.LastSeenAt)
+}
+
+func TestHeartbeat_OfflineToOnline(t *testing.T) {
+	svc, nr, _ := setupSvcWithTokens(t)
+	// 直接造一个 offline 节点
+	long := time.Now().Add(-10 * time.Minute)
+	n := &domain.Node{
+		TenantID: tenantID, Name: "offliner", Status: domain.NodeOffline,
+		LastSeenAt: &long,
+	}
+	require.NoError(t, nr.Insert(context.Background(), n))
+
+	_, err := svc.Heartbeat(context.Background(), HeartbeatRequest{NodeID: n.ID})
+	require.NoError(t, err)
+	assert.Equal(t, domain.NodeOnline, nr.rows[n.ID].Status)
+}
+
+func TestHeartbeat_DisabledRejected(t *testing.T) {
+	svc, nr, _ := setupSvcWithTokens(t)
+	n := &domain.Node{
+		TenantID: tenantID, Name: "disabled", Status: domain.NodeDisabled,
+	}
+	require.NoError(t, nr.Insert(context.Background(), n))
+
+	_, err := svc.Heartbeat(context.Background(), HeartbeatRequest{NodeID: n.ID})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeNotFound, c, "disabled 节点不能被 heartbeat 复活")
+	assert.Equal(t, domain.NodeDisabled, nr.rows[n.ID].Status)
+}
+
+func TestHeartbeat_NotFound(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	_, err := svc.Heartbeat(context.Background(),
+		HeartbeatRequest{NodeID: "00000000-0000-0000-0000-000000000999"})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrNodeNotFound, c)
+}
+
+func TestHeartbeat_EmptyNodeID(t *testing.T) {
+	svc, _, _ := setupSvcWithTokens(t)
+	_, err := svc.Heartbeat(context.Background(), HeartbeatRequest{})
+	require.Error(t, err)
+	c, _ := errx.GetCode(err)
+	assert.Equal(t, errx.ErrInvalidInput, c)
 }
 
 // === RedeemRegistrationToken + 签 cert（PR-T4-D2）===

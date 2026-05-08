@@ -78,3 +78,38 @@ func TestNodeStatus_Valid(t *testing.T) {
 	}
 	assert.False(t, NodeStatus("BOGUS").Valid())
 }
+
+func TestNode_DeriveStatus(t *testing.T) {
+	now := time.Now()
+	mk := func(status NodeStatus, last *time.Time) *Node {
+		return &Node{Status: status, LastSeenAt: last}
+	}
+	recent := now.Add(-10 * time.Second)
+	stale := now.Add(-NodeOfflineGrace - time.Second)
+	deleted := now.Add(-time.Hour)
+
+	cases := []struct {
+		name string
+		n    *Node
+		want NodeStatus
+	}{
+		{"pending 不动", mk(NodePending, nil), NodePending},
+		{"disabled 不动（即使心跳新）", mk(NodeDisabled, &recent), NodeDisabled},
+		{"online + 心跳新 → online", mk(NodeOnline, &recent), NodeOnline},
+		{"online + 心跳过期 → offline", mk(NodeOnline, &stale), NodeOffline},
+		{"offline + 心跳过期 → offline", mk(NodeOffline, &stale), NodeOffline},
+		{"软删 → 原样（不计算）", &Node{
+			Status: NodeOnline, LastSeenAt: &stale, DeletedAt: &deleted,
+		}, NodeOnline},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.n.DeriveStatus(now))
+		})
+	}
+}
+
+func TestNode_DeriveStatus_NilSafe(t *testing.T) {
+	var n *Node
+	assert.Equal(t, NodeStatus(""), n.DeriveStatus(time.Now()))
+}

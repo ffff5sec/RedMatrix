@@ -89,15 +89,15 @@ func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*
 }
 
 // buildTenancyMount 装配 tenancy 模块（Project CRUD + Node + Token + Cert），
-// 返回 ConnectRPC mount。
+// 返回 ConnectRPC mount + service（NodeAgent 端点复用 svc 共享 mTLS 配置一致性）。
 //
 // 依赖：pgxpool.App + identity Auth Service + 节点签发用 CA。
-func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA) (*identityHandlerMount, error) {
+func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA) (*identityHandlerMount, tenancy.Service, error) {
 	if pool == nil || pool.App == nil {
-		return nil, errx.New(errx.ErrInternal, "buildTenancyMount: pg.Pool.App 不能为 nil")
+		return nil, nil, errx.New(errx.ErrInternal, "buildTenancyMount: pg.Pool.App 不能为 nil")
 	}
 	if authSvc == nil {
-		return nil, errx.New(errx.ErrInternal, "buildTenancyMount: authSvc 不能为 nil")
+		return nil, nil, errx.New(errx.ErrInternal, "buildTenancyMount: authSvc 不能为 nil")
 	}
 
 	projects := tenancyrepo.NewProjectPG(pool.App)
@@ -109,14 +109,14 @@ func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA) (*identi
 	users := repo.NewPG(pool.App) // 复用 identity 的 user repo（同 pool）
 	svc, err := tenancy.NewService(projects, members, nodes, allowed, tokens, certs, users, ca)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	h, err := tenancyhandler.New(svc, authSvc)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	path, hh := tenancyv1connect.NewTenancyServiceHandler(h)
-	return &identityHandlerMount{path: path, handler: hh}, nil
+	return &identityHandlerMount{path: path, handler: hh}, svc, nil
 }
 
 // ensureCA 启动期保证根 CA 落地：

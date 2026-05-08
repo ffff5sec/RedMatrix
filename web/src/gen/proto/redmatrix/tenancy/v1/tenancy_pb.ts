@@ -2047,3 +2047,92 @@ export class RedeemRegistrationTokenResponse extends Message<RedeemRegistrationT
   }
 }
 
+/**
+ * @generated from message redmatrix.tenancy.v1.HeartbeatRequest
+ */
+export class HeartbeatRequest extends Message<HeartbeatRequest> {
+  /**
+   * 注意：node_id 不在请求里。中间件按 mTLS peer cert SHA-256 反查 → 注入
+   * ctx；Agent 即使伪造 node_id 也无效。
+   *
+   * Agent 自报版本（可选）
+   *
+   * @generated from field: string version = 1;
+   */
+  version = "";
+
+  constructor(data?: PartialMessage<HeartbeatRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.HeartbeatRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): HeartbeatRequest {
+    return new HeartbeatRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): HeartbeatRequest {
+    return new HeartbeatRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): HeartbeatRequest {
+    return new HeartbeatRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: HeartbeatRequest | PlainMessage<HeartbeatRequest> | undefined, b: HeartbeatRequest | PlainMessage<HeartbeatRequest> | undefined): boolean {
+    return proto3.util.equals(HeartbeatRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.HeartbeatResponse
+ */
+export class HeartbeatResponse extends Message<HeartbeatResponse> {
+  /**
+   * 服务端"现在"时刻 RFC3339；Agent 用来纠时钟漂移。
+   *
+   * @generated from field: string server_time = 1;
+   */
+  serverTime = "";
+
+  /**
+   * 下次心跳期望延迟秒数（30s）。Agent 应叠 ±10% jitter 防雪崩。
+   *
+   * @generated from field: int32 interval_seconds = 2;
+   */
+  intervalSeconds = 0;
+
+  constructor(data?: PartialMessage<HeartbeatResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.HeartbeatResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "server_time", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "interval_seconds", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): HeartbeatResponse {
+    return new HeartbeatResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): HeartbeatResponse {
+    return new HeartbeatResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): HeartbeatResponse {
+    return new HeartbeatResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: HeartbeatResponse | PlainMessage<HeartbeatResponse> | undefined, b: HeartbeatResponse | PlainMessage<HeartbeatResponse> | undefined): boolean {
+    return proto3.util.equals(HeartbeatResponse, a, b);
+  }
+}
+

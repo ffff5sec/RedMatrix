@@ -27,6 +27,7 @@ const (
 	keyTenantID
 	keyProjectID
 	keyRole
+	keyNodeID
 )
 
 // === Setter ===
@@ -57,6 +58,11 @@ func WithRole(ctx context.Context, role string) context.Context {
 	return setIfNonEmpty(ctx, keyRole, role)
 }
 
+// WithNodeID 注入 mTLS-认证的节点 ID（PR-T4-D3 起；中间件按 cert 指纹反查）。
+func WithNodeID(ctx context.Context, id string) context.Context {
+	return setIfNonEmpty(ctx, keyNodeID, id)
+}
+
 // === Getter ===
 
 func RequestIDFromContext(ctx context.Context) string { return get(ctx, keyRequestID) }
@@ -64,6 +70,7 @@ func UserIDFromContext(ctx context.Context) string    { return get(ctx, keyUserI
 func TenantIDFromContext(ctx context.Context) string  { return get(ctx, keyTenantID) }
 func ProjectIDFromContext(ctx context.Context) string { return get(ctx, keyProjectID) }
 func RoleFromContext(ctx context.Context) string      { return get(ctx, keyRole) }
+func NodeIDFromContext(ctx context.Context) string    { return get(ctx, keyNodeID) }
 
 // === slog 展开 ===
 
@@ -86,6 +93,7 @@ func Attrs(ctx context.Context) []any {
 		{"tenant_id", keyTenantID},
 		{"project_id", keyProjectID},
 		{"role", keyRole},
+		{"node_id", keyNodeID},
 	}
 	out := make([]any, 0, len(pairs)*2)
 	for _, p := range pairs {

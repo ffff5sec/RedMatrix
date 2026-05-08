@@ -54,6 +54,9 @@ const (
 	// ScanServiceListTaskAssignmentsProcedure is the fully-qualified name of the ScanService's
 	// ListTaskAssignments RPC.
 	ScanServiceListTaskAssignmentsProcedure = "/redmatrix.scan.v1.ScanService/ListTaskAssignments"
+	// ScanServiceListTaskResultsProcedure is the fully-qualified name of the ScanService's
+	// ListTaskResults RPC.
+	ScanServiceListTaskResultsProcedure = "/redmatrix.scan.v1.ScanService/ListTaskResults"
 )
 
 // ScanServiceClient is a client for the redmatrix.scan.v1.ScanService service.
@@ -65,6 +68,8 @@ type ScanServiceClient interface {
 	DeleteScanTask(context.Context, *connect.Request[v1.DeleteScanTaskRequest]) (*connect.Response[v1.DeleteScanTaskResponse], error)
 	// ListTaskAssignments 详情页：列任务全部派发单（PR-S2）。
 	ListTaskAssignments(context.Context, *connect.Request[v1.ListTaskAssignmentsRequest]) (*connect.Response[v1.ListTaskAssignmentsResponse], error)
+	// ListTaskResults 详情页：列任务全部扫描结果（PR-S5）。
+	ListTaskResults(context.Context, *connect.Request[v1.ListTaskResultsRequest]) (*connect.Response[v1.ListTaskResultsResponse], error)
 }
 
 // NewScanServiceClient constructs a client for the redmatrix.scan.v1.ScanService service. By
@@ -114,6 +119,12 @@ func NewScanServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(scanServiceMethods.ByName("ListTaskAssignments")),
 			connect.WithClientOptions(opts...),
 		),
+		listTaskResults: connect.NewClient[v1.ListTaskResultsRequest, v1.ListTaskResultsResponse](
+			httpClient,
+			baseURL+ScanServiceListTaskResultsProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("ListTaskResults")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -125,6 +136,7 @@ type scanServiceClient struct {
 	cancelScanTask      *connect.Client[v1.CancelScanTaskRequest, v1.CancelScanTaskResponse]
 	deleteScanTask      *connect.Client[v1.DeleteScanTaskRequest, v1.DeleteScanTaskResponse]
 	listTaskAssignments *connect.Client[v1.ListTaskAssignmentsRequest, v1.ListTaskAssignmentsResponse]
+	listTaskResults     *connect.Client[v1.ListTaskResultsRequest, v1.ListTaskResultsResponse]
 }
 
 // CreateScanTask calls redmatrix.scan.v1.ScanService.CreateScanTask.
@@ -157,6 +169,11 @@ func (c *scanServiceClient) ListTaskAssignments(ctx context.Context, req *connec
 	return c.listTaskAssignments.CallUnary(ctx, req)
 }
 
+// ListTaskResults calls redmatrix.scan.v1.ScanService.ListTaskResults.
+func (c *scanServiceClient) ListTaskResults(ctx context.Context, req *connect.Request[v1.ListTaskResultsRequest]) (*connect.Response[v1.ListTaskResultsResponse], error) {
+	return c.listTaskResults.CallUnary(ctx, req)
+}
+
 // ScanServiceHandler is an implementation of the redmatrix.scan.v1.ScanService service.
 type ScanServiceHandler interface {
 	CreateScanTask(context.Context, *connect.Request[v1.CreateScanTaskRequest]) (*connect.Response[v1.CreateScanTaskResponse], error)
@@ -166,6 +183,8 @@ type ScanServiceHandler interface {
 	DeleteScanTask(context.Context, *connect.Request[v1.DeleteScanTaskRequest]) (*connect.Response[v1.DeleteScanTaskResponse], error)
 	// ListTaskAssignments 详情页：列任务全部派发单（PR-S2）。
 	ListTaskAssignments(context.Context, *connect.Request[v1.ListTaskAssignmentsRequest]) (*connect.Response[v1.ListTaskAssignmentsResponse], error)
+	// ListTaskResults 详情页：列任务全部扫描结果（PR-S5）。
+	ListTaskResults(context.Context, *connect.Request[v1.ListTaskResultsRequest]) (*connect.Response[v1.ListTaskResultsResponse], error)
 }
 
 // NewScanServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -211,6 +230,12 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(scanServiceMethods.ByName("ListTaskAssignments")),
 		connect.WithHandlerOptions(opts...),
 	)
+	scanServiceListTaskResultsHandler := connect.NewUnaryHandler(
+		ScanServiceListTaskResultsProcedure,
+		svc.ListTaskResults,
+		connect.WithSchema(scanServiceMethods.ByName("ListTaskResults")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.scan.v1.ScanService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ScanServiceCreateScanTaskProcedure:
@@ -225,6 +250,8 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 			scanServiceDeleteScanTaskHandler.ServeHTTP(w, r)
 		case ScanServiceListTaskAssignmentsProcedure:
 			scanServiceListTaskAssignmentsHandler.ServeHTTP(w, r)
+		case ScanServiceListTaskResultsProcedure:
+			scanServiceListTaskResultsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -256,4 +283,8 @@ func (UnimplementedScanServiceHandler) DeleteScanTask(context.Context, *connect.
 
 func (UnimplementedScanServiceHandler) ListTaskAssignments(context.Context, *connect.Request[v1.ListTaskAssignmentsRequest]) (*connect.Response[v1.ListTaskAssignmentsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.ListTaskAssignments is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) ListTaskResults(context.Context, *connect.Request[v1.ListTaskResultsRequest]) (*connect.Response[v1.ListTaskResultsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.ListTaskResults is not implemented"))
 }

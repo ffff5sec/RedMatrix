@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	tenancyv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1"
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
@@ -136,11 +137,23 @@ func (l *Loop) execMock(
 	case <-time.After(dur):
 	}
 
-	// 3. completed / failed
+	// 3. PR-S5：mock 出一份结果（按 task.kind 给出固定 fixture）
 	failed := false
 	if l.FailureRate > 0 && rng.Float64() < l.FailureRate {
 		failed = true
 	}
+	if !failed {
+		results := mockResults(at)
+		if len(results) > 0 {
+			if err := l.reportResults(ctx, at.GetAssignmentId(), results); err != nil {
+				logger.Warn("tasks: report results failed",
+					"assignment_id", at.GetAssignmentId(), "err", err.Error())
+				// 结果上报失败仍继续推 completed（避免无限重试）
+			}
+		}
+	}
+
+	// 4. completed / failed
 	status := "completed"
 	errMsg := ""
 	if failed {
@@ -158,6 +171,49 @@ func (l *Loop) execMock(
 		"assignment_id", at.GetAssignmentId(),
 		"status", status,
 	)
+}
+
+// mockResults 按 task.kind 出固定假数据。后续真插件接入时本函数被替换为
+// 调用对应 plugin 的入口。
+func mockResults(at *tenancyv1.AssignedTask) []map[string]any {
+	target := at.GetTarget()
+	switch at.GetKind() {
+	case "port_scan":
+		return []map[string]any{
+			{"host": target, "port": 22, "service": "ssh", "banner": "OpenSSH 8.2 (mock)"},
+			{"host": target, "port": 80, "service": "http", "banner": "nginx/1.18 (mock)"},
+		}
+	case "web_crawl":
+		return []map[string]any{
+			{"url": target, "status": 200, "title": "Example Domain (mock)"},
+		}
+	case "subdomain":
+		return []map[string]any{
+			{"name": "api." + target, "ip": "192.0.2.1"},
+			{"name": "www." + target, "ip": "192.0.2.2"},
+		}
+	case "fingerprint":
+		return []map[string]any{
+			{"target": target, "tech": []string{"nginx", "Vue.js"}},
+		}
+	}
+	return nil
+}
+
+func (l *Loop) reportResults(ctx context.Context, assignmentID string, items []map[string]any) error {
+	pbItems := make([]*structpb.Struct, 0, len(items))
+	for _, it := range items {
+		s, err := structpb.NewStruct(it)
+		if err != nil {
+			return err
+		}
+		pbItems = append(pbItems, s)
+	}
+	_, err := l.Client.ReportTaskResults(ctx, connect.NewRequest(&tenancyv1.ReportTaskResultsRequest{
+		AssignmentId: assignmentID,
+		Items:        pbItems,
+	}))
+	return err
 }
 
 func (l *Loop) report(ctx context.Context, assignmentID, status, errMsg string) error {

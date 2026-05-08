@@ -761,3 +761,156 @@ export class ListTaskAssignmentsResponse extends Message<ListTaskAssignmentsResp
   }
 }
 
+/**
+ * @generated from message redmatrix.scan.v1.ScanResult
+ */
+export class ScanResult extends Message<ScanResult> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string task_id = 2;
+   */
+  taskId = "";
+
+  /**
+   * @generated from field: string assignment_id = 3;
+   */
+  assignmentId = "";
+
+  /**
+   * @generated from field: string node_id = 4;
+   */
+  nodeId = "";
+
+  /**
+   * @generated from field: string kind = 5;
+   */
+  kind = "";
+
+  /**
+   * @generated from field: google.protobuf.Struct data = 6;
+   */
+  data?: Struct;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 7;
+   */
+  createdAt?: Timestamp;
+
+  constructor(data?: PartialMessage<ScanResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.ScanResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "task_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "assignment_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "node_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "data", kind: "message", T: Struct },
+    { no: 7, name: "created_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ScanResult {
+    return new ScanResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ScanResult {
+    return new ScanResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ScanResult {
+    return new ScanResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ScanResult | PlainMessage<ScanResult> | undefined, b: ScanResult | PlainMessage<ScanResult> | undefined): boolean {
+    return proto3.util.equals(ScanResult, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.ListTaskResultsRequest
+ */
+export class ListTaskResultsRequest extends Message<ListTaskResultsRequest> {
+  /**
+   * @generated from field: string task_id = 1;
+   */
+  taskId = "";
+
+  constructor(data?: PartialMessage<ListTaskResultsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.ListTaskResultsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "task_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListTaskResultsRequest {
+    return new ListTaskResultsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListTaskResultsRequest {
+    return new ListTaskResultsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListTaskResultsRequest {
+    return new ListTaskResultsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListTaskResultsRequest | PlainMessage<ListTaskResultsRequest> | undefined, b: ListTaskResultsRequest | PlainMessage<ListTaskResultsRequest> | undefined): boolean {
+    return proto3.util.equals(ListTaskResultsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.ListTaskResultsResponse
+ */
+export class ListTaskResultsResponse extends Message<ListTaskResultsResponse> {
+  /**
+   * @generated from field: repeated redmatrix.scan.v1.ScanResult results = 1;
+   */
+  results: ScanResult[] = [];
+
+  /**
+   * @generated from field: int32 total = 2;
+   */
+  total = 0;
+
+  constructor(data?: PartialMessage<ListTaskResultsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.ListTaskResultsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "results", kind: "message", T: ScanResult, repeated: true },
+    { no: 2, name: "total", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListTaskResultsResponse {
+    return new ListTaskResultsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListTaskResultsResponse {
+    return new ListTaskResultsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListTaskResultsResponse {
+    return new ListTaskResultsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListTaskResultsResponse | PlainMessage<ListTaskResultsResponse> | undefined, b: ListTaskResultsResponse | PlainMessage<ListTaskResultsResponse> | undefined): boolean {
+    return proto3.util.equals(ListTaskResultsResponse, a, b);
+  }
+}
+

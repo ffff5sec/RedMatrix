@@ -140,3 +140,30 @@ func (h *NodeAgentHandler) ReportTaskProgress(
 	}
 	return connect.NewResponse(&tenancyv1.ReportTaskProgressResponse{}), nil
 }
+
+// ReportTaskResults（PR-S5）—— Agent 推扫描结果。
+func (h *NodeAgentHandler) ReportTaskResults(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.ReportTaskResultsRequest],
+) (*connect.Response[tenancyv1.ReportTaskResultsResponse], error) {
+	nodeID := ctxmeta.NodeIDFromContext(ctx)
+	if nodeID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated,
+			errx.New(errx.ErrAuthFailed, "mTLS 中间件未注入 node_id"))
+	}
+	if h.scanSvc == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented,
+			errx.New(errx.ErrNotImplemented, "scan 模块未启用"))
+	}
+	items := make([]scan.ResultItem, 0, len(req.Msg.GetItems()))
+	for _, st := range req.Msg.GetItems() {
+		items = append(items, scan.ResultItem{Data: st.AsMap()})
+	}
+	if err := h.scanSvc.ReportResults(ctx, nodeID, req.Msg.GetAssignmentId(), items); err != nil {
+		return nil, toConnectError(err)
+	}
+	//nolint:gosec // items 数量由 agent 控制；MVP 单条上报 < 100
+	return connect.NewResponse(&tenancyv1.ReportTaskResultsResponse{
+		Inserted: int32(len(items)),
+	}), nil
+}

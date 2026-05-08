@@ -4,6 +4,7 @@ syntax = "proto3";
 // 成员 / 节点 / 白名单 / 注册流程）。
 package redmatrix.tenancy.v1;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
 // TenancyService 租户与项目核心 RPC（PR-T2 仅 Project）。
@@ -352,6 +353,10 @@ service NodeAgentService {
   // ReportTaskProgress 上报任务进度（running / completed / failed）。
   // 服务端校 assignment.node_id == ctx node_id（同 mTLS 调用方）+ 状态机合法。
   rpc ReportTaskProgress(ReportTaskProgressRequest) returns (ReportTaskProgressResponse);
+
+  // ReportTaskResults 上报任务结果（PR-S5）。
+  // 一次可携带多条结果（每条对应 1 个发现，如开放端口 / URL / 指纹）。
+  rpc ReportTaskResults(ReportTaskResultsRequest) returns (ReportTaskResultsResponse);
 }
 
 message HeartbeatRequest {
@@ -406,6 +411,19 @@ message ReportTaskProgressRequest {
   string error = 3;
 }
 message ReportTaskProgressResponse {}
+
+message ReportTaskResultsRequest {
+  string assignment_id = 1;
+  // schema-less data；按 task.kind 不同：
+  //   port_scan:    {"host": "1.2.3.4", "port": 22, "service": "ssh", "banner": "..."}
+  //   web_crawl:    {"url": "https://x/y", "status": 200, "title": "..."}
+  //   subdomain:    {"name": "api.example.com", "ip": "1.2.3.4"}
+  //   fingerprint:  {"target": "https://x", "tech": ["nginx", "vue"]}
+  repeated google.protobuf.Struct items = 2;
+}
+message ReportTaskResultsResponse {
+  int32 inserted = 1;
+}
 
 // ===== NodeCertificate（PR-W6 节点详情页）=====
 

@@ -119,6 +119,9 @@ const (
 	// NodeAgentServiceReportTaskProgressProcedure is the fully-qualified name of the NodeAgentService's
 	// ReportTaskProgress RPC.
 	NodeAgentServiceReportTaskProgressProcedure = "/redmatrix.tenancy.v1.NodeAgentService/ReportTaskProgress"
+	// NodeAgentServiceReportTaskResultsProcedure is the fully-qualified name of the NodeAgentService's
+	// ReportTaskResults RPC.
+	NodeAgentServiceReportTaskResultsProcedure = "/redmatrix.tenancy.v1.NodeAgentService/ReportTaskResults"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -869,6 +872,9 @@ type NodeAgentServiceClient interface {
 	// ReportTaskProgress 上报任务进度（running / completed / failed）。
 	// 服务端校 assignment.node_id == ctx node_id（同 mTLS 调用方）+ 状态机合法。
 	ReportTaskProgress(context.Context, *connect.Request[v1.ReportTaskProgressRequest]) (*connect.Response[v1.ReportTaskProgressResponse], error)
+	// ReportTaskResults 上报任务结果（PR-S5）。
+	// 一次可携带多条结果（每条对应 1 个发现，如开放端口 / URL / 指纹）。
+	ReportTaskResults(context.Context, *connect.Request[v1.ReportTaskResultsRequest]) (*connect.Response[v1.ReportTaskResultsResponse], error)
 }
 
 // NewNodeAgentServiceClient constructs a client for the redmatrix.tenancy.v1.NodeAgentService
@@ -906,6 +912,12 @@ func NewNodeAgentServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(nodeAgentServiceMethods.ByName("ReportTaskProgress")),
 			connect.WithClientOptions(opts...),
 		),
+		reportTaskResults: connect.NewClient[v1.ReportTaskResultsRequest, v1.ReportTaskResultsResponse](
+			httpClient,
+			baseURL+NodeAgentServiceReportTaskResultsProcedure,
+			connect.WithSchema(nodeAgentServiceMethods.ByName("ReportTaskResults")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -915,6 +927,7 @@ type nodeAgentServiceClient struct {
 	reissueCert        *connect.Client[v1.ReissueCertRequest, v1.ReissueCertResponse]
 	pullTasks          *connect.Client[v1.PullTasksRequest, v1.PullTasksResponse]
 	reportTaskProgress *connect.Client[v1.ReportTaskProgressRequest, v1.ReportTaskProgressResponse]
+	reportTaskResults  *connect.Client[v1.ReportTaskResultsRequest, v1.ReportTaskResultsResponse]
 }
 
 // Heartbeat calls redmatrix.tenancy.v1.NodeAgentService.Heartbeat.
@@ -937,6 +950,11 @@ func (c *nodeAgentServiceClient) ReportTaskProgress(ctx context.Context, req *co
 	return c.reportTaskProgress.CallUnary(ctx, req)
 }
 
+// ReportTaskResults calls redmatrix.tenancy.v1.NodeAgentService.ReportTaskResults.
+func (c *nodeAgentServiceClient) ReportTaskResults(ctx context.Context, req *connect.Request[v1.ReportTaskResultsRequest]) (*connect.Response[v1.ReportTaskResultsResponse], error) {
+	return c.reportTaskResults.CallUnary(ctx, req)
+}
+
 // NodeAgentServiceHandler is an implementation of the redmatrix.tenancy.v1.NodeAgentService
 // service.
 type NodeAgentServiceHandler interface {
@@ -954,6 +972,9 @@ type NodeAgentServiceHandler interface {
 	// ReportTaskProgress 上报任务进度（running / completed / failed）。
 	// 服务端校 assignment.node_id == ctx node_id（同 mTLS 调用方）+ 状态机合法。
 	ReportTaskProgress(context.Context, *connect.Request[v1.ReportTaskProgressRequest]) (*connect.Response[v1.ReportTaskProgressResponse], error)
+	// ReportTaskResults 上报任务结果（PR-S5）。
+	// 一次可携带多条结果（每条对应 1 个发现，如开放端口 / URL / 指纹）。
+	ReportTaskResults(context.Context, *connect.Request[v1.ReportTaskResultsRequest]) (*connect.Response[v1.ReportTaskResultsResponse], error)
 }
 
 // NewNodeAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -987,6 +1008,12 @@ func NewNodeAgentServiceHandler(svc NodeAgentServiceHandler, opts ...connect.Han
 		connect.WithSchema(nodeAgentServiceMethods.ByName("ReportTaskProgress")),
 		connect.WithHandlerOptions(opts...),
 	)
+	nodeAgentServiceReportTaskResultsHandler := connect.NewUnaryHandler(
+		NodeAgentServiceReportTaskResultsProcedure,
+		svc.ReportTaskResults,
+		connect.WithSchema(nodeAgentServiceMethods.ByName("ReportTaskResults")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.NodeAgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case NodeAgentServiceHeartbeatProcedure:
@@ -997,6 +1024,8 @@ func NewNodeAgentServiceHandler(svc NodeAgentServiceHandler, opts ...connect.Han
 			nodeAgentServicePullTasksHandler.ServeHTTP(w, r)
 		case NodeAgentServiceReportTaskProgressProcedure:
 			nodeAgentServiceReportTaskProgressHandler.ServeHTTP(w, r)
+		case NodeAgentServiceReportTaskResultsProcedure:
+			nodeAgentServiceReportTaskResultsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1020,4 +1049,8 @@ func (UnimplementedNodeAgentServiceHandler) PullTasks(context.Context, *connect.
 
 func (UnimplementedNodeAgentServiceHandler) ReportTaskProgress(context.Context, *connect.Request[v1.ReportTaskProgressRequest]) (*connect.Response[v1.ReportTaskProgressResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.ReportTaskProgress is not implemented"))
+}
+
+func (UnimplementedNodeAgentServiceHandler) ReportTaskResults(context.Context, *connect.Request[v1.ReportTaskResultsRequest]) (*connect.Response[v1.ReportTaskResultsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.ReportTaskResults is not implemented"))
 }

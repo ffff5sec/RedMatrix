@@ -73,6 +73,19 @@ type Service interface {
 	// 校 assignment.node_id == callerNodeID（防伪造）+ 状态机合法。
 	// status 仅允许 running / completed / failed。
 	UpdateAssignmentProgress(ctx context.Context, callerNodeID, assignmentID string, status domain.AssignmentStatus, errMsg string) error
+
+	// ReportResults（PR-S5 mTLS）：agent 上报扫描结果。
+	// 校 assignment.node_id == callerNodeID 防伪造；data schema-less。
+	ReportResults(ctx context.Context, callerNodeID, assignmentID string, items []ResultItem) error
+
+	// ListResultsByTask（PR-S5 详情页）：列任务全部结果。SA / TA / PA 都可调
+	// （PA 仅看自己加入的项目；MVP 不在 service 层强制 PA 限制）。
+	ListResultsByTask(ctx context.Context, taskID string) ([]*domain.ScanResult, error)
+}
+
+// ResultItem 是 ReportResults 入参；service 内部组合 task/assignment/node id 后入库。
+type ResultItem struct {
+	Data map[string]any
 }
 
 // PulledAssignment 是 PullForNode 返的轻封装：assignment 元数据 + 关联的 task
@@ -122,6 +135,7 @@ type ListTasksResult struct {
 type service struct {
 	tasks       repo.TaskRepository
 	assignments repo.AssignmentRepository
+	results     repo.ResultRepository
 	projects    ProjectLookup
 	nodes       NodeLister
 	allowed     AllowedNodesLookup
@@ -133,16 +147,17 @@ type service struct {
 func NewService(
 	tasks repo.TaskRepository,
 	assignments repo.AssignmentRepository,
+	results repo.ResultRepository,
 	projects ProjectLookup,
 	nodes NodeLister,
 	allowed AllowedNodesLookup,
 	logger *log.Logger,
 ) (Service, error) {
-	if tasks == nil || assignments == nil || projects == nil || nodes == nil || allowed == nil {
+	if tasks == nil || assignments == nil || results == nil || projects == nil || nodes == nil || allowed == nil {
 		return nil, errx.New(errx.ErrInternal, "scan.NewService: 依赖不能为 nil")
 	}
 	return &service{
-		tasks: tasks, assignments: assignments,
+		tasks: tasks, assignments: assignments, results: results,
 		projects: projects, nodes: nodes, allowed: allowed,
 		logger: logger, now: time.Now,
 	}, nil
@@ -460,4 +475,55 @@ func (s *service) aggregateTaskStatus(ctx context.Context, taskID string) error 
 		finishedAt = &ts
 	}
 	return s.tasks.UpdateStatus(ctx, taskID, next, finishedAt)
+}
+
+// ReportResults（PR-S5）—— 防伪造校验 + bulk insert。
+//
+// 校 assignment 存在 + a.NodeID == callerNodeID；从 assignment 反推 task_id；
+// 从 task 拿 kind 一并入库。空 items 直接 no-op。
+func (s *service) ReportResults(
+	ctx context.Context,
+	callerNodeID, assignmentID string,
+	items []ResultItem,
+) error {
+	if strings.TrimSpace(callerNodeID) == "" {
+		return errx.New(errx.ErrInvalidInput, "缺 caller node_id")
+	}
+	if strings.TrimSpace(assignmentID) == "" {
+		return errx.New(errx.ErrInvalidInput, "缺 assignment_id")
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	a, err := s.assignments.GetByID(ctx, assignmentID)
+	if err != nil {
+		return err
+	}
+	if a.NodeID != callerNodeID {
+		return errx.New(errx.ErrTaskNotFound, "assignment 不属于此节点（防伪造）").
+			WithFields("assignment_id", a.ID)
+	}
+	t, err := s.tasks.GetByID(ctx, a.TaskID)
+	if err != nil {
+		return err
+	}
+	rows := make([]*domain.ScanResult, 0, len(items))
+	for _, it := range items {
+		rows = append(rows, &domain.ScanResult{
+			TaskID:       t.ID,
+			AssignmentID: a.ID,
+			NodeID:       a.NodeID,
+			Kind:         t.Kind,
+			Data:         it.Data,
+		})
+	}
+	return s.results.InsertBulk(ctx, rows)
+}
+
+// ListResultsByTask（PR-S5）—— 详情页直查。
+func (s *service) ListResultsByTask(ctx context.Context, taskID string) ([]*domain.ScanResult, error) {
+	if strings.TrimSpace(taskID) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "缺 task_id")
+	}
+	return s.results.ListByTask(ctx, taskID)
 }

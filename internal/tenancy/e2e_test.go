@@ -69,6 +69,13 @@ func (h *inlineNodeAgentHandler) ReportTaskProgress(
 	return connect.NewResponse(&tenancyv1.ReportTaskProgressResponse{}), nil
 }
 
+func (h *inlineNodeAgentHandler) ReportTaskResults(
+	context.Context,
+	*connect.Request[tenancyv1.ReportTaskResultsRequest],
+) (*connect.Response[tenancyv1.ReportTaskResultsResponse], error) {
+	return connect.NewResponse(&tenancyv1.ReportTaskResultsResponse{}), nil
+}
+
 func (h *inlineNodeAgentHandler) ReissueCert(
 	ctx context.Context,
 	_ *connect.Request[tenancyv1.ReissueCertRequest],

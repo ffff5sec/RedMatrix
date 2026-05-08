@@ -34,11 +34,12 @@ func buildScanMount(pool *pg.Pool, authSvc auth.Service, logger *log.Logger) (*s
 	}
 	tasks := scanrepo.NewTaskPG(pool.App)
 	assignments := scanrepo.NewAssignmentPG(pool.App)
+	results := scanrepo.NewResultPG(pool.App)
 	projects := tenancyrepo.NewProjectPG(pool.App)
 	nodes := tenancyrepo.NewNodePG(pool.App)
 	allowed := tenancyrepo.NewAllowedNodesPG(pool.App)
 
-	svc, err := scan.NewService(tasks, assignments, projects, nodes, allowed, logger)
+	svc, err := scan.NewService(tasks, assignments, results, projects, nodes, allowed, logger)
 	if err != nil {
 		return nil, nil, err
 	}

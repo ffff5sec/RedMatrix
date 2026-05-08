@@ -7,7 +7,7 @@
 // 成员 / 节点 / 白名单 / 注册流程）。
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
+import { Message, proto3, protoInt64, Struct, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * @generated from message redmatrix.tenancy.v1.Project
@@ -2459,6 +2459,92 @@ export class ReportTaskProgressResponse extends Message<ReportTaskProgressRespon
 
   static equals(a: ReportTaskProgressResponse | PlainMessage<ReportTaskProgressResponse> | undefined, b: ReportTaskProgressResponse | PlainMessage<ReportTaskProgressResponse> | undefined): boolean {
     return proto3.util.equals(ReportTaskProgressResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ReportTaskResultsRequest
+ */
+export class ReportTaskResultsRequest extends Message<ReportTaskResultsRequest> {
+  /**
+   * @generated from field: string assignment_id = 1;
+   */
+  assignmentId = "";
+
+  /**
+   * schema-less data；按 task.kind 不同：
+   *   port_scan:    {"host": "1.2.3.4", "port": 22, "service": "ssh", "banner": "..."}
+   *   web_crawl:    {"url": "https://x/y", "status": 200, "title": "..."}
+   *   subdomain:    {"name": "api.example.com", "ip": "1.2.3.4"}
+   *   fingerprint:  {"target": "https://x", "tech": ["nginx", "vue"]}
+   *
+   * @generated from field: repeated google.protobuf.Struct items = 2;
+   */
+  items: Struct[] = [];
+
+  constructor(data?: PartialMessage<ReportTaskResultsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ReportTaskResultsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "assignment_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "items", kind: "message", T: Struct, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ReportTaskResultsRequest {
+    return new ReportTaskResultsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ReportTaskResultsRequest {
+    return new ReportTaskResultsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ReportTaskResultsRequest {
+    return new ReportTaskResultsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ReportTaskResultsRequest | PlainMessage<ReportTaskResultsRequest> | undefined, b: ReportTaskResultsRequest | PlainMessage<ReportTaskResultsRequest> | undefined): boolean {
+    return proto3.util.equals(ReportTaskResultsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ReportTaskResultsResponse
+ */
+export class ReportTaskResultsResponse extends Message<ReportTaskResultsResponse> {
+  /**
+   * @generated from field: int32 inserted = 1;
+   */
+  inserted = 0;
+
+  constructor(data?: PartialMessage<ReportTaskResultsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ReportTaskResultsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "inserted", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ReportTaskResultsResponse {
+    return new ReportTaskResultsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ReportTaskResultsResponse {
+    return new ReportTaskResultsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ReportTaskResultsResponse {
+    return new ReportTaskResultsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ReportTaskResultsResponse | PlainMessage<ReportTaskResultsResponse> | undefined, b: ReportTaskResultsResponse | PlainMessage<ReportTaskResultsResponse> | undefined): boolean {
+    return proto3.util.equals(ReportTaskResultsResponse, a, b);
   }
 }
 

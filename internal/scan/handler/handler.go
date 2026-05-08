@@ -195,6 +195,32 @@ func (h *Handler) ListTaskAssignments(
 	}), nil
 }
 
+func (h *Handler) ListTaskResults(
+	ctx context.Context,
+	req *connect.Request[scanv1.ListTaskResultsRequest],
+) (*connect.Response[scanv1.ListTaskResultsResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	out, err := h.svc.ListResultsByTask(ctx, req.Msg.GetTaskId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	pb := make([]*scanv1.ScanResult, 0, len(out))
+	for _, r := range out {
+		pb = append(pb, resultToProto(r))
+	}
+	//nolint:gosec // 行数 ≤ task 累计；MVP < 1000
+	return connect.NewResponse(&scanv1.ListTaskResultsResponse{
+		Results: pb,
+		Total:   int32(len(pb)),
+	}), nil
+}
+
 // === conv ===
 
 func taskToProto(t *scandomain.ScanTask) *scanv1.ScanTask {
@@ -248,6 +274,24 @@ func assignmentToProto(a *scandomain.TaskAssignment) *scanv1.TaskAssignment {
 	}
 	if a.FinishedAt != nil {
 		out.FinishedAt = timestamppb.New(*a.FinishedAt)
+	}
+	return out
+}
+
+func resultToProto(r *scandomain.ScanResult) *scanv1.ScanResult {
+	if r == nil {
+		return nil
+	}
+	out := &scanv1.ScanResult{
+		Id:           r.ID,
+		TaskId:       r.TaskID,
+		AssignmentId: r.AssignmentID,
+		NodeId:       r.NodeID,
+		Kind:         string(r.Kind),
+		CreatedAt:    timestamppb.New(r.CreatedAt),
+	}
+	if s, err := structpb.NewStruct(r.Data); err == nil {
+		out.Data = s
 	}
 	return out
 }

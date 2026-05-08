@@ -11,6 +11,7 @@ import { formatRelativeTime, formatAbsoluteTime } from '@/util/relativeTime';
 import type {
   ScanTask,
   TaskAssignment,
+  ScanResult,
 } from '@/gen/proto/redmatrix/scan/v1/scan_pb';
 import type { Node, Project } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
 
@@ -23,6 +24,7 @@ const taskId = computed(() => String(route.params.id));
 const task = ref<ScanTask | null>(null);
 const project = ref<Project | null>(null);
 const assignments = ref<TaskAssignment[]>([]);
+const results = ref<ScanResult[]>([]);
 const nodes = ref<Map<string, Node>>(new Map());
 const loading = ref(false);
 const nowTick = ref(Date.now());
@@ -33,12 +35,14 @@ async function refresh() {
   if (!taskId.value) return;
   loading.value = true;
   try {
-    const [t, a] = await Promise.all([
+    const [t, a, r] = await Promise.all([
       scanClient.getScanTask({ id: taskId.value }),
       scanClient.listTaskAssignments({ taskId: taskId.value }),
+      scanClient.listTaskResults({ taskId: taskId.value }),
     ]);
     task.value = t.task ?? null;
     assignments.value = a.assignments;
+    results.value = r.results;
 
     // 顺手拉项目 + 涉及到的节点详情（节点名 / 状态）
     if (task.value?.projectId) {
@@ -106,6 +110,22 @@ function kindLabel(k: string) {
 }
 function nodeName(id: string) {
   return nodes.value.get(id)?.name || id.slice(0, 8);
+}
+
+// formatData 把 schema-less Struct 渲染成简洁 KV 字串。
+function formatData(s: unknown): string {
+  if (!s) return '–';
+  let obj: Record<string, unknown>;
+  // protobuf Struct 在 connect-es 反序列化为 { fields, getType, toJson... }
+  // 简单处理：toJson() 取纯对象，再格式化
+  if (typeof (s as { toJson?: () => unknown }).toJson === 'function') {
+    obj = (s as { toJson: () => Record<string, unknown> }).toJson();
+  } else {
+    obj = s as Record<string, unknown>;
+  }
+  return Object.entries(obj)
+    .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
+    .join('  ');
 }
 function nodeStatus(id: string) {
   return nodes.value.get(id)?.status || '?';
@@ -245,6 +265,38 @@ async function del() {
           0 派发。可能：项目未设白名单或白名单内节点全离线 / 项目尚未启用任何节点。
         </p>
       </div>
+
+      <div class="card">
+        <h2>扫描结果 <span class="muted">（{{ results.length }}）</span></h2>
+        <p class="muted">
+          Agent 完成任务后批量上报；按 task.kind 不同字段不同。MVP 用固定 mock 数据。
+        </p>
+        <table v-if="results.length > 0">
+          <thead>
+            <tr>
+              <th>类型</th>
+              <th>数据</th>
+              <th>来源节点</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in results" :key="r.id">
+              <td><span class="chip">{{ r.kind }}</span></td>
+              <td>
+                <code class="result-data">{{ formatData(r.data) }}</code>
+              </td>
+              <td>
+                <router-link :to="`/nodes/${r.nodeId}`" class="link">{{ nodeName(r.nodeId) }}</router-link>
+              </td>
+              <td :title="formatAbsoluteTime(r.createdAt)">
+                {{ formatRelativeTime(r.createdAt, nowTick) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="muted">尚无结果。任务执行完后会出现。</p>
+      </div>
     </template>
   </div>
 </template>
@@ -314,5 +366,12 @@ async function del() {
 .badge.blue {
   background: rgba(59, 130, 246, 0.16);
   color: #1d4ed8;
+}
+
+.result-data {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 </style>

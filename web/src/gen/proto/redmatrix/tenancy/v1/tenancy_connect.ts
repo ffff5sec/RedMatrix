@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, GetStatsRequest, GetStatsResponse, HeartbeatRequest, HeartbeatResponse, ListNodeCertificatesRequest, ListNodeCertificatesResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, PullTasksRequest, PullTasksResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, ReportTaskProgressRequest, ReportTaskProgressResponse, RevokeNodeCertificateRequest, RevokeNodeCertificateResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, GetStatsRequest, GetStatsResponse, HeartbeatRequest, HeartbeatResponse, ListNodeCertificatesRequest, ListNodeCertificatesResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, PullTasksRequest, PullTasksResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, ReportTaskProgressRequest, ReportTaskProgressResponse, ReportTaskResultsRequest, ReportTaskResultsResponse, RevokeNodeCertificateRequest, RevokeNodeCertificateResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -355,6 +355,18 @@ export const NodeAgentService = {
       name: "ReportTaskProgress",
       I: ReportTaskProgressRequest,
       O: ReportTaskProgressResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ReportTaskResults 上报任务结果（PR-S5）。
+     * 一次可携带多条结果（每条对应 1 个发现，如开放端口 / URL / 指纹）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.NodeAgentService.ReportTaskResults
+     */
+    reportTaskResults: {
+      name: "ReportTaskResults",
+      I: ReportTaskResultsRequest,
+      O: ReportTaskResultsResponse,
       kind: MethodKind.Unary,
     },
   }

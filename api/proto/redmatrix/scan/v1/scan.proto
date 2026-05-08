@@ -18,6 +18,9 @@ service ScanService {
 
   // ListTaskAssignments 详情页：列任务全部派发单（PR-S2）。
   rpc ListTaskAssignments(ListTaskAssignmentsRequest) returns (ListTaskAssignmentsResponse);
+
+  // ListTaskResults 详情页：列任务全部扫描结果（PR-S5）。
+  rpc ListTaskResults(ListTaskResultsRequest) returns (ListTaskResultsResponse);
 }
 
 // ScanTask 任务实体（与 schema 一一对应）。
@@ -106,5 +109,25 @@ message ListTaskAssignmentsRequest {
 message ListTaskAssignmentsResponse {
   repeated TaskAssignment assignments = 1;
   // 派发计数（与 ScanTask.task_count 对齐；MVP 等同 len(assignments)）。
+  int32 total = 2;
+}
+
+// ===== ScanResult（PR-S5）=====
+
+message ScanResult {
+  string id = 1;
+  string task_id = 2;
+  string assignment_id = 3;
+  string node_id = 4;
+  string kind = 5;
+  google.protobuf.Struct data = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message ListTaskResultsRequest {
+  string task_id = 1;
+}
+message ListTaskResultsResponse {
+  repeated ScanResult results = 1;
   int32 total = 2;
 }

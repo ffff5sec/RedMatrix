@@ -115,6 +115,10 @@ type Service interface {
 	// ListCertsByNode（PR-W6 节点详情页）：列某节点全部 cert（含已撤 / 已过期）。
 	// 不返回 PEM 内容，只回元数据。SA / Auditor 调；handler 层加角色守卫。
 	ListCertsByNode(ctx context.Context, nodeID string) ([]*domain.NodeCertificate, error)
+
+	// GetStats（PR-W7 Dashboard）：聚合项目 / 节点 / 令牌 KPI。
+	// MVP 实现走 list + 内存计数；后续优化为 SQL GROUP BY single round-trip。
+	GetStats(ctx context.Context, tenantID string) (*StatsResult, error)
 }
 
 // CreateProjectRequest 入参。
@@ -215,6 +219,18 @@ type HeartbeatResult struct {
 // service 不直接信任客户端传值。
 type ReissueCertRequest struct {
 	NodeID string
+}
+
+// StatsResult Dashboard 概览数（PR-W7）。
+type StatsResult struct {
+	ProjectsActive           int
+	ProjectsArchived         int
+	NodesTotal               int
+	NodesOnline              int
+	NodesPending             int
+	NodesOffline             int
+	NodesDisabled            int
+	RegistrationTokensActive int
 }
 
 // ReissueCertResult 返新签 cert 三件套（与 Redeem 同结构，但不带 Node 元数据）。
@@ -910,4 +926,70 @@ func (s *service) ListCertsByNode(ctx context.Context, nodeID string) ([]*domain
 	}
 	// node 是否存在 / 软删 都不挡：审计需要看历史
 	return s.certs.ListByNode(ctx, nodeID)
+}
+
+// GetStats（PR-W7）—— 聚合 dashboard KPI。
+//
+// MVP：复用现有 list 接口 + 内存累加。
+// 后续优化：单 SQL GROUP BY；server stats cache。
+func (s *service) GetStats(ctx context.Context, tenantID string) (*StatsResult, error) {
+	if strings.TrimSpace(tenantID) == "" {
+		tenantID = DefaultAccountID
+	}
+	out := &StatsResult{}
+	now := s.now()
+
+	// projects（list 跨页一次抓 1000；MVP 假设单租户 < 1000）
+	projects, _, err := s.projects.List(ctx, repo.ProjectFilter{TenantID: tenantID}, repo.Page{Page: 1, PageSize: 1000})
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range projects {
+		switch p.Status {
+		case domain.ProjectActive:
+			out.ProjectsActive++
+		case domain.ProjectArchived:
+			out.ProjectsArchived++
+		}
+	}
+
+	// nodes —— DeriveStatus 让"持久化 online + 心跳过期"展示成 offline，与 dashboard 一致
+	nodes, _, err := s.nodes.List(ctx, repo.NodeFilter{TenantID: tenantID}, repo.Page{Page: 1, PageSize: 1000})
+	if err != nil {
+		return nil, err
+	}
+	out.NodesTotal = len(nodes)
+	for _, n := range nodes {
+		ds := n.DeriveStatus(now)
+		if ds == "" {
+			ds = n.Status
+		}
+		switch ds {
+		case domain.NodeOnline:
+			out.NodesOnline++
+		case domain.NodePending:
+			out.NodesPending++
+		case domain.NodeOffline:
+			out.NodesOffline++
+		case domain.NodeDisabled:
+			out.NodesDisabled++
+		}
+	}
+
+	// 注册令牌：未撤未用未过期
+	tokens, err := s.tokens.ListByTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	for _, t := range tokens {
+		if t.UsedAt != nil || t.RevokedAt != nil {
+			continue
+		}
+		if !t.ExpiresAt.IsZero() && !t.ExpiresAt.After(now) {
+			continue
+		}
+		out.RegistrationTokensActive++
+	}
+
+	return out, nil
 }

@@ -1,15 +1,8 @@
 <script setup lang="ts">
-// Dashboard —— 登录后的概览页（PR-W5）。
+// Dashboard —— 登录后的概览页（PR-W5；PR-W7 改用 GetStats single-call）。
 //
-// MVP 用现有 list 接口聚合 4 张 KPI 卡：
-//   - 项目数（active）
-//   - 节点总数
-//   - 在线节点数（status=online；handler 已走 DeriveStatus 包过期 demote）
-//   - 活跃注册令牌（未撤、未用、未过期）
-//
-// 30s 自动刷新；Promise.all 并行抓三个 list，单个失败仅 toast 不阻塞其它卡。
-//
-// 后续后端补 SystemService.GetStats 时把这里改成 single-call。
+// 之前 3 个 list 调用客户端聚合 → 一个 GetStats RPC。PA 角色后端拒
+// （SA / Auditor only），UI 静默退化为全 0（不打扰用户）。
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -18,10 +11,7 @@ import { authStore } from '@/store/auth';
 import { useToast } from '@/composables/useToast';
 import { errorMessage } from '@/util/error';
 import { formatRelativeTime } from '@/util/relativeTime';
-import type {
-  Node,
-  RegistrationToken,
-} from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
+import type { GetStatsResponse } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
 
 const router = useRouter();
 const toast = useToast();
@@ -30,74 +20,34 @@ const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const REFRESH_INTERVAL_MS = 30_000;
 
 const loading = ref(false);
-const projectsCount = ref(0);
-const projectsArchived = ref(0);
-const nodes = ref<Node[]>([]);
-const tokens = ref<RegistrationToken[]>([]);
+const stats = ref<GetStatsResponse | null>(null);
 const lastRefreshedAt = ref<number | null>(null);
 
 const nowTick = ref(Date.now());
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 
-const onlineNodes = computed(() => nodes.value.filter((n) => n.status === 'online').length);
-const offlineNodes = computed(() => nodes.value.filter((n) => n.status === 'offline').length);
-const pendingNodes = computed(() => nodes.value.filter((n) => n.status === 'pending').length);
-const disabledNodes = computed(() => nodes.value.filter((n) => n.status === 'disabled').length);
-
-const activeTokens = computed(() => {
-  const now = Date.now();
-  return tokens.value.filter((t) => {
-    if (t.usedAt) return false;
-    if (t.revokedAt) return false;
-    if (t.expiresAt && t.expiresAt.toDate().getTime() < now) return false;
-    return true;
-  }).length;
-});
-
-async function fetchProjects() {
-  try {
-    const r = await tenancyClient.listProjects({
-      tenantId: DEFAULT_TENANT_ID,
-      page: 1,
-      pageSize: 100,
-    });
-    projectsCount.value = r.projects.filter((p) => p.status === 'active').length;
-    projectsArchived.value = r.projects.filter((p) => p.status === 'archived').length;
-  } catch (e) {
-    toast.error('项目数加载失败：' + errorMessage(e));
-  }
-}
-
-async function fetchNodes() {
-  try {
-    const r = await tenancyClient.listNodes({
-      tenantId: DEFAULT_TENANT_ID,
-      page: 1,
-      pageSize: 100,
-    });
-    nodes.value = r.nodes;
-  } catch (e) {
-    toast.error('节点数加载失败：' + errorMessage(e));
-  }
-}
-
-async function fetchTokens() {
-  // PA / 普通 user 后端会拒（SA only），此卡仅对 SA / Auditor 显示
-  if (!authStore.isSuperAdmin() && !authStore.isAuditor()) return;
-  try {
-    const r = await tenancyClient.listRegistrationTokens({ tenantId: DEFAULT_TENANT_ID });
-    tokens.value = r.tokens;
-  } catch (e) {
-    // SA 才能列；忽略 403 不打扰用户
-  }
-}
+// === 派生 KPI（stats 未加载时全 0）===
+const projectsActive    = computed(() => stats.value?.projectsActive ?? 0);
+const projectsArchived  = computed(() => stats.value?.projectsArchived ?? 0);
+const nodesTotal        = computed(() => stats.value?.nodesTotal ?? 0);
+const nodesOnline       = computed(() => stats.value?.nodesOnline ?? 0);
+const nodesPending      = computed(() => stats.value?.nodesPending ?? 0);
+const nodesOffline      = computed(() => stats.value?.nodesOffline ?? 0);
+const nodesDisabled     = computed(() => stats.value?.nodesDisabled ?? 0);
+const activeTokens      = computed(() => stats.value?.registrationTokensActive ?? 0);
 
 async function refresh() {
   loading.value = true;
   try {
-    await Promise.all([fetchProjects(), fetchNodes(), fetchTokens()]);
+    const r = await tenancyClient.getStats({ tenantId: DEFAULT_TENANT_ID });
+    stats.value = r;
     lastRefreshedAt.value = Date.now();
+  } catch (e) {
+    // PA 角色 403 → 静默；其它失败弹 toast
+    if (authStore.isSuperAdmin() || authStore.isAuditor()) {
+      toast.error('概览加载失败：' + errorMessage(e));
+    }
   } finally {
     loading.value = false;
   }
@@ -143,7 +93,7 @@ const lastRefreshLabel = computed(() => {
       <!-- Projects -->
       <button class="card stat" @click="go('/projects')">
         <div class="stat-label">项目</div>
-        <div class="stat-num">{{ projectsCount }}</div>
+        <div class="stat-num">{{ projectsActive }}</div>
         <div class="stat-foot">
           <span v-if="projectsArchived > 0" class="muted">+{{ projectsArchived }} 已归档</span>
           <span v-else class="muted">活跃项目数</span>
@@ -153,11 +103,11 @@ const lastRefreshLabel = computed(() => {
       <!-- Total nodes -->
       <button class="card stat" @click="go('/nodes')">
         <div class="stat-label">节点</div>
-        <div class="stat-num">{{ nodes.length }}</div>
+        <div class="stat-num">{{ nodesTotal }}</div>
         <div class="stat-foot">
-          <span class="badge-mini badge-amber" v-if="pendingNodes > 0">{{ pendingNodes }} pending</span>
-          <span class="badge-mini badge-red" v-if="disabledNodes > 0">{{ disabledNodes }} disabled</span>
-          <span v-if="!pendingNodes && !disabledNodes" class="muted">总注册数</span>
+          <span class="badge-mini badge-amber" v-if="nodesPending > 0">{{ nodesPending }} pending</span>
+          <span class="badge-mini badge-red" v-if="nodesDisabled > 0">{{ nodesDisabled }} disabled</span>
+          <span v-if="!nodesPending && !nodesDisabled" class="muted">总注册数</span>
         </div>
       </button>
 
@@ -165,11 +115,11 @@ const lastRefreshLabel = computed(() => {
       <button class="card stat stat-emphasis" @click="go('/nodes')">
         <div class="stat-label">在线节点</div>
         <div class="stat-num">
-          <span class="dot dot-green stat-dot" v-if="onlineNodes > 0" />
-          {{ onlineNodes }}
+          <span class="dot dot-green stat-dot" v-if="nodesOnline > 0" />
+          {{ nodesOnline }}
         </div>
         <div class="stat-foot">
-          <span v-if="offlineNodes > 0" class="muted">{{ offlineNodes }} 已离线</span>
+          <span v-if="nodesOffline > 0" class="muted">{{ nodesOffline }} 已离线</span>
           <span v-else class="muted">实时心跳</span>
         </div>
       </button>
@@ -191,38 +141,38 @@ const lastRefreshLabel = computed(() => {
     <!-- 节点状态明细 -->
     <div class="card">
       <h2>节点状态分布</h2>
-      <div v-if="nodes.length === 0" class="muted">尚未注册节点。在节点页用 RegistrationToken 接入 Agent 后会显示。</div>
+      <div v-if="nodesTotal === 0" class="muted">尚未注册节点。在节点页用 RegistrationToken 接入 Agent 后会显示。</div>
       <div v-else class="bar">
         <span
-          v-if="onlineNodes > 0"
+          v-if="nodesOnline > 0"
           class="bar-seg seg-green"
-          :style="{ flex: onlineNodes }"
-          :title="`${onlineNodes} online`"
+          :style="{ flex: nodesOnline }"
+          :title="`${nodesOnline} online`"
         />
         <span
-          v-if="pendingNodes > 0"
+          v-if="nodesPending > 0"
           class="bar-seg seg-amber"
-          :style="{ flex: pendingNodes }"
-          :title="`${pendingNodes} pending`"
+          :style="{ flex: nodesPending }"
+          :title="`${nodesPending} pending`"
         />
         <span
-          v-if="offlineNodes > 0"
+          v-if="nodesOffline > 0"
           class="bar-seg seg-gray"
-          :style="{ flex: offlineNodes }"
-          :title="`${offlineNodes} offline`"
+          :style="{ flex: nodesOffline }"
+          :title="`${nodesOffline} offline`"
         />
         <span
-          v-if="disabledNodes > 0"
+          v-if="nodesDisabled > 0"
           class="bar-seg seg-red"
-          :style="{ flex: disabledNodes }"
-          :title="`${disabledNodes} disabled`"
+          :style="{ flex: nodesDisabled }"
+          :title="`${nodesDisabled} disabled`"
         />
       </div>
-      <div v-if="nodes.length > 0" class="legend">
-        <span><span class="dot dot-green" /> online {{ onlineNodes }}</span>
-        <span><span class="dot dot-amber" /> pending {{ pendingNodes }}</span>
-        <span><span class="dot dot-gray" /> offline {{ offlineNodes }}</span>
-        <span><span class="dot dot-red" /> disabled {{ disabledNodes }}</span>
+      <div v-if="nodesTotal > 0" class="legend">
+        <span><span class="dot dot-green" /> online {{ nodesOnline }}</span>
+        <span><span class="dot dot-amber" /> pending {{ nodesPending }}</span>
+        <span><span class="dot dot-gray" /> offline {{ nodesOffline }}</span>
+        <span><span class="dot dot-red" /> disabled {{ nodesDisabled }}</span>
       </div>
     </div>
   </div>

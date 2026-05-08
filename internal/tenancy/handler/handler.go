@@ -603,6 +603,37 @@ func (h *Handler) RedeemRegistrationToken(
 	return connect.NewResponse(out), nil
 }
 
+// GetStats（PR-W7 Dashboard；SA / Auditor only）。
+//
+// 单 RPC 替代客户端聚合；后续可加 server-side cache 减重。
+func (h *Handler) GetStats(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.GetStatsRequest],
+) (*connect.Response[tenancyv1.GetStatsResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, adminAndAuditor...); err != nil {
+		return nil, toConnectError(err)
+	}
+	res, err := h.svc.GetStats(ctx, req.Msg.GetTenantId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	//nolint:gosec // 计数 ≤ 1000 经分页钳制；溢出 int32 不可能
+	return connect.NewResponse(&tenancyv1.GetStatsResponse{
+		ProjectsActive:           int32(res.ProjectsActive),
+		ProjectsArchived:         int32(res.ProjectsArchived),
+		NodesTotal:               int32(res.NodesTotal),
+		NodesOnline:              int32(res.NodesOnline),
+		NodesPending:             int32(res.NodesPending),
+		NodesOffline:             int32(res.NodesOffline),
+		NodesDisabled:            int32(res.NodesDisabled),
+		RegistrationTokensActive: int32(res.RegistrationTokensActive),
+	}), nil
+}
+
 // ListNodeCertificates（PR-W6 节点详情页；SA / Auditor only）。
 func (h *Handler) ListNodeCertificates(
 	ctx context.Context,

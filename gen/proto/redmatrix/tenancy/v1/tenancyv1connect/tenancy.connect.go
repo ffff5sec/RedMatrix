@@ -102,6 +102,8 @@ const (
 	// TenancyServiceListNodeCertificatesProcedure is the fully-qualified name of the TenancyService's
 	// ListNodeCertificates RPC.
 	TenancyServiceListNodeCertificatesProcedure = "/redmatrix.tenancy.v1.TenancyService/ListNodeCertificates"
+	// TenancyServiceGetStatsProcedure is the fully-qualified name of the TenancyService's GetStats RPC.
+	TenancyServiceGetStatsProcedure = "/redmatrix.tenancy.v1.TenancyService/GetStats"
 	// NodeAgentServiceHeartbeatProcedure is the fully-qualified name of the NodeAgentService's
 	// Heartbeat RPC.
 	NodeAgentServiceHeartbeatProcedure = "/redmatrix.tenancy.v1.NodeAgentService/Heartbeat"
@@ -162,6 +164,9 @@ type TenancyServiceClient interface {
 	// ListNodeCertificates 列某节点全部 cert（含已撤 / 已过期），SA / Auditor only。
 	// 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
 	ListNodeCertificates(context.Context, *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error)
+	// GetStats 概览页 KPI 一次拉齐（PR-W7；SA / Auditor only）。
+	// 替代 dashboard 的 list * 3 客户端聚合。
+	GetStats(context.Context, *connect.Request[v1.GetStatsRequest]) (*connect.Response[v1.GetStatsResponse], error)
 }
 
 // NewTenancyServiceClient constructs a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -307,6 +312,12 @@ func NewTenancyServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(tenancyServiceMethods.ByName("ListNodeCertificates")),
 			connect.WithClientOptions(opts...),
 		),
+		getStats: connect.NewClient[v1.GetStatsRequest, v1.GetStatsResponse](
+			httpClient,
+			baseURL+TenancyServiceGetStatsProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("GetStats")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -334,6 +345,7 @@ type tenancyServiceClient struct {
 	revokeRegistrationToken *connect.Client[v1.RevokeRegistrationTokenRequest, v1.RevokeRegistrationTokenResponse]
 	redeemRegistrationToken *connect.Client[v1.RedeemRegistrationTokenRequest, v1.RedeemRegistrationTokenResponse]
 	listNodeCertificates    *connect.Client[v1.ListNodeCertificatesRequest, v1.ListNodeCertificatesResponse]
+	getStats                *connect.Client[v1.GetStatsRequest, v1.GetStatsResponse]
 }
 
 // CreateProject calls redmatrix.tenancy.v1.TenancyService.CreateProject.
@@ -446,6 +458,11 @@ func (c *tenancyServiceClient) ListNodeCertificates(ctx context.Context, req *co
 	return c.listNodeCertificates.CallUnary(ctx, req)
 }
 
+// GetStats calls redmatrix.tenancy.v1.TenancyService.GetStats.
+func (c *tenancyServiceClient) GetStats(ctx context.Context, req *connect.Request[v1.GetStatsRequest]) (*connect.Response[v1.GetStatsResponse], error) {
+	return c.getStats.CallUnary(ctx, req)
+}
+
 // TenancyServiceHandler is an implementation of the redmatrix.tenancy.v1.TenancyService service.
 type TenancyServiceHandler interface {
 	// CreateProject 创建项目（SA only）。name 在租户内唯一。
@@ -498,6 +515,9 @@ type TenancyServiceHandler interface {
 	// ListNodeCertificates 列某节点全部 cert（含已撤 / 已过期），SA / Auditor only。
 	// 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
 	ListNodeCertificates(context.Context, *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error)
+	// GetStats 概览页 KPI 一次拉齐（PR-W7；SA / Auditor only）。
+	// 替代 dashboard 的 list * 3 客户端聚合。
+	GetStats(context.Context, *connect.Request[v1.GetStatsRequest]) (*connect.Response[v1.GetStatsResponse], error)
 }
 
 // NewTenancyServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -639,6 +659,12 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 		connect.WithSchema(tenancyServiceMethods.ByName("ListNodeCertificates")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tenancyServiceGetStatsHandler := connect.NewUnaryHandler(
+		TenancyServiceGetStatsProcedure,
+		svc.GetStats,
+		connect.WithSchema(tenancyServiceMethods.ByName("GetStats")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.TenancyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TenancyServiceCreateProjectProcedure:
@@ -685,6 +711,8 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 			tenancyServiceRedeemRegistrationTokenHandler.ServeHTTP(w, r)
 		case TenancyServiceListNodeCertificatesProcedure:
 			tenancyServiceListNodeCertificatesHandler.ServeHTTP(w, r)
+		case TenancyServiceGetStatsProcedure:
+			tenancyServiceGetStatsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -780,6 +808,10 @@ func (UnimplementedTenancyServiceHandler) RedeemRegistrationToken(context.Contex
 
 func (UnimplementedTenancyServiceHandler) ListNodeCertificates(context.Context, *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.ListNodeCertificates is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) GetStats(context.Context, *connect.Request[v1.GetStatsRequest]) (*connect.Response[v1.GetStatsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.GetStats is not implemented"))
 }
 
 // NodeAgentServiceClient is a client for the redmatrix.tenancy.v1.NodeAgentService service.

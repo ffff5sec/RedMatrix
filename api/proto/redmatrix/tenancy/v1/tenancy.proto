@@ -89,6 +89,10 @@ service TenancyService {
   // ListNodeCertificates 列某节点全部 cert（含已撤 / 已过期），SA / Auditor only。
   // 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
   rpc ListNodeCertificates(ListNodeCertificatesRequest) returns (ListNodeCertificatesResponse);
+
+  // GetStats 概览页 KPI 一次拉齐（PR-W7；SA / Auditor only）。
+  // 替代 dashboard 的 list * 3 客户端聚合。
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
 }
 
 // ===== Project =====
@@ -385,4 +389,22 @@ message ListNodeCertificatesRequest {
 }
 message ListNodeCertificatesResponse {
   repeated NodeCertificate certificates = 1;
+}
+
+// ===== Stats（PR-W7 Dashboard）=====
+
+message GetStatsRequest {
+  // 空 = 默认 tenant；后续多租户开关后让 SA 跨租户。
+  string tenant_id = 1;
+}
+message GetStatsResponse {
+  int32 projects_active = 1;
+  int32 projects_archived = 2;
+  int32 nodes_total = 3;
+  int32 nodes_online = 4;
+  int32 nodes_pending = 5;
+  int32 nodes_offline = 6;
+  int32 nodes_disabled = 7;
+  // 未撤、未用、未过期。
+  int32 registration_tokens_active = 8;
 }

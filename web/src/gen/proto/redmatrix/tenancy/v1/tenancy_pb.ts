@@ -2407,3 +2407,123 @@ export class ListNodeCertificatesResponse extends Message<ListNodeCertificatesRe
   }
 }
 
+/**
+ * @generated from message redmatrix.tenancy.v1.GetStatsRequest
+ */
+export class GetStatsRequest extends Message<GetStatsRequest> {
+  /**
+   * 空 = 默认 tenant；后续多租户开关后让 SA 跨租户。
+   *
+   * @generated from field: string tenant_id = 1;
+   */
+  tenantId = "";
+
+  constructor(data?: PartialMessage<GetStatsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetStatsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetStatsRequest {
+    return new GetStatsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetStatsRequest {
+    return new GetStatsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetStatsRequest {
+    return new GetStatsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetStatsRequest | PlainMessage<GetStatsRequest> | undefined, b: GetStatsRequest | PlainMessage<GetStatsRequest> | undefined): boolean {
+    return proto3.util.equals(GetStatsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.GetStatsResponse
+ */
+export class GetStatsResponse extends Message<GetStatsResponse> {
+  /**
+   * @generated from field: int32 projects_active = 1;
+   */
+  projectsActive = 0;
+
+  /**
+   * @generated from field: int32 projects_archived = 2;
+   */
+  projectsArchived = 0;
+
+  /**
+   * @generated from field: int32 nodes_total = 3;
+   */
+  nodesTotal = 0;
+
+  /**
+   * @generated from field: int32 nodes_online = 4;
+   */
+  nodesOnline = 0;
+
+  /**
+   * @generated from field: int32 nodes_pending = 5;
+   */
+  nodesPending = 0;
+
+  /**
+   * @generated from field: int32 nodes_offline = 6;
+   */
+  nodesOffline = 0;
+
+  /**
+   * @generated from field: int32 nodes_disabled = 7;
+   */
+  nodesDisabled = 0;
+
+  /**
+   * 未撤、未用、未过期。
+   *
+   * @generated from field: int32 registration_tokens_active = 8;
+   */
+  registrationTokensActive = 0;
+
+  constructor(data?: PartialMessage<GetStatsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetStatsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "projects_active", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "projects_archived", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "nodes_total", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "nodes_online", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "nodes_pending", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 6, name: "nodes_offline", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 7, name: "nodes_disabled", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 8, name: "registration_tokens_active", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetStatsResponse {
+    return new GetStatsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetStatsResponse {
+    return new GetStatsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetStatsResponse {
+    return new GetStatsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetStatsResponse | PlainMessage<GetStatsResponse> | undefined, b: GetStatsResponse | PlainMessage<GetStatsResponse> | undefined): boolean {
+    return proto3.util.equals(GetStatsResponse, a, b);
+  }
+}
+

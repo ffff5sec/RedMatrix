@@ -1,0 +1,10 @@
+.git
+.github
+data
+dev
+docs
+web/node_modules
+web/dist
+*.md
+**/*_test.go
+.playwright-mcp

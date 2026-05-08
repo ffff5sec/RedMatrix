@@ -46,9 +46,9 @@ func TestLoop_NilDeps(t *testing.T) {
 
 func TestLoop_FirstFailureAborts(t *testing.T) {
 	l := &Loop{
-		Client:    &stubClient{failFirst: true},
-		Logger:    noopLogger{},
-		Rand:      mathrand.New(mathrand.NewSource(1)),
+		Client: &stubClient{failFirst: true},
+		Logger: noopLogger{},
+		Rand:   mathrand.New(mathrand.NewSource(1)),
 	}
 	err := l.Run(context.Background())
 	require.Error(t, err)

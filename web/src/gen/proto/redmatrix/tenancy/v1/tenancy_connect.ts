@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, HeartbeatRequest, HeartbeatResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, HeartbeatRequest, HeartbeatResponse, ListNodeCertificatesRequest, ListNodeCertificatesResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -251,6 +251,18 @@ export const TenancyService = {
       name: "RedeemRegistrationToken",
       I: RedeemRegistrationTokenRequest,
       O: RedeemRegistrationTokenResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListNodeCertificates 列某节点全部 cert（含已撤 / 已过期），SA / Auditor only。
+     * 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.TenancyService.ListNodeCertificates
+     */
+    listNodeCertificates: {
+      name: "ListNodeCertificates",
+      I: ListNodeCertificatesRequest,
+      O: ListNodeCertificatesResponse,
       kind: MethodKind.Unary,
     },
   }

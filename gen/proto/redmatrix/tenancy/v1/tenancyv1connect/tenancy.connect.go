@@ -99,6 +99,9 @@ const (
 	// TenancyServiceRedeemRegistrationTokenProcedure is the fully-qualified name of the
 	// TenancyService's RedeemRegistrationToken RPC.
 	TenancyServiceRedeemRegistrationTokenProcedure = "/redmatrix.tenancy.v1.TenancyService/RedeemRegistrationToken"
+	// TenancyServiceListNodeCertificatesProcedure is the fully-qualified name of the TenancyService's
+	// ListNodeCertificates RPC.
+	TenancyServiceListNodeCertificatesProcedure = "/redmatrix.tenancy.v1.TenancyService/ListNodeCertificates"
 	// NodeAgentServiceHeartbeatProcedure is the fully-qualified name of the NodeAgentService's
 	// Heartbeat RPC.
 	NodeAgentServiceHeartbeatProcedure = "/redmatrix.tenancy.v1.NodeAgentService/Heartbeat"
@@ -156,6 +159,9 @@ type TenancyServiceClient interface {
 	// RedeemRegistrationToken 真节点首次接入（公开 RPC；plaintext 自身即认证）。
 	// 兑换 → 创建 Node 行（status=pending）+ 单次性消费 token。
 	RedeemRegistrationToken(context.Context, *connect.Request[v1.RedeemRegistrationTokenRequest]) (*connect.Response[v1.RedeemRegistrationTokenResponse], error)
+	// ListNodeCertificates 列某节点全部 cert（含已撤 / 已过期），SA / Auditor only。
+	// 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
+	ListNodeCertificates(context.Context, *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error)
 }
 
 // NewTenancyServiceClient constructs a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -295,6 +301,12 @@ func NewTenancyServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(tenancyServiceMethods.ByName("RedeemRegistrationToken")),
 			connect.WithClientOptions(opts...),
 		),
+		listNodeCertificates: connect.NewClient[v1.ListNodeCertificatesRequest, v1.ListNodeCertificatesResponse](
+			httpClient,
+			baseURL+TenancyServiceListNodeCertificatesProcedure,
+			connect.WithSchema(tenancyServiceMethods.ByName("ListNodeCertificates")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -321,6 +333,7 @@ type tenancyServiceClient struct {
 	listRegistrationTokens  *connect.Client[v1.ListRegistrationTokensRequest, v1.ListRegistrationTokensResponse]
 	revokeRegistrationToken *connect.Client[v1.RevokeRegistrationTokenRequest, v1.RevokeRegistrationTokenResponse]
 	redeemRegistrationToken *connect.Client[v1.RedeemRegistrationTokenRequest, v1.RedeemRegistrationTokenResponse]
+	listNodeCertificates    *connect.Client[v1.ListNodeCertificatesRequest, v1.ListNodeCertificatesResponse]
 }
 
 // CreateProject calls redmatrix.tenancy.v1.TenancyService.CreateProject.
@@ -428,6 +441,11 @@ func (c *tenancyServiceClient) RedeemRegistrationToken(ctx context.Context, req 
 	return c.redeemRegistrationToken.CallUnary(ctx, req)
 }
 
+// ListNodeCertificates calls redmatrix.tenancy.v1.TenancyService.ListNodeCertificates.
+func (c *tenancyServiceClient) ListNodeCertificates(ctx context.Context, req *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error) {
+	return c.listNodeCertificates.CallUnary(ctx, req)
+}
+
 // TenancyServiceHandler is an implementation of the redmatrix.tenancy.v1.TenancyService service.
 type TenancyServiceHandler interface {
 	// CreateProject 创建项目（SA only）。name 在租户内唯一。
@@ -477,6 +495,9 @@ type TenancyServiceHandler interface {
 	// RedeemRegistrationToken 真节点首次接入（公开 RPC；plaintext 自身即认证）。
 	// 兑换 → 创建 Node 行（status=pending）+ 单次性消费 token。
 	RedeemRegistrationToken(context.Context, *connect.Request[v1.RedeemRegistrationTokenRequest]) (*connect.Response[v1.RedeemRegistrationTokenResponse], error)
+	// ListNodeCertificates 列某节点全部 cert（含已撤 / 已过期），SA / Auditor only。
+	// 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
+	ListNodeCertificates(context.Context, *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error)
 }
 
 // NewTenancyServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -612,6 +633,12 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 		connect.WithSchema(tenancyServiceMethods.ByName("RedeemRegistrationToken")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tenancyServiceListNodeCertificatesHandler := connect.NewUnaryHandler(
+		TenancyServiceListNodeCertificatesProcedure,
+		svc.ListNodeCertificates,
+		connect.WithSchema(tenancyServiceMethods.ByName("ListNodeCertificates")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.TenancyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TenancyServiceCreateProjectProcedure:
@@ -656,6 +683,8 @@ func NewTenancyServiceHandler(svc TenancyServiceHandler, opts ...connect.Handler
 			tenancyServiceRevokeRegistrationTokenHandler.ServeHTTP(w, r)
 		case TenancyServiceRedeemRegistrationTokenProcedure:
 			tenancyServiceRedeemRegistrationTokenHandler.ServeHTTP(w, r)
+		case TenancyServiceListNodeCertificatesProcedure:
+			tenancyServiceListNodeCertificatesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -747,6 +776,10 @@ func (UnimplementedTenancyServiceHandler) RevokeRegistrationToken(context.Contex
 
 func (UnimplementedTenancyServiceHandler) RedeemRegistrationToken(context.Context, *connect.Request[v1.RedeemRegistrationTokenRequest]) (*connect.Response[v1.RedeemRegistrationTokenResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.RedeemRegistrationToken is not implemented"))
+}
+
+func (UnimplementedTenancyServiceHandler) ListNodeCertificates(context.Context, *connect.Request[v1.ListNodeCertificatesRequest]) (*connect.Response[v1.ListNodeCertificatesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.TenancyService.ListNodeCertificates is not implemented"))
 }
 
 // NodeAgentServiceClient is a client for the redmatrix.tenancy.v1.NodeAgentService service.

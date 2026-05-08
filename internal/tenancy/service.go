@@ -111,6 +111,10 @@ type Service interface {
 	// 不 revoke 旧 cert——agent 落新 cert 后旧 cert 自然过期。
 	// 错码：node 不存在 / disabled / 软删 → ErrNodeNotFound；CA 未注 → ErrInternal。
 	ReissueCert(ctx context.Context, req ReissueCertRequest) (*ReissueCertResult, error)
+
+	// ListCertsByNode（PR-W6 节点详情页）：列某节点全部 cert（含已撤 / 已过期）。
+	// 不返回 PEM 内容，只回元数据。SA / Auditor 调；handler 层加角色守卫。
+	ListCertsByNode(ctx context.Context, nodeID string) ([]*domain.NodeCertificate, error)
 }
 
 // CreateProjectRequest 入参。
@@ -892,4 +896,18 @@ func (s *service) ReissueCert(ctx context.Context, req ReissueCertRequest) (*Rei
 		Fingerprint:   bundle.Fingerprint,
 		CertExpiresAt: bundle.CertExpiresAt,
 	}, nil
+}
+
+// ListCertsByNode（PR-W6）—— 列节点 cert 历史；node 不存在 → ErrNodeNotFound 透传。
+//
+// 不查 disabled / 软删 状态：审计场景需要看历史 cert。
+func (s *service) ListCertsByNode(ctx context.Context, nodeID string) ([]*domain.NodeCertificate, error) {
+	if strings.TrimSpace(nodeID) == "" {
+		return nil, errx.New(errx.ErrInvalidInput, "list certs 缺 node_id")
+	}
+	if s.certs == nil {
+		return nil, errx.New(errx.ErrInternal, "service: cert repo 未注")
+	}
+	// node 是否存在 / 软删 都不挡：审计需要看历史
+	return s.certs.ListByNode(ctx, nodeID)
 }

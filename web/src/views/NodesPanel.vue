@@ -349,7 +349,9 @@ function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
         </thead>
         <tbody>
           <tr v-for="n in nodes" :key="n.id">
-            <td>{{ n.name }}</td>
+            <td>
+              <router-link :to="`/nodes/${n.id}`" class="node-link">{{ n.name }}</router-link>
+            </td>
             <td class="muted">{{ n.version || '-' }}</td>
             <td>
               <code v-if="n.capabilities.length > 0">{{ n.capabilities.join(', ') }}</code>
@@ -464,6 +466,14 @@ function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
   gap: 6px;
   font-size: 12px;
   color: var(--muted, #6b7280);
+}
+
+.node-link {
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+}
+.node-link:hover {
+  text-decoration: underline;
 }
 
 .live-indicator.pulsing .dot-green {

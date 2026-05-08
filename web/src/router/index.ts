@@ -23,6 +23,7 @@ import AppShell from '@/layouts/AppShell.vue';
 import LoginPanel from '@/views/LoginPanel.vue';
 import Dashboard from '@/views/Dashboard.vue';
 import ProfilePanel from '@/views/ProfilePanel.vue';
+import NodeDetail from '@/views/NodeDetail.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
 import ProjectsPanel from '@/views/ProjectsPanel.vue';
 import NodesPanel from '@/views/NodesPanel.vue';
@@ -87,6 +88,12 @@ const routes: RouteRecordRaw[] = [
         name: 'nodes',
         component: NodesPanel,
         meta: { requiresAuth: true, requiresRoles: adminAndAuditors, title: '节点' },
+      },
+      {
+        path: 'nodes/:id',
+        name: 'node-detail',
+        component: NodeDetail,
+        meta: { requiresAuth: true, requiresRoles: adminAndAuditors, title: '节点详情' },
       },
       {
         path: 'users',

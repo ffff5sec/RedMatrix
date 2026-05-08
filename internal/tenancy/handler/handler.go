@@ -603,6 +603,31 @@ func (h *Handler) RedeemRegistrationToken(
 	return connect.NewResponse(out), nil
 }
 
+// ListNodeCertificates（PR-W6 节点详情页；SA / Auditor only）。
+func (h *Handler) ListNodeCertificates(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.ListNodeCertificatesRequest],
+) (*connect.Response[tenancyv1.ListNodeCertificatesResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, adminAndAuditor...); err != nil {
+		return nil, toConnectError(err)
+	}
+	certs, err := h.svc.ListCertsByNode(ctx, req.Msg.GetNodeId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	out := make([]*tenancyv1.NodeCertificate, 0, len(certs))
+	for _, c := range certs {
+		out = append(out, nodeCertToProto(c))
+	}
+	return connect.NewResponse(&tenancyv1.ListNodeCertificatesResponse{
+		Certificates: out,
+	}), nil
+}
+
 // === conv ===
 
 func projectToProto(p *tenancydomain.Project) *tenancyv1.Project {
@@ -648,6 +673,27 @@ func nodeToProto(n *tenancydomain.Node) *tenancyv1.Node {
 	}
 	if n.LastSeenAt != nil {
 		out.LastSeenAt = timestamppb.New(*n.LastSeenAt)
+	}
+	return out
+}
+
+func nodeCertToProto(c *tenancydomain.NodeCertificate) *tenancyv1.NodeCertificate {
+	if c == nil {
+		return nil
+	}
+	out := &tenancyv1.NodeCertificate{
+		Id:            c.ID,
+		NodeId:        c.NodeID,
+		SerialNumber:  c.SerialNumber,
+		Fingerprint:   c.Fingerprint,
+		CommonName:    c.CommonName,
+		IssuedAt:      timestamppb.New(c.IssuedAt),
+		ExpiresAt:     timestamppb.New(c.ExpiresAt),
+		IssuedByToken: c.IssuedByToken,
+		CreatedAt:     timestamppb.New(c.CreatedAt),
+	}
+	if c.RevokedAt != nil {
+		out.RevokedAt = timestamppb.New(*c.RevokedAt)
 	}
 	return out
 }

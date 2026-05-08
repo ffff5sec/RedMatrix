@@ -85,6 +85,10 @@ service TenancyService {
   // RedeemRegistrationToken 真节点首次接入（公开 RPC；plaintext 自身即认证）。
   // 兑换 → 创建 Node 行（status=pending）+ 单次性消费 token。
   rpc RedeemRegistrationToken(RedeemRegistrationTokenRequest) returns (RedeemRegistrationTokenResponse);
+
+  // ListNodeCertificates 列某节点全部 cert（含已撤 / 已过期），SA / Auditor only。
+  // 用于节点详情页展示续期历史 / 指纹审计（PR-W6）。
+  rpc ListNodeCertificates(ListNodeCertificatesRequest) returns (ListNodeCertificatesResponse);
 }
 
 // ===== Project =====
@@ -357,4 +361,28 @@ message ReissueCertResponse {
   string fingerprint = 4;
   // RFC3339；下次续期参考。
   string cert_expires_at = 5;
+}
+
+// ===== NodeCertificate（PR-W6 节点详情页）=====
+
+// NodeCertificate 为审计 / 详情页展示而暴露的 cert 元数据；不含 PEM / private key。
+message NodeCertificate {
+  string id = 1;
+  string node_id = 2;
+  string serial_number = 3;
+  string fingerprint = 4; // SHA-256(DER) hex 64 char
+  string common_name = 5;
+  google.protobuf.Timestamp issued_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  optional google.protobuf.Timestamp revoked_at = 8;
+  // 关联的 RegistrationToken UUID（reissue 时为空）；空 = 续期签发或非令牌路径。
+  string issued_by_token = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListNodeCertificatesRequest {
+  string node_id = 1;
+}
+message ListNodeCertificatesResponse {
+  repeated NodeCertificate certificates = 1;
 }

@@ -2236,3 +2236,174 @@ export class ReissueCertResponse extends Message<ReissueCertResponse> {
   }
 }
 
+/**
+ * NodeCertificate 为审计 / 详情页展示而暴露的 cert 元数据；不含 PEM / private key。
+ *
+ * @generated from message redmatrix.tenancy.v1.NodeCertificate
+ */
+export class NodeCertificate extends Message<NodeCertificate> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string node_id = 2;
+   */
+  nodeId = "";
+
+  /**
+   * @generated from field: string serial_number = 3;
+   */
+  serialNumber = "";
+
+  /**
+   * SHA-256(DER) hex 64 char
+   *
+   * @generated from field: string fingerprint = 4;
+   */
+  fingerprint = "";
+
+  /**
+   * @generated from field: string common_name = 5;
+   */
+  commonName = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp issued_at = 6;
+   */
+  issuedAt?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 7;
+   */
+  expiresAt?: Timestamp;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp revoked_at = 8;
+   */
+  revokedAt?: Timestamp;
+
+  /**
+   * 关联的 RegistrationToken UUID（reissue 时为空）；空 = 续期签发或非令牌路径。
+   *
+   * @generated from field: string issued_by_token = 9;
+   */
+  issuedByToken = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 10;
+   */
+  createdAt?: Timestamp;
+
+  constructor(data?: PartialMessage<NodeCertificate>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.NodeCertificate";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "node_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "serial_number", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "fingerprint", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "common_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "issued_at", kind: "message", T: Timestamp },
+    { no: 7, name: "expires_at", kind: "message", T: Timestamp },
+    { no: 8, name: "revoked_at", kind: "message", T: Timestamp, opt: true },
+    { no: 9, name: "issued_by_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "created_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): NodeCertificate {
+    return new NodeCertificate().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): NodeCertificate {
+    return new NodeCertificate().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): NodeCertificate {
+    return new NodeCertificate().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: NodeCertificate | PlainMessage<NodeCertificate> | undefined, b: NodeCertificate | PlainMessage<NodeCertificate> | undefined): boolean {
+    return proto3.util.equals(NodeCertificate, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListNodeCertificatesRequest
+ */
+export class ListNodeCertificatesRequest extends Message<ListNodeCertificatesRequest> {
+  /**
+   * @generated from field: string node_id = 1;
+   */
+  nodeId = "";
+
+  constructor(data?: PartialMessage<ListNodeCertificatesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListNodeCertificatesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "node_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListNodeCertificatesRequest {
+    return new ListNodeCertificatesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListNodeCertificatesRequest {
+    return new ListNodeCertificatesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListNodeCertificatesRequest {
+    return new ListNodeCertificatesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListNodeCertificatesRequest | PlainMessage<ListNodeCertificatesRequest> | undefined, b: ListNodeCertificatesRequest | PlainMessage<ListNodeCertificatesRequest> | undefined): boolean {
+    return proto3.util.equals(ListNodeCertificatesRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListNodeCertificatesResponse
+ */
+export class ListNodeCertificatesResponse extends Message<ListNodeCertificatesResponse> {
+  /**
+   * @generated from field: repeated redmatrix.tenancy.v1.NodeCertificate certificates = 1;
+   */
+  certificates: NodeCertificate[] = [];
+
+  constructor(data?: PartialMessage<ListNodeCertificatesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListNodeCertificatesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "certificates", kind: "message", T: NodeCertificate, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListNodeCertificatesResponse {
+    return new ListNodeCertificatesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListNodeCertificatesResponse {
+    return new ListNodeCertificatesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListNodeCertificatesResponse {
+    return new ListNodeCertificatesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListNodeCertificatesResponse | PlainMessage<ListNodeCertificatesResponse> | undefined, b: ListNodeCertificatesResponse | PlainMessage<ListNodeCertificatesResponse> | undefined): boolean {
+    return proto3.util.equals(ListNodeCertificatesResponse, a, b);
+  }
+}
+

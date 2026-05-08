@@ -2,20 +2,20 @@
 import { ref, onMounted } from 'vue';
 import { identityClient } from '@/api/transport';
 import { errorMessage } from '@/util/error';
+import { useToast } from '@/composables/useToast';
 import type { APIKey } from '@/gen/proto/redmatrix/identity/v1/identity_pb';
 
+const toast = useToast();
 const keys = ref<APIKey[]>([]);
 const loading = ref(false);
-const errMsg = ref('');
 
 async function refresh() {
   loading.value = true;
-  errMsg.value = '';
   try {
     const r = await identityClient.listAPIKeys({});
     keys.value = r.keys;
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     loading.value = false;
   }
@@ -34,7 +34,6 @@ const lastSecret = ref('');
 async function create() {
   if (submitting.value) return;
   submitting.value = true;
-  errMsg.value = '';
   try {
     const scopes = newScopes.value
       .split(',')
@@ -45,12 +44,13 @@ async function create() {
       scopes,
     });
     lastSecret.value = r.secret;
+    toast.success(`API Key ${newName.value} 已创建（plaintext 仅显示一次）`);
     newName.value = '';
     newScopes.value = '';
     showCreate.value = false;
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     submitting.value = false;
   }
@@ -58,17 +58,18 @@ async function create() {
 
 async function revoke(id: string) {
   if (!confirm('确认撤销此 API Key？此操作不可撤销。')) return;
-  errMsg.value = '';
   try {
     await identityClient.revokeAPIKey({ id });
+    toast.warning('API Key 已撤销');
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
 function copyText(s: string) {
   navigator.clipboard?.writeText(s);
+  toast.info('已复制到剪贴板');
 }
 
 function fmt(t?: { toDate(): Date }) {
@@ -93,8 +94,6 @@ function statusOf(revokedAt?: { toDate(): Date }, expiresAt?: { toDate(): Date }
         <button class="primary" @click="showCreate = true">创建 API Key</button>
       </div>
     </div>
-
-    <div v-if="errMsg" class="error">{{ errMsg }}</div>
 
     <div v-if="lastSecret" class="info">
       <strong>新 API Key 已创建（仅本次显示）：</strong>

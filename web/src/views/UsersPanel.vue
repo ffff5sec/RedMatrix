@@ -3,8 +3,10 @@ import { ref, onMounted } from 'vue';
 import { identityClient } from '@/api/transport';
 import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
+import { useToast } from '@/composables/useToast';
 import type { User } from '@/gen/proto/redmatrix/identity/v1/identity_pb';
 
+const toast = useToast();
 const users = ref<User[]>([]);
 const total = ref(0);
 const page = ref(1);
@@ -14,12 +16,9 @@ const filterRole = ref('');
 const filterKeyword = ref('');
 
 const loading = ref(false);
-const errMsg = ref('');
-const successMsg = ref('');
 
 async function refresh() {
   loading.value = true;
-  errMsg.value = '';
   try {
     const r = await identityClient.listUsers({
       status: filterStatus.value || undefined,
@@ -31,7 +30,7 @@ async function refresh() {
     users.value = r.users;
     total.value = r.total;
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     loading.value = false;
   }
@@ -78,7 +77,6 @@ function onRoleChange() {
 async function create() {
   if (submitting.value) return;
   submitting.value = true;
-  errMsg.value = '';
   try {
     const r = await identityClient.createUser({
       username: newU.value.username,
@@ -91,11 +89,12 @@ async function create() {
       username: r.user?.username ?? newU.value.username,
       password: r.temporaryPassword,
     };
+    toast.success(`用户 ${lastTempPwd.value.username} 已创建（临时密码下方一次性显示）`);
     showCreate.value = false;
     resetCreate();
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     submitting.value = false;
   }
@@ -103,47 +102,44 @@ async function create() {
 
 // === per-row 操作 ===
 async function enable(id: string) {
-  errMsg.value = '';
   try {
     await identityClient.enableUser({ id });
-    successMsg.value = '已启用';
+    toast.success('已启用');
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
 async function disable(id: string) {
   if (!confirm('确认禁用？该用户所有 JWT 立即失效')) return;
-  errMsg.value = '';
   try {
     await identityClient.disableUser({ id });
-    successMsg.value = '已禁用 + token_version+1';
+    toast.warning('已禁用 + token_version+1');
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
 async function resetPwd(id: string, username: string) {
   if (!confirm('为 ' + username + ' 生成新临时密码？该用户当前 JWT 会失效。')) return;
-  errMsg.value = '';
   try {
     const r = await identityClient.resetPassword({ id });
     lastTempPwd.value = { username, password: r.temporaryPassword };
+    toast.warning(`${username} 临时密码已生成（一次性显示）`);
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
 async function forceLogout(id: string, username: string) {
   if (!confirm('强制登出 ' + username + '？该用户所有 JWT 立即失效（密码不变）。')) return;
-  errMsg.value = '';
   try {
     await identityClient.forceLogout({ id });
-    successMsg.value = `${username} token_version+1`;
+    toast.warning(`${username} token_version+1`);
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
@@ -151,6 +147,7 @@ const totalPages = () => Math.max(1, Math.ceil(total.value / pageSize.value));
 
 function copyText(s: string) {
   navigator.clipboard?.writeText(s);
+  toast.info('已复制到剪贴板');
 }
 </script>
 
@@ -186,9 +183,6 @@ function copyText(s: string) {
           创建用户
         </button>
       </div>
-
-      <div v-if="errMsg" class="error">{{ errMsg }}</div>
-      <div v-if="successMsg" class="success">{{ successMsg }}</div>
 
       <div v-if="lastTempPwd" class="info">
         <strong>临时密码（仅本次显示）·{{ lastTempPwd.username }}：</strong>

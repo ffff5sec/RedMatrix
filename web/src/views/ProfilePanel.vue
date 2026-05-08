@@ -3,23 +3,22 @@ import { ref, onMounted } from 'vue';
 import { identityClient } from '@/api/transport';
 import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
+import { useToast } from '@/composables/useToast';
 import type { User } from '@/gen/proto/redmatrix/identity/v1/identity_pb';
 
 const emit = defineEmits<{ (e: 'loggedOut'): void }>();
+const toast = useToast();
 
 const user = ref<User | null>(null);
 const loading = ref(false);
-const errMsg = ref('');
-const successMsg = ref('');
 
 async function refresh() {
   loading.value = true;
-  errMsg.value = '';
   try {
     const r = await identityClient.getCurrentUser({});
     user.value = r.user ?? null;
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     loading.value = false;
   }
@@ -36,20 +35,18 @@ const cpSubmitting = ref(false);
 async function changePwd() {
   if (cpSubmitting.value) return;
   cpSubmitting.value = true;
-  errMsg.value = '';
-  successMsg.value = '';
   try {
     await identityClient.changePassword({
       currentPassword: cur.value,
       newPassword: nw.value,
     });
-    successMsg.value = '改密成功；JWT 已失效，下次操作会自动登出。';
+    toast.success('改密成功；JWT 已失效，下次操作会自动登出。');
     showChangePwd.value = false;
     cur.value = '';
     nw.value = '';
     // 改密后旧 JWT 失效；下次任何 RPC 触发 watchdog 清 token
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     cpSubmitting.value = false;
   }
@@ -58,27 +55,24 @@ async function changePwd() {
 // === Logout / LogoutAllSessions ===
 
 async function logout() {
-  errMsg.value = '';
   try {
     await identityClient.logout({});
   } catch (e) {
     // 仍清本地，避免登出后留死 token
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
   authStore.clear();
   emit('loggedOut');
 }
 
 async function logoutAll() {
-  errMsg.value = '';
-  successMsg.value = '';
   try {
     await identityClient.logoutAllSessions({});
-    successMsg.value = '已请求登出全部会话；本会话也将失效。';
+    toast.warning('已请求登出全部会话；本会话也将失效。');
     authStore.clear();
     emit('loggedOut');
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 </script>
@@ -87,8 +81,6 @@ async function logoutAll() {
   <div class="card">
     <h2>当前用户</h2>
     <button :disabled="loading" @click="refresh">{{ loading ? '加载中…' : '刷新 GetCurrentUser' }}</button>
-    <div v-if="errMsg" class="error">{{ errMsg }}</div>
-    <div v-if="successMsg" class="success">{{ successMsg }}</div>
 
     <div v-if="user" class="stack" style="margin-top: 12px">
       <div class="row"><span class="label">ID</span><code>{{ user.id }}</code></div>

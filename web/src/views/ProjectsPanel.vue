@@ -3,11 +3,13 @@ import { ref, onMounted } from 'vue';
 import { tenancyClient, identityClient } from '@/api/transport';
 import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
+import { useToast } from '@/composables/useToast';
 import type { Project, ProjectMember, Node } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
 import type { User } from '@/gen/proto/redmatrix/identity/v1/identity_pb';
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
+const toast = useToast();
 const projects = ref<Project[]>([]);
 const total = ref(0);
 const page = ref(1);
@@ -16,12 +18,9 @@ const filterStatus = ref('');
 const filterKeyword = ref('');
 
 const loading = ref(false);
-const errMsg = ref('');
-const successMsg = ref('');
 
 async function refresh() {
   loading.value = true;
-  errMsg.value = '';
   try {
     // PA 时后端按 principal.UserID 自动过滤；前端传 tenant_id 即可。
     const r = await tenancyClient.listProjects({
@@ -34,7 +33,7 @@ async function refresh() {
     projects.value = r.projects;
     total.value = r.total;
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     loading.value = false;
   }
@@ -50,7 +49,6 @@ const submitting = ref(false);
 async function create() {
   if (submitting.value) return;
   submitting.value = true;
-  errMsg.value = '';
   try {
     await tenancyClient.createProject({
       tenantId: DEFAULT_TENANT_ID,
@@ -58,11 +56,12 @@ async function create() {
       description: newP.value.description,
     });
     showCreate.value = false;
+    const created = newP.value.name;
     newP.value = { name: '', description: '' };
-    successMsg.value = '项目已创建';
+    toast.success(`项目 ${created} 已创建`);
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     submitting.value = false;
   }
@@ -72,36 +71,33 @@ async function create() {
 
 async function archive(id: string, name: string) {
   if (!confirm(`归档项目 ${name}？归档后不可修改，可解除归档。`)) return;
-  errMsg.value = '';
   try {
     await tenancyClient.archiveProject({ id });
-    successMsg.value = `${name} 已归档`;
+    toast.warning(`${name} 已归档`);
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
 async function unarchive(id: string, name: string) {
-  errMsg.value = '';
   try {
     await tenancyClient.unarchiveProject({ id });
-    successMsg.value = `${name} 已恢复`;
+    toast.success(`${name} 已恢复`);
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
 async function del(id: string, name: string) {
   if (!confirm(`删除项目 ${name}？该操作不可撤销（MVP 软删，名称可重新使用）。`)) return;
-  errMsg.value = '';
   try {
     await tenancyClient.deleteProject({ id });
-    successMsg.value = `${name} 已删除`;
+    toast.success(`${name} 已删除`);
     await refresh();
   } catch (e) {
-    errMsg.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
@@ -118,11 +114,9 @@ const members = ref<ProjectMember[]>([]);
 const eligibleUsers = ref<User[]>([]); // 同 tenant 下的 PROJECT_ADMIN
 const usernameByID = ref<Record<string, string>>({});
 const memberLoading = ref(false);
-const memberErr = ref('');
 
 async function openMembers(id: string, name: string) {
   memberModalProject.value = { id, name };
-  memberErr.value = '';
   memberLoading.value = true;
   try {
     const [mList, uList] = await Promise.all([
@@ -135,7 +129,7 @@ async function openMembers(id: string, name: string) {
     for (const u of uList.users) byID[u.id] = u.username;
     usernameByID.value = byID;
   } catch (e) {
-    memberErr.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     memberLoading.value = false;
   }
@@ -152,31 +146,31 @@ const selectedUserToAdd = ref('');
 
 async function addMember() {
   if (!memberModalProject.value || !selectedUserToAdd.value) return;
-  memberErr.value = '';
   try {
     await tenancyClient.addProjectMember({
       projectId: memberModalProject.value.id,
       userId: selectedUserToAdd.value,
     });
+    toast.success('成员已添加');
     selectedUserToAdd.value = '';
     await openMembers(memberModalProject.value.id, memberModalProject.value.name);
   } catch (e) {
-    memberErr.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
 async function removeMember(userID: string, username: string) {
   if (!memberModalProject.value) return;
   if (!confirm(`将 ${username} 从 ${memberModalProject.value.name} 移除？`)) return;
-  memberErr.value = '';
   try {
     await tenancyClient.removeProjectMember({
       projectId: memberModalProject.value.id,
       userId: userID,
     });
+    toast.warning(`${username} 已移除`);
     await openMembers(memberModalProject.value.id, memberModalProject.value.name);
   } catch (e) {
-    memberErr.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 
@@ -188,11 +182,9 @@ const allowedNodeIDs = ref<Set<string>>(new Set());
 const availableNodes = ref<Node[]>([]);
 const nodeNameByID = ref<Record<string, string>>({});
 const nodesLoading = ref(false);
-const nodesErr = ref('');
 
 async function openAllowedNodes(id: string, name: string) {
   nodesModalProject.value = { id, name };
-  nodesErr.value = '';
   nodesLoading.value = true;
   try {
     const [allowedRes, nodesRes] = await Promise.all([
@@ -208,7 +200,7 @@ async function openAllowedNodes(id: string, name: string) {
     for (const n of nodesRes.nodes) byID[n.id] = n.name;
     nodeNameByID.value = byID;
   } catch (e) {
-    nodesErr.value = errorMessage(e);
+    toast.error(errorMessage(e));
   } finally {
     nodesLoading.value = false;
   }
@@ -240,17 +232,16 @@ function resetToAllNodes() {
 
 async function saveAllowedNodes() {
   if (!nodesModalProject.value) return;
-  nodesErr.value = '';
   try {
     const ids = allowedAllNodes.value ? [] : Array.from(allowedNodeIDs.value);
     await tenancyClient.setProjectAllowedNodes({
       projectId: nodesModalProject.value.id,
       nodeIds: ids,
     });
-    successMsg.value = '可用节点已更新';
+    toast.success('可用节点已更新');
     closeAllowedNodes();
   } catch (e) {
-    nodesErr.value = errorMessage(e);
+    toast.error(errorMessage(e));
   }
 }
 </script>
@@ -280,9 +271,6 @@ async function saveAllowedNodes() {
           新建项目
         </button>
       </div>
-
-      <div v-if="errMsg" class="error">{{ errMsg }}</div>
-      <div v-if="successMsg" class="success">{{ successMsg }}</div>
 
       <table>
         <thead>
@@ -348,7 +336,6 @@ async function saveAllowedNodes() {
           <h2>项目成员 · {{ memberModalProject.name }}</h2>
           <button @click="closeMembers">关闭</button>
         </div>
-        <div v-if="memberErr" class="error">{{ memberErr }}</div>
         <p v-if="memberLoading" class="muted">加载中…</p>
 
         <table v-else>
@@ -401,7 +388,6 @@ async function saveAllowedNodes() {
           <h2>可用节点 · {{ nodesModalProject.name }}</h2>
           <button @click="closeAllowedNodes">关闭</button>
         </div>
-        <div v-if="nodesErr" class="error">{{ nodesErr }}</div>
         <p v-if="nodesLoading" class="muted">加载中…</p>
 
         <div v-else>

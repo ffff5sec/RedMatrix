@@ -20,11 +20,12 @@
 //     这里不 import client，复用 store.clear() + push /login（与
 //     ProfilePanel 行为等价；服务端 session 由后端 TTL 自然过期）
 import { computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { authStore } from '@/store/auth';
 
 const router = useRouter();
+const route = useRoute();
 
 interface NavItem {
   name: string; // route name
@@ -73,8 +74,14 @@ function logout() {
       </nav>
 
       <main class="content">
+        <!-- 仅 ProfilePanel emit logged-out；用动态 prop 名让其它 panel
+             不收到该 listener，避免 Vue 把 unknown listener 警告刷在控制台 -->
         <router-view v-slot="{ Component }">
-          <component :is="Component" v-if="Component" @logged-out="logout" />
+          <component
+            :is="Component"
+            v-if="Component"
+            v-bind="route.name === 'profile' ? { onLoggedOut: logout } : {}"
+          />
         </router-view>
       </main>
     </div>

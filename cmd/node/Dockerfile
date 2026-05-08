@@ -24,6 +24,11 @@ FROM golang:1.25.10-alpine AS build
 WORKDIR /src
 RUN apk add --no-cache git
 
+# GOPROXY：默认走官方；构建主机在墙内可 ARG 覆盖：
+#   docker build --build-arg GOPROXY=https://goproxy.cn,direct ...
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
+
 # go mod cache 友好：先拷依赖文件
 COPY go.mod go.sum ./
 RUN go mod download

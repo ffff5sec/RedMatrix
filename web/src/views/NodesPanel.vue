@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { tenancyClient } from '@/api/transport';
 import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
+import { formatRelativeTime, formatAbsoluteTime } from '@/util/relativeTime';
 import type { Node, RegistrationToken } from '@/gen/proto/redmatrix/tenancy/v1/tenancy_pb';
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -39,6 +40,28 @@ async function refresh() {
 }
 
 onMounted(refresh);
+
+// === 自动刷新（节点活性视图）===
+//
+// MVP：固定 30s 轮询。后端 Heartbeat 默认 30s，这里同频抓 List 即可看到状态切换。
+// 更精细要：可选用户暂停 + 服务端 SSE / WebSocket 推送（PR-W4 之后再说）。
+const REFRESH_INTERVAL_MS = 30_000;
+const nowTick = ref(Date.now());
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+
+onMounted(() => {
+  refreshTimer = setInterval(refresh, REFRESH_INTERVAL_MS);
+  // 1s tick 让"X 秒前"持续刷新（避免 30s 跳跃感）
+  tickTimer = setInterval(() => {
+    nowTick.value = Date.now();
+  }, 1_000);
+});
+
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer);
+  if (tickTimer) clearInterval(tickTimer);
+});
 
 // === Create ===
 const showCreate = ref(false);
@@ -118,6 +141,17 @@ function statusBadge(s: string) {
     case 'pending': return 'amber';
     case 'offline': return 'amber';
     case 'disabled': return 'red';
+    default: return '';
+  }
+}
+
+// 节点活性指示点：online=绿、pending=黄、offline=灰、disabled=红
+function statusDot(s: string) {
+  switch (s) {
+    case 'online': return 'dot-green';
+    case 'pending': return 'dot-amber';
+    case 'offline': return 'dot-gray';
+    case 'disabled': return 'dot-red';
     default: return '';
   }
 }
@@ -282,7 +316,13 @@ function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
     </div>
 
     <div class="card">
-      <h2>节点</h2>
+      <div class="row" style="justify-content: space-between; align-items: baseline">
+        <h2>节点</h2>
+        <span class="live-indicator" :class="{ pulsing: !loading }" :title="`每 ${REFRESH_INTERVAL_MS / 1000}s 自动刷新`">
+          <span class="dot dot-green" />
+          实时 · {{ REFRESH_INTERVAL_MS / 1000 }}s
+        </span>
+      </div>
       <div class="row">
         <select v-model="filterStatus" :disabled="loading">
           <option value="">所有状态</option>
@@ -327,9 +367,21 @@ function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
               <span v-else class="muted">-</span>
             </td>
             <td>
-              <span class="badge" :class="statusBadge(n.status)">{{ n.status }}</span>
+              <span class="status-cell">
+                <span class="dot" :class="statusDot(n.status)" />
+                <span class="badge" :class="statusBadge(n.status)">{{ n.status }}</span>
+              </span>
             </td>
-            <td class="muted">{{ fmt(n.lastSeenAt) }}</td>
+            <td>
+              <span
+                v-if="n.lastSeenAt"
+                :title="formatAbsoluteTime(n.lastSeenAt)"
+                :class="n.status === 'online' ? '' : 'muted'"
+              >
+                {{ formatRelativeTime(n.lastSeenAt, nowTick) }}
+              </span>
+              <span v-else class="muted">从未上报</span>
+            </td>
             <td class="muted">{{ fmt(n.createdAt) }}</td>
             <td v-if="authStore.isSuperAdmin()">
               <div class="row" style="gap: 4px">
@@ -396,3 +448,41 @@ function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
     </div>
   </template>
 </template>
+
+<style scoped>
+.status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-green { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16); }
+.dot-amber { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18); }
+.dot-gray  { background: #9ca3af; }
+.dot-red   { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18); }
+
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+}
+
+.live-indicator.pulsing .dot-green {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16); }
+  50%      { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.04); }
+}
+</style>

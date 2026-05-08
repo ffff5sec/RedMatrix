@@ -629,13 +629,19 @@ func nodeToProto(n *tenancydomain.Node) *tenancyv1.Node {
 	if n == nil {
 		return nil
 	}
+	// Status 走 DeriveStatus(now)：让"持久化 online + 心跳过期"的行
+	// 在读路径自然展示成 offline，无需依赖周期 sweeper。
+	displayStatus := n.DeriveStatus(time.Now())
+	if displayStatus == "" {
+		displayStatus = n.Status
+	}
 	out := &tenancyv1.Node{
 		Id:           n.ID,
 		TenantId:     n.TenantID,
 		Name:         n.Name,
 		Version:      n.Version,
 		Capabilities: append([]string(nil), n.Capabilities...),
-		Status:       string(n.Status),
+		Status:       string(displayStatus),
 		CreatedBy:    n.CreatedBy,
 		CreatedAt:    timestamppb.New(n.CreatedAt),
 		UpdatedAt:    timestamppb.New(n.UpdatedAt),

@@ -70,7 +70,9 @@ func buildScanMount(
 	if err != nil {
 		return nil, nil, err
 	}
-	h, err := scanhandler.New(svc, authSvc)
+	// PR-S7：PA SearchResults 路径要查用户加入的项目；复用 tenancy member repo
+	memberDB := tenancyrepo.NewProjectMemberPG(pool.App)
+	h, err := scanhandler.New(svc, authSvc, memberDB)
 	if err != nil {
 		return nil, nil, err
 	}

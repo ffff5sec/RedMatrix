@@ -16,6 +16,8 @@ import (
 //   - fingerprint:  {"target": "https://x", "tech": ["nginx", "vue"]}
 type ScanResult struct {
 	ID           string
+	TenantID     string // PR-S7：冗余写入，让 ES SearchResults 可按 tenant 过滤
+	ProjectID    string // PR-S7：冗余写入，让 PA 权限收紧到 join 项目
 	TaskID       string
 	AssignmentID string
 	NodeID       string
@@ -28,6 +30,12 @@ type ScanResult struct {
 func (r *ScanResult) ValidateForCreate() error {
 	if r == nil {
 		return errx.New(errx.ErrInvalidInput, "result is nil")
+	}
+	if strings.TrimSpace(r.TenantID) == "" {
+		return errx.New(errx.ErrInvalidInput, "result.tenant_id 不能为空")
+	}
+	if strings.TrimSpace(r.ProjectID) == "" {
+		return errx.New(errx.ErrInvalidInput, "result.project_id 不能为空")
 	}
 	if strings.TrimSpace(r.TaskID) == "" {
 		return errx.New(errx.ErrInvalidInput, "result.task_id 不能为空")

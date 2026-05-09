@@ -15,6 +15,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/scan/domain"
+	"github.com/ffff5sec/RedMatrix/internal/scan/indexer"
 	"github.com/ffff5sec/RedMatrix/internal/scan/repo"
 	tenancydomain "github.com/ffff5sec/RedMatrix/internal/tenancy/domain"
 	tenancyrepo "github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
@@ -40,12 +41,13 @@ type AllowedNodesLookup interface {
 	Get(ctx context.Context, projectID string) (tenancydomain.AllowedNodes, error)
 }
 
-// Indexer 把 scan_results 双写到外部检索（ES）。可空——dev 不装 ES 时
-// service 退化成 PG-only。失败仅日志，绝不影响 ReportResults 的成功语义。
+// Indexer 把 scan_results 双写到外部检索（ES）+ 提供 SearchResults 查询能力。
+// 可空——dev 不装 ES 时 service 退化成 PG-only（Index 跳过；Search 返 ErrUnavailable）。
 //
-// 实际类型在 internal/scan/indexer 包；这里只取最小接口避免循环依赖。
+// 实际类型在 internal/scan/indexer 包。
 type Indexer interface {
 	Index(ctx context.Context, items []*domain.ScanResult) error
+	Search(ctx context.Context, q indexer.SearchQuery) (*indexer.SearchResultPage, error)
 }
 
 // Service scan 模块业务流接口。
@@ -89,6 +91,52 @@ type Service interface {
 	// ListResultsByTask（PR-S5 详情页）：列任务全部结果。SA / TA / PA 都可调
 	// （PA 仅看自己加入的项目；MVP 不在 service 层强制 PA 限制）。
 	ListResultsByTask(ctx context.Context, taskID string) ([]*domain.ScanResult, error)
+
+	// SearchResults（PR-S7 全局搜索）—— 走 ES。req 中的 ScopedTenantID /
+	// ScopedProjectIDs 由 handler 注入做 RBAC 收紧；service 只做透传 + 校验。
+	SearchResults(ctx context.Context, req SearchRequest) (*SearchResultPage, error)
+}
+
+// SearchRequest 搜索入参。ScopedTenantID / ScopedProjectIDs 由 handler RBAC 注入：
+//   - SA / PlatformAuditor: ScopedTenantID = ""，ScopedProjectIDs = nil（不限）
+//   - TA: ScopedTenantID = principal.TenantID
+//   - PA: ScopedTenantID = principal.TenantID + ScopedProjectIDs = ListProjectIDsByUser
+//     若 PA 加入 0 个项目，service 直接返空（不打 ES）
+type SearchRequest struct {
+	Keyword   string
+	Kind      string
+	ProjectID string // 用户主动传的过滤；PA 会与 ScopedProjectIDs 求交（PA 只能看 join 的）
+	NodeID    string
+	TaskID    string
+	TimeFrom  *time.Time
+	TimeTo    *time.Time
+	Page      int
+	PageSize  int
+
+	ScopedTenantID   string
+	ScopedProjectIDs []string // nil = 不限项目；非 nil = PA 路径，必须命中
+}
+
+// SearchResultPage 搜索分页返。复用 indexer.SearchResultPage 也行，
+// 这里独立类型让 scan 公共 API 不直接 leak indexer 类型。
+type SearchResultPage struct {
+	Items    []*domain.ScanResult
+	Total    int
+	Page     int
+	PageSize int
+	Facets   []SearchFacet
+}
+
+// SearchFacet 一个聚合维度。
+type SearchFacet struct {
+	Field   string
+	Buckets []SearchFacetBucket
+}
+
+// SearchFacetBucket key+count。
+type SearchFacetBucket struct {
+	Key   string
+	Count int
 }
 
 // ResultItem 是 ReportResults 入参；service 内部组合 task/assignment/node id 后入库。
@@ -160,7 +208,7 @@ func NewService(
 	projects ProjectLookup,
 	nodes NodeLister,
 	allowed AllowedNodesLookup,
-	indexer Indexer,
+	idx Indexer,
 	logger *log.Logger,
 ) (Service, error) {
 	if tasks == nil || assignments == nil || results == nil || projects == nil || nodes == nil || allowed == nil {
@@ -169,7 +217,7 @@ func NewService(
 	return &service{
 		tasks: tasks, assignments: assignments, results: results,
 		projects: projects, nodes: nodes, allowed: allowed,
-		indexer: indexer,
+		indexer: idx,
 		logger:  logger, now: time.Now,
 	}, nil
 }
@@ -521,6 +569,8 @@ func (s *service) ReportResults(
 	rows := make([]*domain.ScanResult, 0, len(items))
 	for _, it := range items {
 		rows = append(rows, &domain.ScanResult{
+			TenantID:     t.TenantID,  // PR-S7 冗余写入便于 ES 过滤
+			ProjectID:    t.ProjectID, // PR-S7 冗余写入便于 PA 权限收紧
 			TaskID:       t.ID,
 			AssignmentID: a.ID,
 			NodeID:       a.NodeID,
@@ -549,4 +599,68 @@ func (s *service) ListResultsByTask(ctx context.Context, taskID string) ([]*doma
 		return nil, errx.New(errx.ErrInvalidInput, "缺 task_id")
 	}
 	return s.results.ListByTask(ctx, taskID)
+}
+
+// SearchResults（PR-S7）—— 全局搜索；走 ES。
+//
+// 权限：handler 已把 RBAC 注成 ScopedTenantID / ScopedProjectIDs。
+// 这里只做：
+//  1. PA 路径若 0 个加入项目，直接返空（不打 ES）；
+//  2. 用户传的 ProjectID 必须在 ScopedProjectIDs 范围内（防越权穿透）；
+//  3. 把 SearchRequest 转 indexer.SearchQuery 调下去。
+func (s *service) SearchResults(ctx context.Context, req SearchRequest) (*SearchResultPage, error) {
+	if s.indexer == nil {
+		return nil, errx.New(errx.ErrUpstreamTimeout,
+			"scan: ES 未配置，全局搜索不可用")
+	}
+	// PA：明确传了空切片表示"加入 0 项目"，直接返空页（不打 ES）
+	if req.ScopedProjectIDs != nil && len(req.ScopedProjectIDs) == 0 {
+		page, size := indexer.NormalizePage(req.Page, req.PageSize)
+		return &SearchResultPage{Items: []*domain.ScanResult{}, Page: page, PageSize: size}, nil
+	}
+	// 校验用户传的 ProjectID 必在 PA 可见范围内
+	if req.ProjectID != "" && req.ScopedProjectIDs != nil {
+		ok := false
+		for _, p := range req.ScopedProjectIDs {
+			if p == req.ProjectID {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return nil, errx.New(errx.ErrProjectAccessDenied,
+				"无权访问该项目").WithFields("project_id", req.ProjectID)
+		}
+	}
+	q := indexer.SearchQuery{
+		Keyword:    req.Keyword,
+		TenantID:   req.ScopedTenantID,
+		ProjectIDs: req.ScopedProjectIDs,
+		ProjectID:  req.ProjectID,
+		NodeID:     req.NodeID,
+		TaskID:     req.TaskID,
+		Kind:       req.Kind,
+		TimeFrom:   req.TimeFrom,
+		TimeTo:     req.TimeTo,
+		Page:       req.Page,
+		PageSize:   req.PageSize,
+	}
+	page, err := s.indexer.Search(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	out := &SearchResultPage{
+		Items:    page.Items,
+		Total:    page.Total,
+		Page:     page.Page,
+		PageSize: page.PageSize,
+	}
+	for _, f := range page.Facets {
+		fc := SearchFacet{Field: f.Field, Buckets: make([]SearchFacetBucket, 0, len(f.Buckets))}
+		for _, b := range f.Buckets {
+			fc.Buckets = append(fc.Buckets, SearchFacetBucket{Key: b.Key, Count: b.Count})
+		}
+		out.Facets = append(out.Facets, fc)
+	}
+	return out, nil
 }

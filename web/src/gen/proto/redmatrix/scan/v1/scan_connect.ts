@@ -8,7 +8,7 @@
 // MVP 范围：仅任务管理；不含 dispatch / Agent 拉任务 / 结果上报。
 // 路径：/redmatrix.scan.v1.ScanService
 
-import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse } from "./scan_pb.js";
+import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse, SearchResultsRequest, SearchResultsResponse } from "./scan_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -82,6 +82,18 @@ export const ScanService = {
       name: "ListTaskResults",
       I: ListTaskResultsRequest,
       O: ListTaskResultsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * SearchResults 全局结果搜索（PR-S7）—— 走 ES。
+     * SA 跨租户；TA 限本租户；PA 限自己加入的项目（service 层注 project_id 过滤）。
+     *
+     * @generated from rpc redmatrix.scan.v1.ScanService.SearchResults
+     */
+    searchResults: {
+      name: "SearchResults",
+      I: SearchResultsRequest,
+      O: SearchResultsResponse,
       kind: MethodKind.Unary,
     },
   }

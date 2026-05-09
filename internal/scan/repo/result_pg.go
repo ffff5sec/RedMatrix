@@ -21,6 +21,8 @@ func NewResultPG(pool *pgxpool.Pool) ResultRepository {
 
 const selectResultSQL = `
 SELECT id::text,
+       tenant_id::text,
+       project_id::text,
        task_id::text,
        assignment_id::text,
        node_id::text,
@@ -50,13 +52,17 @@ func (r *pgResultRepo) InsertBulk(ctx context.Context, items []*domain.ScanResul
 		if i > 0 {
 			values += ", "
 		}
-		base := i*5 + 1
+		base := i*7 + 1
+		// 列顺序：tenant_id / project_id / task_id / assignment_id / node_id / kind / data
 		values += `($` + itoa(base) + `::uuid, $` + itoa(base+1) + `::uuid, $` +
-			itoa(base+2) + `::uuid, $` + itoa(base+3) + `, $` + itoa(base+4) + `::jsonb)`
-		args = append(args, it.TaskID, it.AssignmentID, it.NodeID, string(it.Kind), dataJSON)
+			itoa(base+2) + `::uuid, $` + itoa(base+3) + `::uuid, $` + itoa(base+4) + `::uuid, $` +
+			itoa(base+5) + `, $` + itoa(base+6) + `::jsonb)`
+		args = append(args,
+			it.TenantID, it.ProjectID, it.TaskID, it.AssignmentID, it.NodeID,
+			string(it.Kind), dataJSON)
 	}
 	// RETURNING 把 id / created_at 回填到 caller，indexer 双写需要这两个字段。
-	q := `INSERT INTO scan_results (task_id, assignment_id, node_id, kind, data) VALUES ` +
+	q := `INSERT INTO scan_results (tenant_id, project_id, task_id, assignment_id, node_id, kind, data) VALUES ` +
 		values + ` RETURNING id::text, created_at`
 	rows, err := r.pool.Query(ctx, q, args...)
 	if err != nil {
@@ -95,7 +101,7 @@ func (r *pgResultRepo) ListByTask(ctx context.Context, taskID string) ([]*domain
 		var dataBytes []byte
 		var kind string
 		if err := rows.Scan(
-			&it.ID, &it.TaskID, &it.AssignmentID, &it.NodeID,
+			&it.ID, &it.TenantID, &it.ProjectID, &it.TaskID, &it.AssignmentID, &it.NodeID,
 			&kind, &dataBytes, &it.CreatedAt,
 		); err != nil {
 			return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: scan result")

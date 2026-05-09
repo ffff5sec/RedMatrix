@@ -21,6 +21,10 @@ service ScanService {
 
   // ListTaskResults 详情页：列任务全部扫描结果（PR-S5）。
   rpc ListTaskResults(ListTaskResultsRequest) returns (ListTaskResultsResponse);
+
+  // SearchResults 全局结果搜索（PR-S7）—— 走 ES。
+  // SA 跨租户；TA 限本租户；PA 限自己加入的项目（service 层注 project_id 过滤）。
+  rpc SearchResults(SearchResultsRequest) returns (SearchResultsResponse);
 }
 
 // ScanTask 任务实体（与 schema 一一对应）。
@@ -122,6 +126,8 @@ message ScanResult {
   string kind = 5;
   google.protobuf.Struct data = 6;
   google.protobuf.Timestamp created_at = 7;
+  string tenant_id = 8;  // PR-S7
+  string project_id = 9; // PR-S7
 }
 
 message ListTaskResultsRequest {
@@ -130,4 +136,41 @@ message ListTaskResultsRequest {
 message ListTaskResultsResponse {
   repeated ScanResult results = 1;
   int32 total = 2;
+}
+
+// ===== Search（PR-S7）=====
+//
+// SearchResults 是一次 ES 检索：filter（kind / project_id / node_id / time 范围）+
+// 关键字（命中 data.* 全字段）+ facets（kind / node_id terms agg）。
+// 分页用 page + page_size；MVP 限 page_size <= 100，page * page_size <= 10000。
+
+message SearchResultsRequest {
+  // 可选关键字：命中 data.* 全字段（host / banner / url / title / name 等）
+  optional string keyword = 1;
+  // 可选过滤
+  optional string kind = 2; // 单个 kind；空表示不过滤
+  optional string project_id = 3; // 单个 project；空表示不过滤
+  optional string node_id = 4; // 单个 node；空表示不过滤
+  optional string task_id = 5; // 单个 task；空表示不过滤
+  optional google.protobuf.Timestamp time_from = 6;
+  optional google.protobuf.Timestamp time_to = 7;
+  int32 page = 8;
+  int32 page_size = 9;
+}
+
+message FacetBucket {
+  string key = 1;
+  int32 count = 2;
+}
+message Facet {
+  string field = 1; // "kind" / "node_id"
+  repeated FacetBucket buckets = 2;
+}
+
+message SearchResultsResponse {
+  repeated ScanResult results = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  repeated Facet facets = 5;
 }

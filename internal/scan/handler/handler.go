@@ -25,8 +25,15 @@ import (
 
 // Handler 实现 scanv1connect.ScanServiceHandler。
 type Handler struct {
-	svc     scan.Service
-	authSvc auth.Service
+	svc      scan.Service
+	authSvc  auth.Service
+	memberDB MembershipLookup // PR-S7：PA SearchResults 权限收紧用
+}
+
+// MembershipLookup PA 路径专用：查用户加入的项目 ID 列表。
+// 与 tenancyrepo.ProjectMemberRepository 的 ListProjectIDsByUser 同签名。
+type MembershipLookup interface {
+	ListProjectIDsByUser(ctx context.Context, userID string) ([]string, error)
 }
 
 var _ scanv1connect.ScanServiceHandler = (*Handler)(nil)
@@ -39,12 +46,13 @@ var allRoles = []identitydomain.Role{
 	identitydomain.RolePlatformAuditor,
 }
 
-// New 构造 ScanService handler。
-func New(svc scan.Service, authSvc auth.Service) (*Handler, error) {
+// New 构造 ScanService handler。memberDB 仅 PR-S7 SearchResults PA 路径用，可空
+// （SearchResults 时若为 PA 又无 memberDB 会拒绝；其他 RPC 不受影响）。
+func New(svc scan.Service, authSvc auth.Service, memberDB MembershipLookup) (*Handler, error) {
 	if svc == nil || authSvc == nil {
 		return nil, errx.New(errx.ErrInternal, "scan.handler.New: 依赖不能为 nil")
 	}
-	return &Handler{svc: svc, authSvc: authSvc}, nil
+	return &Handler{svc: svc, authSvc: authSvc, memberDB: memberDB}, nil
 }
 
 func (h *Handler) CreateScanTask(
@@ -221,6 +229,91 @@ func (h *Handler) ListTaskResults(
 	}), nil
 }
 
+// SearchResults 走 ES（PR-S7）—— RBAC：
+//   - SA / PlatformAuditor: 不限 tenant / project（subject to req filters）
+//   - TA: ScopedTenantID = principal.TenantID
+//   - PA: 同上 + ScopedProjectIDs = ListProjectIDsByUser(principal.UserID)
+//     0 项目 → service 直接返空页
+func (h *Handler) SearchResults(
+	ctx context.Context,
+	req *connect.Request[scanv1.SearchResultsRequest],
+) (*connect.Response[scanv1.SearchResultsResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+
+	sr := scan.SearchRequest{
+		Keyword:   req.Msg.GetKeyword(),
+		Kind:      req.Msg.GetKind(),
+		ProjectID: req.Msg.GetProjectId(),
+		NodeID:    req.Msg.GetNodeId(),
+		TaskID:    req.Msg.GetTaskId(),
+		Page:      int(req.Msg.GetPage()),
+		PageSize:  int(req.Msg.GetPageSize()),
+	}
+	if t := req.Msg.GetTimeFrom(); t != nil {
+		x := t.AsTime()
+		sr.TimeFrom = &x
+	}
+	if t := req.Msg.GetTimeTo(); t != nil {
+		x := t.AsTime()
+		sr.TimeTo = &x
+	}
+
+	// RBAC 注入
+	switch p.Role {
+	case identitydomain.RoleSuperAdmin, identitydomain.RolePlatformAuditor:
+		// 不限
+	case identitydomain.RoleTenantAuditor:
+		sr.ScopedTenantID = p.TenantID
+	case identitydomain.RoleProjectAdmin:
+		sr.ScopedTenantID = p.TenantID
+		if h.memberDB == nil {
+			return nil, toConnectError(errx.New(errx.ErrInternal,
+				"scan.SearchResults: PA 模式需 memberDB 注入"))
+		}
+		ids, err := h.memberDB.ListProjectIDsByUser(ctx, p.UserID)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		// 即使空列表也注入空切片，让 service 走"返空页"分支（不 nil）
+		if ids == nil {
+			ids = []string{}
+		}
+		sr.ScopedProjectIDs = ids
+	}
+
+	page, err := h.svc.SearchResults(ctx, sr)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	pbResults := make([]*scanv1.ScanResult, 0, len(page.Items))
+	for _, r := range page.Items {
+		pbResults = append(pbResults, resultToProto(r))
+	}
+	pbFacets := make([]*scanv1.Facet, 0, len(page.Facets))
+	for _, f := range page.Facets {
+		buckets := make([]*scanv1.FacetBucket, 0, len(f.Buckets))
+		for _, b := range f.Buckets {
+			//nolint:gosec // facet 计数 ≤ ES doc count，超 int32 不现实
+			buckets = append(buckets, &scanv1.FacetBucket{Key: b.Key, Count: int32(b.Count)})
+		}
+		pbFacets = append(pbFacets, &scanv1.Facet{Field: f.Field, Buckets: buckets})
+	}
+	//nolint:gosec // total/page/page_size 同上
+	return connect.NewResponse(&scanv1.SearchResultsResponse{
+		Results:  pbResults,
+		Total:    int32(page.Total),
+		Page:     int32(page.Page),
+		PageSize: int32(page.PageSize),
+		Facets:   pbFacets,
+	}), nil
+}
+
 // === conv ===
 
 func taskToProto(t *scandomain.ScanTask) *scanv1.ScanTask {
@@ -284,6 +377,8 @@ func resultToProto(r *scandomain.ScanResult) *scanv1.ScanResult {
 	}
 	out := &scanv1.ScanResult{
 		Id:           r.ID,
+		TenantId:     r.TenantID,
+		ProjectId:    r.ProjectID,
 		TaskId:       r.TaskID,
 		AssignmentId: r.AssignmentID,
 		NodeId:       r.NodeID,

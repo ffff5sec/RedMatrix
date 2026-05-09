@@ -58,12 +58,17 @@ func (i *Indexer) EnsureTemplate(ctx context.Context) error {
 			"mappings": map[string]any{
 				"properties": map[string]any{
 					"id":            map[string]any{"type": "keyword"},
+					"tenant_id":     map[string]any{"type": "keyword"},
+					"project_id":    map[string]any{"type": "keyword"},
 					"task_id":       map[string]any{"type": "keyword"},
 					"assignment_id": map[string]any{"type": "keyword"},
 					"node_id":       map[string]any{"type": "keyword"},
 					"kind":          map[string]any{"type": "keyword"},
 					"created_at":    map[string]any{"type": "date"},
 					"data":          map[string]any{"type": "object", "dynamic": true},
+					// data_text 是 data.* 的分析副本（copy_to）；让 match 类全文搜索可用，
+					// 而 data.* 本身仍按 keyword 精确过滤 / 聚合。
+					"data_text": map[string]any{"type": "text"},
 				},
 				"dynamic_templates": []any{
 					map[string]any{
@@ -73,6 +78,7 @@ func (i *Indexer) EnsureTemplate(ctx context.Context) error {
 							"mapping": map[string]any{
 								"type":         "keyword",
 								"ignore_above": 1024,
+								"copy_to":      "data_text",
 							},
 						},
 					},
@@ -134,6 +140,8 @@ func writeBulkLine(buf *bytes.Buffer, r *domain.ScanResult) error {
 	}
 	doc := map[string]any{
 		"id":            r.ID,
+		"tenant_id":     r.TenantID,
+		"project_id":    r.ProjectID,
 		"task_id":       r.TaskID,
 		"assignment_id": r.AssignmentID,
 		"node_id":       r.NodeID,

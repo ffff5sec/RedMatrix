@@ -800,6 +800,20 @@ export class ScanResult extends Message<ScanResult> {
    */
   createdAt?: Timestamp;
 
+  /**
+   * PR-S7
+   *
+   * @generated from field: string tenant_id = 8;
+   */
+  tenantId = "";
+
+  /**
+   * PR-S7
+   *
+   * @generated from field: string project_id = 9;
+   */
+  projectId = "";
+
   constructor(data?: PartialMessage<ScanResult>) {
     super();
     proto3.util.initPartial(data, this);
@@ -815,6 +829,8 @@ export class ScanResult extends Message<ScanResult> {
     { no: 5, name: "kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "data", kind: "message", T: Struct },
     { no: 7, name: "created_at", kind: "message", T: Timestamp },
+    { no: 8, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ScanResult {
@@ -911,6 +927,252 @@ export class ListTaskResultsResponse extends Message<ListTaskResultsResponse> {
 
   static equals(a: ListTaskResultsResponse | PlainMessage<ListTaskResultsResponse> | undefined, b: ListTaskResultsResponse | PlainMessage<ListTaskResultsResponse> | undefined): boolean {
     return proto3.util.equals(ListTaskResultsResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.SearchResultsRequest
+ */
+export class SearchResultsRequest extends Message<SearchResultsRequest> {
+  /**
+   * 可选关键字：命中 data.* 全字段（host / banner / url / title / name 等）
+   *
+   * @generated from field: optional string keyword = 1;
+   */
+  keyword?: string;
+
+  /**
+   * 可选过滤
+   *
+   * 单个 kind；空表示不过滤
+   *
+   * @generated from field: optional string kind = 2;
+   */
+  kind?: string;
+
+  /**
+   * 单个 project；空表示不过滤
+   *
+   * @generated from field: optional string project_id = 3;
+   */
+  projectId?: string;
+
+  /**
+   * 单个 node；空表示不过滤
+   *
+   * @generated from field: optional string node_id = 4;
+   */
+  nodeId?: string;
+
+  /**
+   * 单个 task；空表示不过滤
+   *
+   * @generated from field: optional string task_id = 5;
+   */
+  taskId?: string;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp time_from = 6;
+   */
+  timeFrom?: Timestamp;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp time_to = 7;
+   */
+  timeTo?: Timestamp;
+
+  /**
+   * @generated from field: int32 page = 8;
+   */
+  page = 0;
+
+  /**
+   * @generated from field: int32 page_size = 9;
+   */
+  pageSize = 0;
+
+  constructor(data?: PartialMessage<SearchResultsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.SearchResultsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "keyword", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 2, name: "kind", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "node_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "task_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 6, name: "time_from", kind: "message", T: Timestamp, opt: true },
+    { no: 7, name: "time_to", kind: "message", T: Timestamp, opt: true },
+    { no: 8, name: "page", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 9, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchResultsRequest {
+    return new SearchResultsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SearchResultsRequest {
+    return new SearchResultsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SearchResultsRequest {
+    return new SearchResultsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SearchResultsRequest | PlainMessage<SearchResultsRequest> | undefined, b: SearchResultsRequest | PlainMessage<SearchResultsRequest> | undefined): boolean {
+    return proto3.util.equals(SearchResultsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.FacetBucket
+ */
+export class FacetBucket extends Message<FacetBucket> {
+  /**
+   * @generated from field: string key = 1;
+   */
+  key = "";
+
+  /**
+   * @generated from field: int32 count = 2;
+   */
+  count = 0;
+
+  constructor(data?: PartialMessage<FacetBucket>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.FacetBucket";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): FacetBucket {
+    return new FacetBucket().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): FacetBucket {
+    return new FacetBucket().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): FacetBucket {
+    return new FacetBucket().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: FacetBucket | PlainMessage<FacetBucket> | undefined, b: FacetBucket | PlainMessage<FacetBucket> | undefined): boolean {
+    return proto3.util.equals(FacetBucket, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.Facet
+ */
+export class Facet extends Message<Facet> {
+  /**
+   * "kind" / "node_id"
+   *
+   * @generated from field: string field = 1;
+   */
+  field = "";
+
+  /**
+   * @generated from field: repeated redmatrix.scan.v1.FacetBucket buckets = 2;
+   */
+  buckets: FacetBucket[] = [];
+
+  constructor(data?: PartialMessage<Facet>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.Facet";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "field", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "buckets", kind: "message", T: FacetBucket, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Facet {
+    return new Facet().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Facet {
+    return new Facet().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Facet {
+    return new Facet().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Facet | PlainMessage<Facet> | undefined, b: Facet | PlainMessage<Facet> | undefined): boolean {
+    return proto3.util.equals(Facet, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.SearchResultsResponse
+ */
+export class SearchResultsResponse extends Message<SearchResultsResponse> {
+  /**
+   * @generated from field: repeated redmatrix.scan.v1.ScanResult results = 1;
+   */
+  results: ScanResult[] = [];
+
+  /**
+   * @generated from field: int32 total = 2;
+   */
+  total = 0;
+
+  /**
+   * @generated from field: int32 page = 3;
+   */
+  page = 0;
+
+  /**
+   * @generated from field: int32 page_size = 4;
+   */
+  pageSize = 0;
+
+  /**
+   * @generated from field: repeated redmatrix.scan.v1.Facet facets = 5;
+   */
+  facets: Facet[] = [];
+
+  constructor(data?: PartialMessage<SearchResultsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.SearchResultsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "results", kind: "message", T: ScanResult, repeated: true },
+    { no: 2, name: "total", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "page", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "facets", kind: "message", T: Facet, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchResultsResponse {
+    return new SearchResultsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SearchResultsResponse {
+    return new SearchResultsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SearchResultsResponse {
+    return new SearchResultsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SearchResultsResponse | PlainMessage<SearchResultsResponse> | undefined, b: SearchResultsResponse | PlainMessage<SearchResultsResponse> | undefined): boolean {
+    return proto3.util.equals(SearchResultsResponse, a, b);
   }
 }
 

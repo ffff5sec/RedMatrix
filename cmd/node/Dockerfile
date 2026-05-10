@@ -43,7 +43,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # === Runtime ===
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates && \
+# nmap 是 PR-S9 port_scan 真插件依赖；缺席时 agent 自动回落 mock。
+# ca-certificates: HTTPS 出站 + mTLS root 校验
+RUN apk add --no-cache ca-certificates nmap && \
     addgroup -S agent && adduser -S agent -G agent
 
 COPY --from=build /out/redmatrix-node /usr/local/bin/redmatrix-node

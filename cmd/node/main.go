@@ -27,6 +27,8 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/client"
 	"github.com/ffff5sec/RedMatrix/internal/agent/enroll"
 	"github.com/ffff5sec/RedMatrix/internal/agent/heartbeat"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
 	"github.com/ffff5sec/RedMatrix/internal/agent/store"
 	"github.com/ffff5sec/RedMatrix/internal/agent/tasks"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
@@ -155,11 +157,23 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	// === 3. PR-S3 任务拉取循环（goroutine；与 heartbeat 并行）===
+	// PR-S9：注册插件——尝试真 nmap，回落到 mock。
+	registry := plugin.NewRegistry()
+	plugin.RegisterAllMock(registry)
+	if np, err := nmap.New(); err == nil {
+		registry.Register(np)
+		logger.Info("plugin registered", "kind", "port_scan", "impl", "nmap")
+	} else {
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "port_scan", "tool", "nmap", "err", err.Error())
+	}
 	tl := &tasks.Loop{
-		Client:       naClient,
-		PullInterval: tasks.DefaultPullInterval,
-		ExecDuration: tasks.DefaultExecDuration,
-		Logger:       logger,
+		Client:        naClient,
+		PullInterval:  tasks.DefaultPullInterval,
+		ExecDuration:  tasks.DefaultExecDuration,
+		PluginTimeout: tasks.DefaultPluginTimeout,
+		Plugins:       registry,
+		Logger:        logger,
 	}
 	taskDone := make(chan error, 1)
 	go func() {

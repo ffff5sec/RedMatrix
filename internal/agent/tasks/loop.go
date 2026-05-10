@@ -3,7 +3,7 @@
 // 行为：
 //   - 每 PullInterval（默认 30s）调 NodeAgentService.PullTasks
 //   - 每条 AssignedTask 启 1 个 goroutine：ReportTaskProgress(running)
-//     → 模拟 ExecDuration（默认 2s）→ ReportTaskProgress(completed/failed)
+//     → 调 Plugin.Run（PR-S9）→ ReportTaskResults → ReportTaskProgress
 //   - 失败概率由 FailureRate 控制（仅演示用；MVP 0%）
 //   - ctx 取消时停拉，已起的 task goroutine 跑完即退
 package tasks
@@ -19,11 +19,14 @@ import (
 
 	tenancyv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1"
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
 )
 
 const (
 	DefaultPullInterval = 30 * time.Second
 	DefaultExecDuration = 2 * time.Second
+	// DefaultPluginTimeout 单条任务执行总超时；防止单个工具卡死把 agent 占满。
+	DefaultPluginTimeout = 10 * time.Minute
 )
 
 // Logger 复用 heartbeat 包的简化签名。
@@ -37,14 +40,20 @@ type noopLogger struct{}
 func (noopLogger) Info(string, ...any) {}
 func (noopLogger) Warn(string, ...any) {}
 
-// Loop 跑任务拉取 + mock 执行。
+// Loop 跑任务拉取 + 插件执行。
 type Loop struct {
 	Client       tenancyv1connect.NodeAgentServiceClient
 	PullInterval time.Duration
+	// ExecDuration 仅 mock fallback 路径生效（保持 PR-S3 demo 节奏）；
+	// 真插件路径用 PluginTimeout 控总超时。
 	ExecDuration time.Duration
-	FailureRate  float64 // [0, 1]；0 = 永不失败
-	Logger       Logger
-	Rand         *mathrand.Rand
+	// PluginTimeout 单条任务执行总超时；0 = DefaultPluginTimeout
+	PluginTimeout time.Duration
+	FailureRate   float64 // [0, 1]；0 = 永不失败
+	Logger        Logger
+	Rand          *mathrand.Rand
+	// Plugins kind → Plugin 路由表；nil 时按 mock 全套自动注册（兼容旧测试 / dev）
+	Plugins *plugin.Registry
 }
 
 // Run 阻塞直到 ctx 取消；已派发 goroutine 等其完成。
@@ -63,6 +72,11 @@ func (l *Loop) Run(ctx context.Context) error {
 	rng := l.Rand
 	if rng == nil {
 		rng = mathrand.New(mathrand.NewSource(time.Now().UnixNano())) //nolint:gosec // mock 用，无安全语义
+	}
+	// PR-S9：Plugins 未注入时回落 mock 全套（保持 PR-S3 行为兼容）
+	if l.Plugins == nil {
+		l.Plugins = plugin.NewRegistry()
+		plugin.RegisterAllMock(l.Plugins)
 	}
 
 	var wg sync.WaitGroup
@@ -102,22 +116,23 @@ func (l *Loop) pullAndDispatch(
 		wg.Add(1)
 		go func(at *tenancyv1.AssignedTask) {
 			defer wg.Done()
-			l.execMock(ctx, at, logger, rng)
+			l.execTask(ctx, at, logger, rng)
 		}(t)
 	}
 }
 
-func (l *Loop) execMock(
+// execTask 执行单条任务（PR-S9 取代 execMock）：
+//
+//  1. report running
+//  2. 取 plugin（按 kind）；mock plugin 走 ExecDuration 节奏，真插件用 PluginTimeout 控总耗时
+//  3. report results
+//  4. report completed / failed
+func (l *Loop) execTask(
 	ctx context.Context,
 	at *tenancyv1.AssignedTask,
 	logger Logger,
 	rng *mathrand.Rand,
 ) {
-	dur := l.ExecDuration
-	if dur <= 0 {
-		dur = DefaultExecDuration
-	}
-
 	// 1. running
 	if err := l.report(ctx, at.GetAssignmentId(), "running", ""); err != nil {
 		logger.Warn("tasks: report running failed",
@@ -130,35 +145,73 @@ func (l *Loop) execMock(
 		"target", at.GetTarget(),
 	)
 
-	// 2. mock work（中间允许 ctx cancel 提前退出）
-	select {
-	case <-ctx.Done():
+	// 2. 选 plugin
+	p := l.Plugins.Get(at.GetKind())
+	if p == nil {
+		// 完全找不到（不应发生：mock 已自动注册）→ 标 failed
+		_ = l.report(ctx, at.GetAssignmentId(), "failed",
+			"no plugin registered for kind="+at.GetKind())
 		return
-	case <-time.After(dur):
 	}
 
-	// 3. PR-S5：mock 出一份结果（按 task.kind 给出固定 fixture）
+	// 3. FailureRate 注入（仅 demo / 测试）
 	failed := false
 	if l.FailureRate > 0 && rng.Float64() < l.FailureRate {
 		failed = true
 	}
+
+	var results []map[string]any
+	var execErr error
 	if !failed {
-		results := mockResults(at)
-		if len(results) > 0 {
-			if err := l.reportResults(ctx, at.GetAssignmentId(), results); err != nil {
-				logger.Warn("tasks: report results failed",
-					"assignment_id", at.GetAssignmentId(), "err", err.Error())
-				// 结果上报失败仍继续推 completed（避免无限重试）
+		// 保留 PR-S3 demo 节奏：mock 路径才 sleep ExecDuration
+		if isMockPlugin(p) {
+			dur := l.ExecDuration
+			if dur <= 0 {
+				dur = DefaultExecDuration
 			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(dur):
+			}
+		}
+		// 总超时：真插件 ≤ PluginTimeout（防卡死）
+		timeout := l.PluginTimeout
+		if timeout <= 0 {
+			timeout = DefaultPluginTimeout
+		}
+		runCtx, cancel := context.WithTimeout(ctx, timeout)
+		// MVP：settings 暂未在 AssignedTask 上承载（后续扩 proto）。
+		results, execErr = p.Run(runCtx, at.GetTarget(), at.GetTargetKind(), nil)
+		cancel()
+		if execErr != nil {
+			failed = true
+			logger.Warn("tasks: plugin run failed",
+				"assignment_id", at.GetAssignmentId(),
+				"kind", at.GetKind(),
+				"err", execErr.Error())
 		}
 	}
 
-	// 4. completed / failed
+	// 4. report results
+	if !failed && len(results) > 0 {
+		if err := l.reportResults(ctx, at.GetAssignmentId(), results); err != nil {
+			logger.Warn("tasks: report results failed",
+				"assignment_id", at.GetAssignmentId(), "err", err.Error())
+			// 仍走 completed，避免无限重试
+		}
+	}
+
+	// 5. completed / failed
 	status := "completed"
 	errMsg := ""
 	if failed {
 		status = "failed"
-		errMsg = "mock failure (FailureRate triggered)"
+		if execErr != nil {
+			errMsg = "plugin error: " + execErr.Error()
+		} else {
+			errMsg = "mock failure (FailureRate triggered)"
+		}
 	}
 	if err := l.report(ctx, at.GetAssignmentId(), status, errMsg); err != nil {
 		logger.Warn("tasks: report final failed",
@@ -170,34 +223,20 @@ func (l *Loop) execMock(
 	logger.Info("tasks: done",
 		"assignment_id", at.GetAssignmentId(),
 		"status", status,
+		"result_count", len(results),
 	)
 }
 
-// mockResults 按 task.kind 出固定假数据。后续真插件接入时本函数被替换为
-// 调用对应 plugin 的入口。
-func mockResults(at *tenancyv1.AssignedTask) []map[string]any {
-	target := at.GetTarget()
-	switch at.GetKind() {
-	case "port_scan":
-		return []map[string]any{
-			{"host": target, "port": 22, "service": "ssh", "banner": "OpenSSH 8.2 (mock)"},
-			{"host": target, "port": 80, "service": "http", "banner": "nginx/1.18 (mock)"},
-		}
-	case "web_crawl":
-		return []map[string]any{
-			{"url": target, "status": 200, "title": "Example Domain (mock)"},
-		}
-	case "subdomain":
-		return []map[string]any{
-			{"name": "api." + target, "ip": "192.0.2.1"},
-			{"name": "www." + target, "ip": "192.0.2.2"},
-		}
-	case "fingerprint":
-		return []map[string]any{
-			{"target": target, "tech": []string{"nginx", "Vue.js"}},
-		}
+// isMockPlugin 判定是否 mock；mock 才走 ExecDuration 节奏。
+func isMockPlugin(p plugin.Plugin) bool {
+	if p == nil {
+		return false
 	}
-	return nil
+	type identifiable interface{ IsMock() bool }
+	if m, ok := p.(identifiable); ok {
+		return m.IsMock()
+	}
+	return false
 }
 
 func (l *Loop) reportResults(ctx context.Context, assignmentID string, items []map[string]any) error {

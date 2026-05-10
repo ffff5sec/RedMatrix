@@ -28,6 +28,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/enroll"
 	"github.com/ffff5sec/RedMatrix/internal/agent/heartbeat"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
 	"github.com/ffff5sec/RedMatrix/internal/agent/store"
@@ -174,6 +175,20 @@ func run(args []string, stdout, stderr io.Writer) error {
 	} else {
 		logger.Info("plugin not installed; falling back to mock",
 			"kind", "subdomain", "tool", "subfinder", "err", err.Error())
+	}
+	if fp, err := httpx.NewFingerprint(); err == nil {
+		registry.Register(fp)
+		logger.Info("plugin registered", "kind", "fingerprint", "impl", "httpx")
+	} else {
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "fingerprint", "tool", "httpx", "err", err.Error())
+	}
+	if wp, err := httpx.NewWebCrawl(); err == nil {
+		registry.Register(wp)
+		logger.Info("plugin registered", "kind", "web_crawl", "impl", "httpx")
+	} else {
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "web_crawl", "tool", "httpx", "err", err.Error())
 	}
 	tl := &tasks.Loop{
 		Client:        naClient,

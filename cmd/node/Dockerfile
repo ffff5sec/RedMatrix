@@ -53,6 +53,17 @@ RUN apk add --no-cache git && \
     CGO_ENABLED=0 go install \
     github.com/projectdiscovery/subfinder/v2/cmd/subfinder@${SUBFINDER_VERSION}
 
+# === httpx build (PR-S11) ===
+FROM golang:1.25.10-alpine AS httpx-build
+
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
+ARG HTTPX_VERSION=v1.6.9
+
+RUN apk add --no-cache git && \
+    CGO_ENABLED=0 go install \
+    github.com/projectdiscovery/httpx/cmd/httpx@${HTTPX_VERSION}
+
 # === Runtime ===
 FROM alpine:3.20
 
@@ -64,6 +75,7 @@ RUN apk add --no-cache ca-certificates nmap && \
 
 COPY --from=build /out/redmatrix-node /usr/local/bin/redmatrix-node
 COPY --from=subfinder-build /go/bin/subfinder /usr/local/bin/subfinder
+COPY --from=httpx-build /go/bin/httpx /usr/local/bin/httpx
 
 # 默认数据目录；运行时一般 -v 覆盖让 cert 持久
 RUN mkdir -p /data && chown agent:agent /data

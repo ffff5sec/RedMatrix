@@ -126,7 +126,7 @@ message ScanResult {
   string kind = 5;
   google.protobuf.Struct data = 6;
   google.protobuf.Timestamp created_at = 7;
-  string tenant_id = 8;  // PR-S7
+  string tenant_id = 8; // PR-S7
   string project_id = 9; // PR-S7
 }
 

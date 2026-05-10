@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -264,14 +265,9 @@ func toS(p *string) string {
 	return *p
 }
 
-// itoa 极简化只用 0..99 范围（List 参数最多 ~10 个）。
-func itoa(n int) string {
-	const digits = "0123456789"
-	if n < 10 {
-		return string(digits[n])
-	}
-	return string(digits[n/10]) + string(digits[n%10])
-}
+// itoa 用 strconv 标准实现；早期版本手写 0..99 lookup，PR-S13 集成 e2e
+// 暴露 InsertBulk 200 行 × 7 占位 = 1400 placeholder 时 panic。
+func itoa(n int) string { return strconv.Itoa(n) }
 
 // 占位防止 time 未用：scanTask 里 *time.Time pointer 类型由 sql 自动处理，无需 import。
 var _ = time.Time{}

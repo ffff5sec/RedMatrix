@@ -28,6 +28,11 @@ import (
 // binaryName subfinder 可执行文件名；可被测试覆盖。
 var binaryName = "subfinder"
 
+// MaxSubdomains 单任务子域结果上限。被动枚举对 example.com 可返 22k+ 行；
+// 真实业务域通常 <500，这里限到 500 既覆盖典型用例又防 ReportTaskResults
+// 巨包 stream error。可被测试覆盖。
+var MaxSubdomains = 500
+
 // Plugin 实现 plugin.Plugin。
 type Plugin struct {
 	bin string
@@ -107,6 +112,9 @@ func ParseJSONLines(out []byte) ([]map[string]any, error) {
 			row["source"] = entry.Source
 		}
 		rows = append(rows, row)
+		if len(rows) >= MaxSubdomains {
+			break // 达上限，剩下的 source 就丢弃
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("subfinder: scan output: %w", err)

@@ -239,20 +239,81 @@ func isMockPlugin(p plugin.Plugin) bool {
 	return false
 }
 
+// MaxResultsPerReport 单条 task 上报的最大结果数（PR-S13 整合 e2e 加固）。
+//
+// 真插件偶现上千行（subfinder example.com 22k+），单次 ReportTaskResults
+// 包过大触发 connect stream INTERNAL_ERROR；MVP 直接截断 + 日志告知。
+// 后续可改批量分页上报或改 server 端流式接口。
+const MaxResultsPerReport = 1000
+
+// reportBatchSize 单次 RPC 包上报多少条；分批降低单包体积。
+const reportBatchSize = 200
+
 func (l *Loop) reportResults(ctx context.Context, assignmentID string, items []map[string]any) error {
-	pbItems := make([]*structpb.Struct, 0, len(items))
-	for _, it := range items {
-		s, err := structpb.NewStruct(it)
-		if err != nil {
+	if len(items) > MaxResultsPerReport {
+		items = items[:MaxResultsPerReport]
+	}
+	for start := 0; start < len(items); start += reportBatchSize {
+		end := start + reportBatchSize
+		if end > len(items) {
+			end = len(items)
+		}
+		pbItems := make([]*structpb.Struct, 0, end-start)
+		for _, it := range items[start:end] {
+			s, err := structpb.NewStruct(sanitizeForStruct(it))
+			if err != nil {
+				return err
+			}
+			pbItems = append(pbItems, s)
+		}
+		if _, err := l.Client.ReportTaskResults(ctx, connect.NewRequest(&tenancyv1.ReportTaskResultsRequest{
+			AssignmentId: assignmentID,
+			Items:        pbItems,
+		})); err != nil {
 			return err
 		}
-		pbItems = append(pbItems, s)
 	}
-	_, err := l.Client.ReportTaskResults(ctx, connect.NewRequest(&tenancyv1.ReportTaskResultsRequest{
-		AssignmentId: assignmentID,
-		Items:        pbItems,
-	}))
-	return err
+	return nil
+}
+
+// sanitizeForStruct 把任意 map 转成 structpb.NewStruct 可接受的形式：
+//
+//   - []string / []int / 其它 typed slice → []any（structpb 仅接受 []any）
+//   - 嵌套 map[string]any → 递归
+//   - 其它原值不动（structpb 处理得了）
+func sanitizeForStruct(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = sanitizeValue(v)
+	}
+	return out
+}
+
+func sanitizeValue(v any) any {
+	switch x := v.(type) {
+	case []string:
+		out := make([]any, len(x))
+		for i, s := range x {
+			out[i] = s
+		}
+		return out
+	case []int:
+		out := make([]any, len(x))
+		for i, n := range x {
+			out[i] = float64(n) // structpb 数值统一 double
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = sanitizeValue(e)
+		}
+		return out
+	case map[string]any:
+		return sanitizeForStruct(x)
+	default:
+		return v
+	}
 }
 
 func (l *Loop) report(ctx context.Context, assignmentID, status, errMsg string) error {

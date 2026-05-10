@@ -357,10 +357,21 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle(tnMount.path, tnMount.handler)
 		logger.Info("tenancy service mounted", "path", tnMount.path)
 
-		// === 8a₂. ScanService（PR-S1 扫描调度入口）===
+		// === 8a₂. AssetService（PR-S8 资产视图）===
+		// 先于 ScanService 装：scan service 要把 AssetDeriver 注入做 ReportResults 派生。
+		asMount, assetDeriver, err := buildAssetMount(pool, authSvc, logger)
+		if err != nil {
+			logger.LogError(ctx, "asset stack init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(asMount.path, asMount.handler)
+		logger.Info("asset service mounted", "path", asMount.path)
+
+		// === 8a₃. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。
-		scMount, scanSvc, err := buildScanMount(ctx, pool, esClient, authSvc, logger)
+		scMount, scanSvc, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, logger)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

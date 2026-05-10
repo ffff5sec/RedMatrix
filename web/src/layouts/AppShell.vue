@@ -40,6 +40,7 @@ const navItems = computed<NavItem[]>(() => [
   { name: 'projects', label: '项目', visible: true },
   { name: 'scans', label: '扫描', visible: true },
   { name: 'scan-results', label: '结果搜索', visible: true },
+  { name: 'assets', label: '资产', visible: true },
   { name: 'nodes', label: '节点', visible: authStore.isSuperAdmin() || authStore.isAuditor() },
   { name: 'users', label: '用户管理', visible: authStore.isSuperAdmin() || authStore.isAuditor() },
 ]);

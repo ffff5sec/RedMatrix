@@ -30,11 +30,13 @@ type scanMount struct {
 // 需要 scanSvc 让 PR-S3 PullTasks / ReportTaskProgress 工作）。
 //
 // esClient 可空：未装 / 未配 ES 时 indexer 退化成 nil，scan service 就走 PG-only。
+// assetDeriver 可空：dev 不挂 asset 模块时 ReportResults 不派生资产。
 func buildScanMount(
 	ctx context.Context,
 	pool *pg.Pool,
 	esClient *es.Client,
 	authSvc auth.Service,
+	assetDeriver scan.AssetDeriver,
 	logger *log.Logger,
 ) (*scanMount, scan.Service, error) {
 	if pool == nil || pool.App == nil {
@@ -66,7 +68,7 @@ func buildScanMount(
 		idx = i
 	}
 
-	svc, err := scan.NewService(tasks, assignments, results, projects, nodes, allowed, idx, logger)
+	svc, err := scan.NewService(tasks, assignments, results, projects, nodes, allowed, idx, assetDeriver, logger)
 	if err != nil {
 		return nil, nil, err
 	}

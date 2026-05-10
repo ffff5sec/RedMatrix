@@ -27,6 +27,8 @@ import NodeDetail from '@/views/NodeDetail.vue';
 import ScansPanel from '@/views/ScansPanel.vue';
 import ScanDetail from '@/views/ScanDetail.vue';
 import ScanResults from '@/views/ScanResults.vue';
+import AssetsPanel from '@/views/AssetsPanel.vue';
+import AssetDetail from '@/views/AssetDetail.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
 import ProjectsPanel from '@/views/ProjectsPanel.vue';
 import NodesPanel from '@/views/NodesPanel.vue';
@@ -103,6 +105,18 @@ const routes: RouteRecordRaw[] = [
         name: 'scan-results',
         component: ScanResults,
         meta: { requiresAuth: true, title: '结果搜索' },
+      },
+      {
+        path: 'assets',
+        name: 'assets',
+        component: AssetsPanel,
+        meta: { requiresAuth: true, title: '资产' },
+      },
+      {
+        path: 'assets/:id',
+        name: 'asset-detail',
+        component: AssetDetail,
+        meta: { requiresAuth: true, title: '资产详情' },
       },
       {
         path: 'nodes',

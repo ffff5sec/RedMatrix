@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+// AssetService（PR-S8）—— 资产视图：scan_results 派生的 host / url / 子域，
+// 按 (tenant, project, kind, value) 去重；result_count 累计、last_seen 滚动。
+//
+// 路径：/redmatrix.asset.v1.AssetService
+package redmatrix.asset.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service AssetService {
+  rpc ListAssets(ListAssetsRequest) returns (ListAssetsResponse);
+  rpc GetAsset(GetAssetRequest) returns (GetAssetResponse);
+}
+
+// Asset 资产实体。
+message Asset {
+  string id = 1;
+  string tenant_id = 2;
+  string project_id = 3;
+  string kind = 4; // host / subdomain / url
+  string value = 5;
+  google.protobuf.Timestamp first_seen = 6;
+  google.protobuf.Timestamp last_seen = 7;
+  int32 result_count = 8;
+}
+
+message ListAssetsRequest {
+  optional string kind = 1;
+  optional string project_id = 2;
+  optional string keyword = 3; // value ILIKE %kw%
+  int32 page = 4;
+  int32 page_size = 5;
+}
+message ListAssetsResponse {
+  repeated Asset assets = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetAssetRequest {
+  string id = 1;
+}
+message GetAssetResponse {
+  Asset asset = 1;
+}

@@ -50,6 +50,22 @@ type Indexer interface {
 	Search(ctx context.Context, q indexer.SearchQuery) (*indexer.SearchResultPage, error)
 }
 
+// AssetDeriver 由 scan service 在 ReportResults 后同步调，把 result 行
+// 派生成资产（PR-S8）。可空——dev 不挂 asset 模块时 service 退化成"只写
+// scan_results"。失败仅日志，不影响 ReportResults 成功语义。
+//
+// 实际类型在 internal/asset 包；这里只取最小接口避免循环依赖。
+type AssetDeriver interface {
+	UpsertFromResults(ctx context.Context, items []AssetResultInput) error
+}
+
+// AssetResultInput 是 AssetDeriver 的入参；与 asset.ResultInput 同形，
+// 这里独立类型避免 scan 直接 import asset 包。
+type AssetResultInput struct {
+	TenantID, ProjectID, Kind string
+	Data                      map[string]any
+}
+
 // Service scan 模块业务流接口。
 //
 // 所有 RPC 假设 caller 已经过 handler 层 Authz；service 不查 caller role。
@@ -195,12 +211,14 @@ type service struct {
 	projects    ProjectLookup
 	nodes       NodeLister
 	allowed     AllowedNodesLookup
-	indexer     Indexer // 可空
+	indexer     Indexer      // 可空
+	assets      AssetDeriver // 可空
 	logger      *log.Logger
 	now         func() time.Time
 }
 
-// NewService 构造 scan Service；indexer / logger 可空，其余依赖 nil 时返 ErrInternal。
+// NewService 构造 scan Service；indexer / assets / logger 可空，
+// 其余依赖 nil 时返 ErrInternal。
 func NewService(
 	tasks repo.TaskRepository,
 	assignments repo.AssignmentRepository,
@@ -209,6 +227,7 @@ func NewService(
 	nodes NodeLister,
 	allowed AllowedNodesLookup,
 	idx Indexer,
+	assets AssetDeriver,
 	logger *log.Logger,
 ) (Service, error) {
 	if tasks == nil || assignments == nil || results == nil || projects == nil || nodes == nil || allowed == nil {
@@ -217,8 +236,8 @@ func NewService(
 	return &service{
 		tasks: tasks, assignments: assignments, results: results,
 		projects: projects, nodes: nodes, allowed: allowed,
-		indexer: idx,
-		logger:  logger, now: time.Now,
+		indexer: idx, assets: assets,
+		logger: logger, now: time.Now,
 	}, nil
 }
 
@@ -587,6 +606,24 @@ func (s *service) ReportResults(
 	if s.indexer != nil {
 		if err := s.indexer.Index(ctx, rows); err != nil && s.logger != nil {
 			s.logger.LogError(ctx, "scan: index results to ES failed", err,
+				"task_id", t.ID, "assignment_id", a.ID, "count", len(rows))
+		}
+	}
+
+	// PR-S8 资产派生：把 result 行转 ResultInput 调 asset.UpsertFromResults。
+	// 失败仅日志，不回滚 PG / ES（asset 是派生视图，下次扫描会再追平）。
+	if s.assets != nil {
+		inputs := make([]AssetResultInput, 0, len(rows))
+		for _, r := range rows {
+			inputs = append(inputs, AssetResultInput{
+				TenantID:  r.TenantID,
+				ProjectID: r.ProjectID,
+				Kind:      string(r.Kind),
+				Data:      r.Data,
+			})
+		}
+		if err := s.assets.UpsertFromResults(ctx, inputs); err != nil && s.logger != nil {
+			s.logger.LogError(ctx, "scan: derive assets failed", err,
 				"task_id", t.ID, "assignment_id", a.ID, "count", len(rows))
 		}
 	}

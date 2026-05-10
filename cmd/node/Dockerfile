@@ -40,15 +40,30 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-s -w -X github.com/ffff5sec/RedMatrix/internal/version.Version=${VERSION}" \
     -o /out/redmatrix-node ./cmd/node
 
+# === Subfinder build (PR-S10) ===
+# 用 go install 经 GOPROXY 下载（已配置 goproxy.cn 兼容墙内）；不依赖
+# GitHub releases 网络。版本钉死避免随意升级。
+FROM golang:1.25.10-alpine AS subfinder-build
+
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
+ARG SUBFINDER_VERSION=v2.6.6
+
+RUN apk add --no-cache git && \
+    CGO_ENABLED=0 go install \
+    github.com/projectdiscovery/subfinder/v2/cmd/subfinder@${SUBFINDER_VERSION}
+
 # === Runtime ===
 FROM alpine:3.20
 
-# nmap 是 PR-S9 port_scan 真插件依赖；缺席时 agent 自动回落 mock。
-# ca-certificates: HTTPS 出站 + mTLS root 校验
+# nmap 是 PR-S9 port_scan 真插件依赖；subfinder 是 PR-S10 subdomain 真插件。
+# 缺席时 agent 自动回落 mock。
+# ca-certificates: HTTPS 出站 + mTLS root 校验 + subfinder 调被动 source 必需
 RUN apk add --no-cache ca-certificates nmap && \
     addgroup -S agent && adduser -S agent -G agent
 
 COPY --from=build /out/redmatrix-node /usr/local/bin/redmatrix-node
+COPY --from=subfinder-build /go/bin/subfinder /usr/local/bin/subfinder
 
 # 默认数据目录；运行时一般 -v 覆盖让 cert 持久
 RUN mkdir -p /data && chown agent:agent /data

@@ -29,6 +29,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/heartbeat"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
 	"github.com/ffff5sec/RedMatrix/internal/agent/store"
 	"github.com/ffff5sec/RedMatrix/internal/agent/tasks"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
@@ -157,7 +158,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	// === 3. PR-S3 任务拉取循环（goroutine；与 heartbeat 并行）===
-	// PR-S9：注册插件——尝试真 nmap，回落到 mock。
+	// 注册插件——先全 mock 兜底，再尝试真插件覆盖（PR-S9 nmap, PR-S10 subfinder）。
 	registry := plugin.NewRegistry()
 	plugin.RegisterAllMock(registry)
 	if np, err := nmap.New(); err == nil {
@@ -166,6 +167,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 	} else {
 		logger.Info("plugin not installed; falling back to mock",
 			"kind", "port_scan", "tool", "nmap", "err", err.Error())
+	}
+	if sp, err := subfinder.New(); err == nil {
+		registry.Register(sp)
+		logger.Info("plugin registered", "kind", "subdomain", "impl", "subfinder")
+	} else {
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "subdomain", "tool", "subfinder", "err", err.Error())
 	}
 	tl := &tasks.Loop{
 		Client:        naClient,

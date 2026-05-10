@@ -28,6 +28,17 @@ type TaskRepository interface {
 
 	// SoftDelete 标 deleted_at = now()。
 	SoftDelete(ctx context.Context, id string) error
+
+	// ListCronTemplates 列所有 schedule_kind=cron 且未软删 / 未取消的 task
+	// 模板 ID + cron_expr。启动期 scheduler.LoadAll 用；不分页（cron task
+	// MVP 数量预期 < 100）。
+	ListCronTemplates(ctx context.Context) ([]CronTemplateRow, error)
+}
+
+// CronTemplateRow 启动期 LoadAll 的最小载入信息。
+type CronTemplateRow struct {
+	TaskID   string
+	CronExpr string
 }
 
 // TaskFilter List 查询的可选过滤条件。

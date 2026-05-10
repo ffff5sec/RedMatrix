@@ -8,7 +8,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/robfig/cron/v3"
+
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+)
+
+// cronParser 用 robfig/cron 默认 5 字段解析器（与 Linux crontab 一致）。
+// 包级单例避免每次 Parse 时构造。
+var cronParser = cron.NewParser(
+	cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow,
 )
 
 // TaskStatus 是 ScanTask 状态机 5 状态。
@@ -86,6 +94,16 @@ func (s ScheduleKind) Valid() bool {
 		return true
 	}
 	return false
+}
+
+// ValidCronExpr 用 robfig/cron 标准 5 字段 parser 校验表达式合法性（PR-S12）。
+// 仅在 schedule_kind=cron 时调用。空字串返 false。
+func ValidCronExpr(expr string) bool {
+	if expr == "" {
+		return false
+	}
+	_, err := cronParser.Parse(expr)
+	return err == nil
 }
 
 // TaskNameMaxLen 与 schema VARCHAR(128) 一致。
@@ -173,8 +191,14 @@ func (t *ScanTask) ValidateForCreate() error {
 		return errx.New(errx.ErrInvalidInput, "scan_task.schedule_kind 不合法").
 			WithFields("got", string(t.ScheduleKind))
 	}
-	if t.ScheduleKind == ScheduleCron && strings.TrimSpace(t.CronExpr) == "" {
-		return errx.New(errx.ErrTaskCronInvalid, "schedule_kind=cron 时 cron_expr 必填")
+	if t.ScheduleKind == ScheduleCron {
+		if strings.TrimSpace(t.CronExpr) == "" {
+			return errx.New(errx.ErrTaskCronInvalid, "schedule_kind=cron 时 cron_expr 必填")
+		}
+		if !ValidCronExpr(t.CronExpr) {
+			return errx.New(errx.ErrTaskCronInvalid, "cron_expr 不合法（标准 5 字段）").
+				WithFields("expr", t.CronExpr)
+		}
 	}
 	if t.Settings == nil {
 		t.Settings = map[string]any{}

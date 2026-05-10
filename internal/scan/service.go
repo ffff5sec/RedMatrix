@@ -66,6 +66,15 @@ type AssetResultInput struct {
 	Data                      map[string]any
 }
 
+// Scheduler 是 cron 周期任务调度器（PR-S12）。可空——dev / 测试不挂调度器
+// 时 schedule_kind=cron 的 task 仍可创建（下次重启 LoadAll 会装入）。
+//
+// 实际类型在 internal/scan/scheduler 包。
+type Scheduler interface {
+	Add(taskID, expr string) error
+	Remove(taskID string)
+}
+
 // Service scan 模块业务流接口。
 //
 // 所有 RPC 假设 caller 已经过 handler 层 Authz；service 不查 caller role。
@@ -111,6 +120,11 @@ type Service interface {
 	// SearchResults（PR-S7 全局搜索）—— 走 ES。req 中的 ScopedTenantID /
 	// ScopedProjectIDs 由 handler 注入做 RBAC 收紧；service 只做透传 + 校验。
 	SearchResults(ctx context.Context, req SearchRequest) (*SearchResultPage, error)
+
+	// TriggerCronTask（PR-S12）—— 由 scheduler 到点时回调；从 taskID 读
+	// 模板 task → 复制成 schedule_kind=immediate 的实例 task → 派发。
+	// 模板 task 已软删 / 取消时静默跳过（不返错，避免 cron 反复打日志）。
+	TriggerCronTask(ctx context.Context, taskID string) error
 }
 
 // SearchRequest 搜索入参。ScopedTenantID / ScopedProjectIDs 由 handler RBAC 注入：
@@ -213,11 +227,12 @@ type service struct {
 	allowed     AllowedNodesLookup
 	indexer     Indexer      // 可空
 	assets      AssetDeriver // 可空
+	scheduler   Scheduler    // 可空
 	logger      *log.Logger
 	now         func() time.Time
 }
 
-// NewService 构造 scan Service；indexer / assets / logger 可空，
+// NewService 构造 scan Service；indexer / assets / scheduler / logger 可空，
 // 其余依赖 nil 时返 ErrInternal。
 func NewService(
 	tasks repo.TaskRepository,
@@ -228,6 +243,7 @@ func NewService(
 	allowed AllowedNodesLookup,
 	idx Indexer,
 	assets AssetDeriver,
+	scheduler Scheduler,
 	logger *log.Logger,
 ) (Service, error) {
 	if tasks == nil || assignments == nil || results == nil || projects == nil || nodes == nil || allowed == nil {
@@ -236,7 +252,7 @@ func NewService(
 	return &service{
 		tasks: tasks, assignments: assignments, results: results,
 		projects: projects, nodes: nodes, allowed: allowed,
-		indexer: idx, assets: assets,
+		indexer: idx, assets: assets, scheduler: scheduler,
 		logger: logger, now: time.Now,
 	}, nil
 }
@@ -278,12 +294,23 @@ func (s *service) CreateTask(ctx context.Context, req CreateTaskRequest) (*domai
 		return nil, err
 	}
 
+	// PR-S12：cron 模板注册到 scheduler。失败仅日志，不阻断 task 创建
+	// （重启后 LoadAll 会兜底重新装载）。
+	if t.ScheduleKind == domain.ScheduleCron && s.scheduler != nil {
+		if err := s.scheduler.Add(t.ID, t.CronExpr); err != nil && s.logger != nil {
+			s.logger.LogError(ctx, "scan: scheduler.Add failed", err,
+				"task_id", t.ID, "expr", t.CronExpr)
+		}
+	}
+
 	// PR-S2 同步派发：项目 allowed_nodes ∩ 租户内 online 节点 → InsertBulk。
-	// 派发失败仅日志（task 已建，UI 详情页可见 0 派发；运维可手动 Cancel + 重建）。
-	if err := s.dispatch(ctx, t); err != nil {
-		if s.logger != nil {
-			s.logger.LogError(ctx, "scan.dispatch failed", err,
-				"task_id", t.ID, "project_id", t.ProjectID)
+	// cron 模板不立即派发（要等 scheduler 触发产生实例 task）；immediate 才派发。
+	if t.ScheduleKind != domain.ScheduleCron {
+		if err := s.dispatch(ctx, t); err != nil {
+			if s.logger != nil {
+				s.logger.LogError(ctx, "scan.dispatch failed", err,
+					"task_id", t.ID, "project_id", t.ProjectID)
+			}
 		}
 	}
 	return t, nil
@@ -368,11 +395,30 @@ func (s *service) CancelTask(ctx context.Context, id string) error {
 			WithFields("status", string(t.Status))
 	}
 	now := s.now().UTC().Format(time.RFC3339)
-	return s.tasks.UpdateStatus(ctx, id, domain.TaskCanceled, &now)
+	if err := s.tasks.UpdateStatus(ctx, id, domain.TaskCanceled, &now); err != nil {
+		return err
+	}
+	// PR-S12：cron 模板取消后停止后续触发；幂等，未注册时 no-op。
+	if s.scheduler != nil && t.ScheduleKind == domain.ScheduleCron {
+		s.scheduler.Remove(id)
+	}
+	return nil
 }
 
 func (s *service) DeleteTask(ctx context.Context, id string) error {
-	return s.tasks.SoftDelete(ctx, id)
+	// PR-S12：先取一次 task 看是否 cron，删后注销 scheduler；
+	// 取不到（已软删 / 不存在）由 SoftDelete 自己返错，这里静默继续。
+	var isCron bool
+	if t, err := s.tasks.GetByID(ctx, id); err == nil && t.ScheduleKind == domain.ScheduleCron {
+		isCron = true
+	}
+	if err := s.tasks.SoftDelete(ctx, id); err != nil {
+		return err
+	}
+	if isCron && s.scheduler != nil {
+		s.scheduler.Remove(id)
+	}
+	return nil
 }
 
 func (s *service) ListAssignmentsByTask(ctx context.Context, taskID string) ([]*domain.TaskAssignment, error) {
@@ -700,4 +746,62 @@ func (s *service) SearchResults(ctx context.Context, req SearchRequest) (*Search
 		out.Facets = append(out.Facets, fc)
 	}
 	return out, nil
+}
+
+// TriggerCronTask（PR-S12）—— scheduler 到点回调；从模板派生 immediate 实例。
+//
+// 模板若已软删 / 取消，则注销 scheduler 后静默返回（避免 cron 反复打日志）。
+// 实例 task 的 name 加 [yyyy-MM-dd HH:mm] 后缀以便 UI 区分；
+// 走 service.CreateTask 自然触发 dispatch。
+func (s *service) TriggerCronTask(ctx context.Context, taskID string) error {
+	t, err := s.tasks.GetByID(ctx, taskID)
+	if err != nil {
+		// 模板已不在（软删 / 不存在）→ 注销 scheduler 防再触发
+		if s.scheduler != nil {
+			s.scheduler.Remove(taskID)
+		}
+		return nil //nolint:nilerr // 非异常，cron 自然终止
+	}
+	if t.ScheduleKind != domain.ScheduleCron {
+		// 模板的 schedule_kind 不再是 cron（理论上不会，防御）
+		if s.scheduler != nil {
+			s.scheduler.Remove(taskID)
+		}
+		return nil
+	}
+	if t.Status == domain.TaskCanceled {
+		if s.scheduler != nil {
+			s.scheduler.Remove(taskID)
+		}
+		return nil
+	}
+	// 复制为 immediate 实例
+	suffix := s.now().UTC().Format("[2006-01-02 15:04]")
+	name := t.Name + " " + suffix
+	if len(name) > domain.TaskNameMaxLen {
+		name = name[:domain.TaskNameMaxLen]
+	}
+	req := CreateTaskRequest{
+		TenantID:     t.TenantID,
+		ProjectID:    t.ProjectID,
+		Name:         name,
+		Kind:         t.Kind,
+		Target:       t.Target,
+		TargetKind:   t.TargetKind,
+		ScheduleKind: domain.ScheduleImmediate,
+		Settings:     t.Settings,
+		CreatedBy:    t.CreatedBy, // 沿用模板 owner
+	}
+	if _, err := s.CreateTask(ctx, req); err != nil {
+		if s.logger != nil {
+			s.logger.LogError(ctx, "scan: cron trigger CreateTask failed", err,
+				"template_task_id", taskID)
+		}
+		return err
+	}
+	if s.logger != nil {
+		s.logger.Info("scan: cron triggered",
+			"template_task_id", taskID, "instance_name", name)
+	}
+	return nil
 }

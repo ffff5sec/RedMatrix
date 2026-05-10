@@ -189,6 +189,34 @@ func (r *pgTaskRepo) SoftDelete(ctx context.Context, id string) error {
 	return nil
 }
 
+// ListCronTemplates 列所有 schedule_kind=cron 的活跃 task 模板（PR-S12 启动期装载用）。
+func (r *pgTaskRepo) ListCronTemplates(ctx context.Context) ([]CronTemplateRow, error) {
+	if r == nil || r.pool == nil {
+		return nil, errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id::text, cron_expr
+		FROM scan_tasks
+		WHERE schedule_kind = 'cron'
+		  AND deleted_at IS NULL
+		  AND status NOT IN ('canceled')
+		ORDER BY created_at ASC
+	`)
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: list cron templates")
+	}
+	defer rows.Close()
+	out := []CronTemplateRow{}
+	for rows.Next() {
+		var row CronTemplateRow
+		if err := rows.Scan(&row.TaskID, &row.CronExpr); err != nil {
+			return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: scan cron row")
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
 // === scan helper ===
 
 func scanTask(s interface {

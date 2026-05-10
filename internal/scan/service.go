@@ -206,6 +206,9 @@ type CreateTaskRequest struct {
 	CronExpr     string
 	Settings     map[string]any
 	CreatedBy    string
+	// SourceTaskID（PR-S15）：service 内部触发路径用，cron trigger / RetryTask
+	// 设为模板 / 失败 task 的 ID。handler 不暴露给用户（外部 RPC 不传）。
+	SourceTaskID *string
 }
 
 // ListTasksRequest 入参。
@@ -298,6 +301,7 @@ func (s *service) CreateTask(ctx context.Context, req CreateTaskRequest) (*domai
 		CronExpr:     req.CronExpr,
 		Settings:     req.Settings,
 		CreatedBy:    req.CreatedBy,
+		SourceTaskID: req.SourceTaskID, // PR-S15
 	}
 	if err := s.tasks.Insert(ctx, t); err != nil {
 		return nil, err
@@ -790,6 +794,7 @@ func (s *service) TriggerCronTask(ctx context.Context, taskID string) error {
 	if len(name) > domain.TaskNameMaxLen {
 		name = name[:domain.TaskNameMaxLen]
 	}
+	srcID := t.ID // PR-S15 cron 实例 source = 模板
 	req := CreateTaskRequest{
 		TenantID:     t.TenantID,
 		ProjectID:    t.ProjectID,
@@ -800,6 +805,7 @@ func (s *service) TriggerCronTask(ctx context.Context, taskID string) error {
 		ScheduleKind: domain.ScheduleImmediate,
 		Settings:     t.Settings,
 		CreatedBy:    t.CreatedBy, // 沿用模板 owner
+		SourceTaskID: &srcID,
 	}
 	if _, err := s.CreateTask(ctx, req); err != nil {
 		if s.logger != nil {
@@ -878,6 +884,7 @@ func (s *service) RetryTask(ctx context.Context, taskID string) (*domain.ScanTas
 	if len(name) > domain.TaskNameMaxLen {
 		name = name[:domain.TaskNameMaxLen]
 	}
+	srcID := t.ID // PR-S15 retry 实例 source = 失败 task
 	req := CreateTaskRequest{
 		TenantID:     t.TenantID,
 		ProjectID:    t.ProjectID,
@@ -888,6 +895,7 @@ func (s *service) RetryTask(ctx context.Context, taskID string) (*domain.ScanTas
 		ScheduleKind: domain.ScheduleImmediate,
 		Settings:     t.Settings,
 		CreatedBy:    t.CreatedBy,
+		SourceTaskID: &srcID,
 	}
 	return s.CreateTask(ctx, req)
 }

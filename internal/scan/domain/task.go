@@ -125,6 +125,10 @@ type ScanTask struct {
 
 	Settings map[string]any
 
+	// SourceTaskID（PR-S15）：cron 模板触发的实例 / Retry 重派的实例指回原 task。
+	// nil = 用户手动创建。FK ON DELETE SET NULL，所以源被删后自动断链。
+	SourceTaskID *string
+
 	CreatedBy  string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time

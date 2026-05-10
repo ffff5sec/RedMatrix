@@ -23,6 +23,7 @@ const toast = useToast();
 const taskId = computed(() => String(route.params.id));
 const task = ref<ScanTask | null>(null);
 const project = ref<Project | null>(null);
+const sourceTaskName = ref<string>(''); // PR-S15 溯源链接 label
 const assignments = ref<TaskAssignment[]>([]);
 const results = ref<ScanResult[]>([]);
 const nodes = ref<Map<string, Node>>(new Map());
@@ -48,6 +49,17 @@ async function refresh() {
     if (task.value?.projectId) {
       const p = await tenancyClient.getProject({ id: task.value.projectId });
       project.value = p.project ?? null;
+    }
+    // PR-S15：溯源 task name（链接 label 用，失败静默 → 显示 ID 8 位）
+    if (task.value?.sourceTaskId) {
+      try {
+        const s = await scanClient.getScanTask({ id: task.value.sourceTaskId });
+        sourceTaskName.value = s.task?.name ?? '';
+      } catch {
+        sourceTaskName.value = '';
+      }
+    } else {
+      sourceTaskName.value = '';
     }
     if (assignments.value.length > 0) {
       // 简单方案：拉租户全节点缓存（节点 < 100）；后续可加 GetNodesByIDs
@@ -218,6 +230,19 @@ async function retry() {
                 {{ project.name }}
               </router-link>
               <code v-else>{{ task.projectId }}</code>
+            </span>
+          </div>
+          <div class="kv-row" v-if="task.sourceTaskId">
+            <span class="kv-k">来源</span>
+            <span>
+              <span class="muted">{{ task.name.includes('[retry') ? '重试自' : '来自模板' }}</span>
+              <router-link
+                :to="`/scans/${task.sourceTaskId}`"
+                class="link"
+                style="margin-left: 6px"
+              >
+                {{ sourceTaskName || task.sourceTaskId.slice(0, 8) }}
+              </router-link>
             </span>
           </div>
           <div class="kv-row" v-if="task.createdAt">

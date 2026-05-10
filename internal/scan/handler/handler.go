@@ -364,6 +364,9 @@ func taskToProto(t *scandomain.ScanTask) *scanv1.ScanTask {
 	if t.FinishedAt != nil {
 		out.FinishedAt = timestamppb.New(*t.FinishedAt)
 	}
+	if t.SourceTaskID != nil {
+		out.SourceTaskId = *t.SourceTaskID
+	}
 	return out
 }
 

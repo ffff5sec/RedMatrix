@@ -30,23 +30,26 @@ const (
 
 // ScanTask 任务实体（与 schema 一一对应）。
 type ScanTask struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	ProjectId     string                 `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	Name          string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
-	Kind          string                 `protobuf:"bytes,5,opt,name=kind,proto3" json:"kind,omitempty"` // port_scan / web_crawl / subdomain / fingerprint
-	Target        string                 `protobuf:"bytes,6,opt,name=target,proto3" json:"target,omitempty"`
-	TargetKind    string                 `protobuf:"bytes,7,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"`       // host / ip / cidr / url
-	Status        string                 `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`                                 // pending / running / completed / failed / canceled
-	ScheduleKind  string                 `protobuf:"bytes,9,opt,name=schedule_kind,json=scheduleKind,proto3" json:"schedule_kind,omitempty"` // immediate / cron
-	CronExpr      string                 `protobuf:"bytes,10,opt,name=cron_expr,json=cronExpr,proto3" json:"cron_expr,omitempty"`
-	Settings      *structpb.Struct       `protobuf:"bytes,11,opt,name=settings,proto3" json:"settings,omitempty"`
-	CreatedBy     string                 `protobuf:"bytes,12,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=started_at,json=startedAt,proto3,oneof" json:"started_at,omitempty"`
-	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=finished_at,json=finishedAt,proto3,oneof" json:"finished_at,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TenantId     string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	ProjectId    string                 `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Name         string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	Kind         string                 `protobuf:"bytes,5,opt,name=kind,proto3" json:"kind,omitempty"` // port_scan / web_crawl / subdomain / fingerprint
+	Target       string                 `protobuf:"bytes,6,opt,name=target,proto3" json:"target,omitempty"`
+	TargetKind   string                 `protobuf:"bytes,7,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"`       // host / ip / cidr / url
+	Status       string                 `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`                                 // pending / running / completed / failed / canceled
+	ScheduleKind string                 `protobuf:"bytes,9,opt,name=schedule_kind,json=scheduleKind,proto3" json:"schedule_kind,omitempty"` // immediate / cron
+	CronExpr     string                 `protobuf:"bytes,10,opt,name=cron_expr,json=cronExpr,proto3" json:"cron_expr,omitempty"`
+	Settings     *structpb.Struct       `protobuf:"bytes,11,opt,name=settings,proto3" json:"settings,omitempty"`
+	CreatedBy    string                 `protobuf:"bytes,12,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	CreatedAt    *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt    *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	StartedAt    *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=started_at,json=startedAt,proto3,oneof" json:"started_at,omitempty"`
+	FinishedAt   *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=finished_at,json=finishedAt,proto3,oneof" json:"finished_at,omitempty"`
+	// source_task_id（PR-S15）：cron 模板触发的实例 / Retry 实例指回原 task。
+	// 用户手动创建为空。
+	SourceTaskId  string `protobuf:"bytes,17,opt,name=source_task_id,json=sourceTaskId,proto3" json:"source_task_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -191,6 +194,13 @@ func (x *ScanTask) GetFinishedAt() *timestamppb.Timestamp {
 		return x.FinishedAt
 	}
 	return nil
+}
+
+func (x *ScanTask) GetSourceTaskId() string {
+	if x != nil {
+		return x.SourceTaskId
+	}
+	return ""
 }
 
 type CreateScanTaskRequest struct {
@@ -1521,7 +1531,7 @@ var File_redmatrix_scan_v1_scan_proto protoreflect.FileDescriptor
 
 const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\n" +
-	"\x1credmatrix/scan/v1/scan.proto\x12\x11redmatrix.scan.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfc\x04\n" +
+	"\x1credmatrix/scan/v1/scan.proto\x12\x11redmatrix.scan.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa2\x05\n" +
 	"\bScanTask\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1d\n" +
@@ -1546,7 +1556,8 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\n" +
 	"started_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampH\x00R\tstartedAt\x88\x01\x01\x12@\n" +
 	"\vfinished_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampH\x01R\n" +
-	"finishedAt\x88\x01\x01B\r\n" +
+	"finishedAt\x88\x01\x01\x12$\n" +
+	"\x0esource_task_id\x18\x11 \x01(\tR\fsourceTaskIdB\r\n" +
 	"\v_started_atB\x0e\n" +
 	"\f_finished_at\"\x8e\x02\n" +
 	"\x15CreateScanTaskRequest\x12\x1d\n" +

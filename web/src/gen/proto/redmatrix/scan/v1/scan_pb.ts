@@ -105,6 +105,14 @@ export class ScanTask extends Message<ScanTask> {
    */
   finishedAt?: Timestamp;
 
+  /**
+   * source_task_id（PR-S15）：cron 模板触发的实例 / Retry 实例指回原 task。
+   * 用户手动创建为空。
+   *
+   * @generated from field: string source_task_id = 17;
+   */
+  sourceTaskId = "";
+
   constructor(data?: PartialMessage<ScanTask>) {
     super();
     proto3.util.initPartial(data, this);
@@ -129,6 +137,7 @@ export class ScanTask extends Message<ScanTask> {
     { no: 14, name: "updated_at", kind: "message", T: Timestamp },
     { no: 15, name: "started_at", kind: "message", T: Timestamp, opt: true },
     { no: 16, name: "finished_at", kind: "message", T: Timestamp, opt: true },
+    { no: 17, name: "source_task_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ScanTask {

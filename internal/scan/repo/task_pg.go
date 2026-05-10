@@ -42,7 +42,8 @@ SELECT id::text,
        updated_at,
        started_at,
        finished_at,
-       deleted_at
+       deleted_at,
+       source_task_id::text
 FROM scan_tasks
 `
 
@@ -60,13 +61,14 @@ func (r *pgTaskRepo) Insert(ctx context.Context, t *domain.ScanTask) error {
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO scan_tasks (
 			tenant_id, project_id, name, kind, target, target_kind, status,
-			schedule_kind, cron_expr, settings, created_by
-		) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			schedule_kind, cron_expr, settings, created_by, source_task_id
+		) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id::text, created_at, updated_at
 	`,
 		t.TenantID, t.ProjectID, t.Name, string(t.Kind), t.Target, string(t.TargetKind),
 		string(t.Status), string(t.ScheduleKind),
 		nullableString(t.CronExpr), settingsJSON, nullableUUID(t.CreatedBy),
+		nullableUUIDPtr(t.SourceTaskID),
 	)
 	if err := row.Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt); err != nil {
 		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: insert task").
@@ -225,18 +227,23 @@ func scanTask(s interface {
 }) (*domain.ScanTask, error) {
 	t := &domain.ScanTask{}
 	var settingsBytes []byte
+	var sourceTaskID *string
 	if err := s.Scan(
 		&t.ID, &t.TenantID, &t.ProjectID, &t.Name,
 		(*string)(&t.Kind), &t.Target, (*string)(&t.TargetKind),
 		(*string)(&t.Status), (*string)(&t.ScheduleKind),
 		&t.CronExpr, &settingsBytes, &t.CreatedBy,
 		&t.CreatedAt, &t.UpdatedAt, &t.StartedAt, &t.FinishedAt, &t.DeletedAt,
+		&sourceTaskID,
 	); err != nil {
 		return nil, err
 	}
 	t.Settings = map[string]any{}
 	if len(settingsBytes) > 0 {
 		_ = json.Unmarshal(settingsBytes, &t.Settings)
+	}
+	if sourceTaskID != nil && *sourceTaskID != "" {
+		t.SourceTaskID = sourceTaskID
 	}
 	return t, nil
 }
@@ -248,6 +255,15 @@ func nullableUUID(s string) any {
 		return nil
 	}
 	return s
+}
+
+// nullableUUIDPtr 把 *string 转 any（pgx 自动绑定 NULL）。
+// 用于 source_task_id 等可空 FK 字段。
+func nullableUUIDPtr(p *string) any {
+	if p == nil || strings.TrimSpace(*p) == "" {
+		return nil
+	}
+	return *p
 }
 
 func nullableString(s string) any {

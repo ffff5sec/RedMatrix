@@ -49,6 +49,9 @@ message ScanTask {
   google.protobuf.Timestamp updated_at = 14;
   optional google.protobuf.Timestamp started_at = 15;
   optional google.protobuf.Timestamp finished_at = 16;
+  // source_task_id（PR-S15）：cron 模板触发的实例 / Retry 实例指回原 task。
+  // 用户手动创建为空。
+  string source_task_id = 17;
 }
 
 message CreateScanTaskRequest {

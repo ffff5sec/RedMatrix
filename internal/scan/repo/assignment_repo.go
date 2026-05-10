@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	"github.com/ffff5sec/RedMatrix/internal/scan/domain"
 )
@@ -36,4 +37,9 @@ type AssignmentRepository interface {
 	//
 	// 行不存在 → ErrTaskNotFound。
 	UpdateStatus(ctx context.Context, id string, status domain.AssignmentStatus, errMsg string) error
+
+	// ListStaleRunning（PR-S14）—— sweeper 用：列所有
+	// status IN ('pulled', 'running') 且 COALESCE(started_at, pulled_at, assigned_at)
+	// < staleBefore 的 assignment。caller 把它们标 failed。
+	ListStaleRunning(ctx context.Context, staleBefore time.Time) ([]*domain.TaskAssignment, error)
 }

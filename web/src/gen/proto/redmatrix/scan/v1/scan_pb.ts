@@ -593,6 +593,84 @@ export class DeleteScanTaskResponse extends Message<DeleteScanTaskResponse> {
 }
 
 /**
+ * @generated from message redmatrix.scan.v1.RetryScanTaskRequest
+ */
+export class RetryScanTaskRequest extends Message<RetryScanTaskRequest> {
+  /**
+   * 原 failed/canceled task id
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<RetryScanTaskRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.RetryScanTaskRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RetryScanTaskRequest {
+    return new RetryScanTaskRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RetryScanTaskRequest {
+    return new RetryScanTaskRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RetryScanTaskRequest {
+    return new RetryScanTaskRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RetryScanTaskRequest | PlainMessage<RetryScanTaskRequest> | undefined, b: RetryScanTaskRequest | PlainMessage<RetryScanTaskRequest> | undefined): boolean {
+    return proto3.util.equals(RetryScanTaskRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.RetryScanTaskResponse
+ */
+export class RetryScanTaskResponse extends Message<RetryScanTaskResponse> {
+  /**
+   * 新 immediate 实例 task
+   *
+   * @generated from field: redmatrix.scan.v1.ScanTask task = 1;
+   */
+  task?: ScanTask;
+
+  constructor(data?: PartialMessage<RetryScanTaskResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.RetryScanTaskResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "task", kind: "message", T: ScanTask },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RetryScanTaskResponse {
+    return new RetryScanTaskResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RetryScanTaskResponse {
+    return new RetryScanTaskResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RetryScanTaskResponse {
+    return new RetryScanTaskResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RetryScanTaskResponse | PlainMessage<RetryScanTaskResponse> | undefined, b: RetryScanTaskResponse | PlainMessage<RetryScanTaskResponse> | undefined): boolean {
+    return proto3.util.equals(RetryScanTaskResponse, a, b);
+  }
+}
+
+/**
  * @generated from message redmatrix.scan.v1.TaskAssignment
  */
 export class TaskAssignment extends Message<TaskAssignment> {

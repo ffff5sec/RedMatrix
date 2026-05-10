@@ -125,6 +125,15 @@ type Service interface {
 	// 模板 task → 复制成 schedule_kind=immediate 的实例 task → 派发。
 	// 模板 task 已软删 / 取消时静默跳过（不返错，避免 cron 反复打日志）。
 	TriggerCronTask(ctx context.Context, taskID string) error
+
+	// SweepStaleAssignments（PR-S14）—— sweeper 定期调；把 status IN
+	// (pulled, running) 且超过 timeout 未上报的 assignment 标 failed，并
+	// 触发 task 状态聚合。返已扫数。
+	SweepStaleAssignments(ctx context.Context, timeout time.Duration) (int, error)
+
+	// RetryTask（PR-S14）—— 从 failed/canceled task 复制成 immediate 实例
+	// 触发 dispatch。pending/running 拒。返新实例 task。
+	RetryTask(ctx context.Context, taskID string) (*domain.ScanTask, error)
 }
 
 // SearchRequest 搜索入参。ScopedTenantID / ScopedProjectIDs 由 handler RBAC 注入：
@@ -804,4 +813,81 @@ func (s *service) TriggerCronTask(ctx context.Context, taskID string) error {
 			"template_task_id", taskID, "instance_name", name)
 	}
 	return nil
+}
+
+// SweepStaleAssignments（PR-S14）—— 把卡 pulled/running > timeout 的派发
+// 标 failed，并触发涉及 task 的状态聚合。
+//
+// 失败处理：单条 UpdateStatus 失败仅日志，继续扫其他；最终返成功标 failed 的数量。
+// caller 一般是 sweeper goroutine，每 N 秒调一次。
+func (s *service) SweepStaleAssignments(ctx context.Context, timeout time.Duration) (int, error) {
+	if timeout <= 0 {
+		return 0, errx.New(errx.ErrInvalidInput, "sweep: timeout 必须 > 0")
+	}
+	cutoff := s.now().Add(-timeout)
+	stale, err := s.assignments.ListStaleRunning(ctx, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	if len(stale) == 0 {
+		return 0, nil
+	}
+	swept := 0
+	touchedTasks := make(map[string]struct{}, len(stale))
+	for _, a := range stale {
+		errMsg := "assignment timeout (no progress for > " + timeout.String() + ")"
+		if err := s.assignments.UpdateStatus(ctx, a.ID, domain.AssignmentFailed, errMsg); err != nil {
+			if s.logger != nil {
+				s.logger.LogError(ctx, "sweep: mark assignment failed", err,
+					"assignment_id", a.ID, "task_id", a.TaskID)
+			}
+			continue
+		}
+		swept++
+		touchedTasks[a.TaskID] = struct{}{}
+	}
+	for tID := range touchedTasks {
+		if err := s.aggregateTaskStatus(ctx, tID); err != nil && s.logger != nil {
+			s.logger.LogError(ctx, "sweep: aggregate after sweep", err, "task_id", tID)
+		}
+	}
+	if s.logger != nil && swept > 0 {
+		s.logger.Info("scan: sweep stale assignments",
+			"swept", swept, "tasks_touched", len(touchedTasks))
+	}
+	return swept, nil
+}
+
+// RetryTask（PR-S14）—— 把 failed/canceled task 作模板复制成 immediate 实例。
+//
+// 与 TriggerCronTask 的复制语义相同，差别：
+//   - 校原 task 状态必须 ∈ {failed, canceled}
+//   - name 加 "[retry yyyy-MM-dd HH:mm]" 后缀以便 UI 区分
+func (s *service) RetryTask(ctx context.Context, taskID string) (*domain.ScanTask, error) {
+	t, err := s.tasks.GetByID(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if t.Status != domain.TaskFailed && t.Status != domain.TaskCanceled {
+		return nil, errx.New(errx.ErrTaskInvalidState,
+			"仅 failed / canceled 可重试").
+			WithFields("status", string(t.Status))
+	}
+	suffix := s.now().UTC().Format("[retry 2006-01-02 15:04]")
+	name := t.Name + " " + suffix
+	if len(name) > domain.TaskNameMaxLen {
+		name = name[:domain.TaskNameMaxLen]
+	}
+	req := CreateTaskRequest{
+		TenantID:     t.TenantID,
+		ProjectID:    t.ProjectID,
+		Name:         name,
+		Kind:         t.Kind,
+		Target:       t.Target,
+		TargetKind:   t.TargetKind,
+		ScheduleKind: domain.ScheduleImmediate,
+		Settings:     t.Settings,
+		CreatedBy:    t.CreatedBy,
+	}
+	return s.CreateTask(ctx, req)
 }

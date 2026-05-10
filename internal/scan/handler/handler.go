@@ -177,6 +177,26 @@ func (h *Handler) DeleteScanTask(
 	return connect.NewResponse(&scanv1.DeleteScanTaskResponse{}), nil
 }
 
+// RetryScanTask（PR-S14）—— failed/canceled task 重派。
+// 同 CreateScanTask 角色（SA / TA / PA）；service 层校 status。
+func (h *Handler) RetryScanTask(
+	ctx context.Context,
+	req *connect.Request[scanv1.RetryScanTaskRequest],
+) (*connect.Response[scanv1.RetryScanTaskResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	t, err := h.svc.RetryTask(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&scanv1.RetryScanTaskResponse{Task: taskToProto(t)}), nil
+}
+
 func (h *Handler) ListTaskAssignments(
 	ctx context.Context,
 	req *connect.Request[scanv1.ListTaskAssignmentsRequest],

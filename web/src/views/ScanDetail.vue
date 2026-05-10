@@ -153,6 +153,16 @@ async function del() {
     toast.error(errorMessage(e));
   }
 }
+async function retry() {
+  if (!task.value) return;
+  try {
+    const r = await scanClient.retryScanTask({ id: task.value.id });
+    toast.success(`已重试，新实例：${r.task?.name}`);
+    if (r.task?.id) router.push(`/scans/${r.task.id}`);
+  } catch (e) {
+    toast.error(errorMessage(e));
+  }
+}
 </script>
 
 <template>
@@ -190,6 +200,11 @@ async function del() {
             <button v-if="task.status === 'pending' || task.status === 'running'" @click="cancel">
               取消任务
             </button>
+            <button
+              v-if="task.status === 'failed' || task.status === 'canceled'"
+              class="primary"
+              @click="retry"
+            >重试</button>
             <button class="danger" @click="del">删除</button>
           </div>
         </div>

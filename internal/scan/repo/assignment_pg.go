@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -169,6 +170,40 @@ func (r *pgAssignmentRepo) UpdateStatus(ctx context.Context, id string, status d
 		return errx.New(errx.ErrTaskNotFound, "assignment 不存在").WithFields("id", id)
 	}
 	return nil
+}
+
+// ListStaleRunning（PR-S14 sweeper）—— 列卡在 pulled / running 超过 staleBefore 的派发。
+//
+// 用 COALESCE 取最早可用时间戳（started_at > pulled_at > assigned_at），覆盖
+// agent 拉到任务但没上报过 running（started_at 为 NULL）的边角情况。
+func (r *pgAssignmentRepo) ListStaleRunning(ctx context.Context, staleBefore time.Time) ([]*domain.TaskAssignment, error) {
+	if r == nil || r.pool == nil {
+		return nil, errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	rows, err := r.pool.Query(ctx,
+		selectAssignmentSQL+`
+		WHERE status IN ('pulled', 'running')
+		  AND COALESCE(started_at, pulled_at, assigned_at) < $1
+		ORDER BY assigned_at ASC`,
+		staleBefore)
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: list stale running")
+	}
+	defer rows.Close()
+	out := []*domain.TaskAssignment{}
+	for rows.Next() {
+		a := &domain.TaskAssignment{}
+		var status string
+		if err := rows.Scan(
+			&a.ID, &a.TaskID, &a.NodeID, &status,
+			&a.AssignedAt, &a.PulledAt, &a.StartedAt, &a.FinishedAt, &a.Error,
+		); err != nil {
+			return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: scan stale assignment")
+		}
+		a.Status = domain.AssignmentStatus(status)
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }
 
 func (r *pgAssignmentRepo) CountByTaskIDs(ctx context.Context, taskIDs []string) (map[string]int, error) {

@@ -42,6 +42,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/platform/health"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/platform/metrics"
+	"github.com/ffff5sec/RedMatrix/internal/scan/sweeper"
 	"github.com/ffff5sec/RedMatrix/internal/storage/es"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
 	rmminio "github.com/ffff5sec/RedMatrix/internal/storage/minio"
@@ -386,6 +387,17 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		scanSched.Start()
 		defer scanSched.Stop()
 		logger.Info("scan scheduler started", "cron_tasks", scanSched.Count())
+
+		// === 8a₃'. Sweeper（PR-S14）—— 回收卡 running 超时的派发 ===
+		sw := sweeper.New(scanSvc, sweeper.DefaultInterval, sweeper.DefaultTimeout, logger)
+		go func() {
+			if err := sw.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.LogError(ctx, "scan: sweeper exited with error", err)
+			}
+		}()
+		logger.Info("scan sweeper started",
+			"interval", sweeper.DefaultInterval.String(),
+			"timeout", sweeper.DefaultTimeout.String())
 
 		// === 8a₁'. NodeAgentService（mTLS-only；Agent 心跳 + 拉任务）===
 		nodeAgentSrv, err := startNodeAgentServer(ctx, logger, pool, tenancySvc, scanSvc, ca, cfg.Public.GRPCAddr)

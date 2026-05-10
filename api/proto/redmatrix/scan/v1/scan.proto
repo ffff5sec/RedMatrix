@@ -25,6 +25,10 @@ service ScanService {
   // SearchResults 全局结果搜索（PR-S7）—— 走 ES。
   // SA 跨租户；TA 限本租户；PA 限自己加入的项目（service 层注 project_id 过滤）。
   rpc SearchResults(SearchResultsRequest) returns (SearchResultsResponse);
+
+  // RetryScanTask（PR-S14）—— 把 failed/canceled task 复制成 immediate
+  // 实例触发 dispatch；返新实例 task。pending/running 拒。
+  rpc RetryScanTask(RetryScanTaskRequest) returns (RetryScanTaskResponse);
 }
 
 // ScanTask 任务实体（与 schema 一一对应）。
@@ -92,6 +96,13 @@ message DeleteScanTaskRequest {
   string id = 1;
 }
 message DeleteScanTaskResponse {}
+
+message RetryScanTaskRequest {
+  string id = 1; // 原 failed/canceled task id
+}
+message RetryScanTaskResponse {
+  ScanTask task = 1; // 新 immediate 实例 task
+}
 
 // ===== TaskAssignment（PR-S2）=====
 

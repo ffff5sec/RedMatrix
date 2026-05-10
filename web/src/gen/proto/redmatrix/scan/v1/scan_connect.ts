@@ -8,7 +8,7 @@
 // MVP 范围：仅任务管理；不含 dispatch / Agent 拉任务 / 结果上报。
 // 路径：/redmatrix.scan.v1.ScanService
 
-import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse, SearchResultsRequest, SearchResultsResponse } from "./scan_pb.js";
+import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse, RetryScanTaskRequest, RetryScanTaskResponse, SearchResultsRequest, SearchResultsResponse } from "./scan_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -94,6 +94,18 @@ export const ScanService = {
       name: "SearchResults",
       I: SearchResultsRequest,
       O: SearchResultsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * RetryScanTask（PR-S14）—— 把 failed/canceled task 复制成 immediate
+     * 实例触发 dispatch；返新实例 task。pending/running 拒。
+     *
+     * @generated from rpc redmatrix.scan.v1.ScanService.RetryScanTask
+     */
+    retryScanTask: {
+      name: "RetryScanTask",
+      I: RetryScanTaskRequest,
+      O: RetryScanTaskResponse,
       kind: MethodKind.Unary,
     },
   }

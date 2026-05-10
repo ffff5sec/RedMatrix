@@ -60,6 +60,9 @@ const (
 	// ScanServiceSearchResultsProcedure is the fully-qualified name of the ScanService's SearchResults
 	// RPC.
 	ScanServiceSearchResultsProcedure = "/redmatrix.scan.v1.ScanService/SearchResults"
+	// ScanServiceRetryScanTaskProcedure is the fully-qualified name of the ScanService's RetryScanTask
+	// RPC.
+	ScanServiceRetryScanTaskProcedure = "/redmatrix.scan.v1.ScanService/RetryScanTask"
 )
 
 // ScanServiceClient is a client for the redmatrix.scan.v1.ScanService service.
@@ -76,6 +79,9 @@ type ScanServiceClient interface {
 	// SearchResults 全局结果搜索（PR-S7）—— 走 ES。
 	// SA 跨租户；TA 限本租户；PA 限自己加入的项目（service 层注 project_id 过滤）。
 	SearchResults(context.Context, *connect.Request[v1.SearchResultsRequest]) (*connect.Response[v1.SearchResultsResponse], error)
+	// RetryScanTask（PR-S14）—— 把 failed/canceled task 复制成 immediate
+	// 实例触发 dispatch；返新实例 task。pending/running 拒。
+	RetryScanTask(context.Context, *connect.Request[v1.RetryScanTaskRequest]) (*connect.Response[v1.RetryScanTaskResponse], error)
 }
 
 // NewScanServiceClient constructs a client for the redmatrix.scan.v1.ScanService service. By
@@ -137,6 +143,12 @@ func NewScanServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(scanServiceMethods.ByName("SearchResults")),
 			connect.WithClientOptions(opts...),
 		),
+		retryScanTask: connect.NewClient[v1.RetryScanTaskRequest, v1.RetryScanTaskResponse](
+			httpClient,
+			baseURL+ScanServiceRetryScanTaskProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("RetryScanTask")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -150,6 +162,7 @@ type scanServiceClient struct {
 	listTaskAssignments *connect.Client[v1.ListTaskAssignmentsRequest, v1.ListTaskAssignmentsResponse]
 	listTaskResults     *connect.Client[v1.ListTaskResultsRequest, v1.ListTaskResultsResponse]
 	searchResults       *connect.Client[v1.SearchResultsRequest, v1.SearchResultsResponse]
+	retryScanTask       *connect.Client[v1.RetryScanTaskRequest, v1.RetryScanTaskResponse]
 }
 
 // CreateScanTask calls redmatrix.scan.v1.ScanService.CreateScanTask.
@@ -192,6 +205,11 @@ func (c *scanServiceClient) SearchResults(ctx context.Context, req *connect.Requ
 	return c.searchResults.CallUnary(ctx, req)
 }
 
+// RetryScanTask calls redmatrix.scan.v1.ScanService.RetryScanTask.
+func (c *scanServiceClient) RetryScanTask(ctx context.Context, req *connect.Request[v1.RetryScanTaskRequest]) (*connect.Response[v1.RetryScanTaskResponse], error) {
+	return c.retryScanTask.CallUnary(ctx, req)
+}
+
 // ScanServiceHandler is an implementation of the redmatrix.scan.v1.ScanService service.
 type ScanServiceHandler interface {
 	CreateScanTask(context.Context, *connect.Request[v1.CreateScanTaskRequest]) (*connect.Response[v1.CreateScanTaskResponse], error)
@@ -206,6 +224,9 @@ type ScanServiceHandler interface {
 	// SearchResults 全局结果搜索（PR-S7）—— 走 ES。
 	// SA 跨租户；TA 限本租户；PA 限自己加入的项目（service 层注 project_id 过滤）。
 	SearchResults(context.Context, *connect.Request[v1.SearchResultsRequest]) (*connect.Response[v1.SearchResultsResponse], error)
+	// RetryScanTask（PR-S14）—— 把 failed/canceled task 复制成 immediate
+	// 实例触发 dispatch；返新实例 task。pending/running 拒。
+	RetryScanTask(context.Context, *connect.Request[v1.RetryScanTaskRequest]) (*connect.Response[v1.RetryScanTaskResponse], error)
 }
 
 // NewScanServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -263,6 +284,12 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(scanServiceMethods.ByName("SearchResults")),
 		connect.WithHandlerOptions(opts...),
 	)
+	scanServiceRetryScanTaskHandler := connect.NewUnaryHandler(
+		ScanServiceRetryScanTaskProcedure,
+		svc.RetryScanTask,
+		connect.WithSchema(scanServiceMethods.ByName("RetryScanTask")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.scan.v1.ScanService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ScanServiceCreateScanTaskProcedure:
@@ -281,6 +308,8 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 			scanServiceListTaskResultsHandler.ServeHTTP(w, r)
 		case ScanServiceSearchResultsProcedure:
 			scanServiceSearchResultsHandler.ServeHTTP(w, r)
+		case ScanServiceRetryScanTaskProcedure:
+			scanServiceRetryScanTaskHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -320,4 +349,8 @@ func (UnimplementedScanServiceHandler) ListTaskResults(context.Context, *connect
 
 func (UnimplementedScanServiceHandler) SearchResults(context.Context, *connect.Request[v1.SearchResultsRequest]) (*connect.Response[v1.SearchResultsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.SearchResults is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) RetryScanTask(context.Context, *connect.Request[v1.RetryScanTaskRequest]) (*connect.Response[v1.RetryScanTaskResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.RetryScanTask is not implemented"))
 }

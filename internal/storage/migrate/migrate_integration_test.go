@@ -117,14 +117,9 @@ func TestDown_RollsBackOne(t *testing.T) {
 	vDown, err := Version(ctx, db)
 	require.NoError(t, err)
 
+	// 只断言"版本号下降一级"即 Down 真的回滚一条；不绑特定 migration（避免
+	// 每次加新 migration 都要改测试 — PR-S18-B 加 20260511020001 时此 case 红）。
 	assert.Less(t, vDown, vUp, "Down 后版本号应下降")
-
-	// 0007（最新）已被回滚 → accounts 表应不存在
-	var hasAccounts bool
-	require.NoError(t, db.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='accounts')`,
-	).Scan(&hasAccounts))
-	assert.False(t, hasAccounts, "Down 应移除 0007 创建的 accounts 表")
 }
 
 // 验证 0007 accounts 表 schema

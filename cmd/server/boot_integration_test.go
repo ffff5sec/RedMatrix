@@ -226,9 +226,12 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 	var addr string
 	select {
 	case addr = <-addrCh:
-	case <-time.After(2 * time.Minute):
+	case <-time.After(3 * time.Minute):
+		// GitHub Actions runner 拉 4 容器（PG+Redis+ES+MinIO）+ build 较慢；
+		// PR-S17/S18 后 boot 多 metricsscan/bus/outbox/scheduler/sweeper 几步
+		// 启动也增加；2min 紧。
 		cancel()
-		t.Fatal("HTTP server 未在 2 分钟内监听")
+		t.Fatal("HTTP server 未在 3 分钟内监听")
 	}
 
 	t.Logf("HTTP server listening at http://%s", addr)

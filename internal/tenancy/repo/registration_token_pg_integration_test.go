@@ -207,8 +207,9 @@ func TestRegToken_ListByTenant(t *testing.T) {
 func TestRegToken_AccountCascade(t *testing.T) {
 	tokens, a := setupTokenRepo(t)
 	ctx := context.Background()
-	require.NoError(t, tokens.Insert(ctx, newToken(a.ID, "x", makeHash("g"))))
-	require.NoError(t, tokens.Insert(ctx, newToken(a.ID, "y", makeHash("h"))))
+	// 注意：makeHash 入参必须是 hex 字符（schema CHECK ^[a-f0-9]{64}$）
+	require.NoError(t, tokens.Insert(ctx, newToken(a.ID, "x", makeHash("aa"))))
+	require.NoError(t, tokens.Insert(ctx, newToken(a.ID, "y", makeHash("bb"))))
 
 	pool := tokens.(*pgRegistrationTokenRepo).pool
 	_, err := pool.Exec(ctx, `DELETE FROM accounts WHERE id = $1::uuid`, a.ID)

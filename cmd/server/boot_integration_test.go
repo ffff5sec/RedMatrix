@@ -231,7 +231,10 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 		// PG/Redis/MinIO 串行 ping + PR-S17/S18 boot 多 metricsscan/bus/outbox/
 		// scheduler/sweeper 步骤。本机 / 已 warm 通常 5-10s，CI 偶现 200s+。
 		cancel()
-		t.Fatal("HTTP server 未在 5 分钟内监听（CI 资源紧 / ES 起慢）")
+		// PR-S20+：超时时打 server stderr/stdout 让 CI 知道卡在哪
+		t.Logf("=== server stdout（截断到 4KB） ===\n%.4096s", stdout.String())
+		t.Logf("=== server stderr（截断到 4KB） ===\n%.4096s", stderr.String())
+		t.Fatal("HTTP server 未在 5 分钟内监听（看上面 stderr 找卡在哪步）")
 	}
 
 	t.Logf("HTTP server listening at http://%s", addr)

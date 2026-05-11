@@ -201,10 +201,10 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 	// Bootstrap admin：固定密码便于 Login smoke 复用
 	const bootstrapPwd = "TestBootstrapAdminPwd1!"
 	t.Setenv("ADMIN_BOOTSTRAP_PASSWORD", bootstrapPwd)
-	// PR-S20+：跳 mTLS NodeAgentServer——本测试只验 HTTP /health /ready；
-	// setValidEnv 默认设 grpc.example.com:9090 DNS 不通 → listen 必失败 →
-	// server fatal exit → HTTP 永远启不起来。空字串让 startNodeAgentServer skip。
-	t.Setenv("PUBLIC_GRPC_ADDR", "")
+	// PR-S20+：mTLS NodeAgentServer 需要可 listen 的 addr——setValidEnv 默认
+	// 设 grpc.example.com:9090 DNS 不通；config 拒空串；改 127.0.0.1:0 让 OS
+	// 选随机端口（mTLS 起来但本测试不连）。
+	t.Setenv("PUBLIC_GRPC_ADDR", "127.0.0.1:0")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
@@ -32,6 +33,18 @@ SELECT id::text,
 FROM scan_results
 `
 
+// InsertBulkTx 同 InsertBulk 但在 caller 传入的 pgx.Tx 上执行，让 outbox.PublishTx
+// 能与本 INSERT 同事务原子提交（PR-S17-OUTB）。
+func (r *pgResultRepo) InsertBulkTx(ctx context.Context, tx pgx.Tx, items []*domain.ScanResult) error {
+	if tx == nil {
+		return errx.New(errx.ErrInternal, "scan.repo: InsertBulkTx 需要非 nil tx")
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return r.insertBulk(ctx, tx, items)
+}
+
 func (r *pgResultRepo) InsertBulk(ctx context.Context, items []*domain.ScanResult) error {
 	if r == nil || r.pool == nil {
 		return errx.New(errx.ErrInternal, "scan.repo: nil pool")
@@ -39,6 +52,15 @@ func (r *pgResultRepo) InsertBulk(ctx context.Context, items []*domain.ScanResul
 	if len(items) == 0 {
 		return nil
 	}
+	return r.insertBulk(ctx, r.pool, items)
+}
+
+// queryExec 是 pgxpool.Pool 与 pgx.Tx 的最小公共子集（Query 用 RETURNING）。
+type queryExec interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+func (r *pgResultRepo) insertBulk(ctx context.Context, db queryExec, items []*domain.ScanResult) error {
 	values := ""
 	args := []any{}
 	for i, it := range items {
@@ -62,9 +84,9 @@ func (r *pgResultRepo) InsertBulk(ctx context.Context, items []*domain.ScanResul
 			string(it.Kind), dataJSON)
 	}
 	// RETURNING 把 id / created_at 回填到 caller，indexer 双写需要这两个字段。
-	q := `INSERT INTO scan_results (tenant_id, project_id, task_id, assignment_id, node_id, kind, data) VALUES ` +
+	sqlStmt := `INSERT INTO scan_results (tenant_id, project_id, task_id, assignment_id, node_id, kind, data) VALUES ` +
 		values + ` RETURNING id::text, created_at`
-	rows, err := r.pool.Query(ctx, q, args...)
+	rows, err := db.Query(ctx, sqlStmt, args...)
 	if err != nil {
 		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: insert results")
 	}

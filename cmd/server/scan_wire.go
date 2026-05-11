@@ -10,6 +10,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1/scanv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
+	"github.com/ffff5sec/RedMatrix/internal/platform/eventbus"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/scan"
 	scanhandler "github.com/ffff5sec/RedMatrix/internal/scan/handler"
@@ -42,6 +43,8 @@ func buildScanMount(
 	assetDeriver scan.AssetDeriver,
 	artifactStore scan.ArtifactStore,
 	scanMetrics *metricsscan.Collectors,
+	eventBus *eventbus.Bus,
+	eventRegistry *eventbus.Registry,
 	logger *log.Logger,
 ) (*scanMount, scan.Service, *scheduler.Scheduler, error) {
 	if pool == nil || pool.App == nil {
@@ -87,10 +90,23 @@ func buildScanMount(
 		return nil, nil, nil, err
 	}
 
-	svc, err = scan.NewService(tasks, assignments, results, projects, nodes, allowed, idx, assetDeriver, sched, artifactStore, scanMetrics, logger)
+	svc, err = scan.NewService(tasks, assignments, results, projects, nodes, allowed, pool.App, idx, assetDeriver, sched, artifactStore, scanMetrics, logger)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
+	// PR-S17-OUTB：注册 outbox 事件类型 + relay 投递 handler。
+	// 事件: ResultBatchInsertedEvent —— ReportResults 同 tx PublishTx；
+	// relay 异步消费后调 indexer.Index 投 ES，doc id=ScanResult.ID 幂等。
+	if eventBus != nil && eventRegistry != nil {
+		eventbus.RegisterType[scan.ResultBatchInsertedEvent](eventRegistry)
+		if idx != nil {
+			eventbus.Subscribe(eventBus, func(ctx context.Context, ev scan.ResultBatchInsertedEvent) error {
+				return idx.Index(ctx, ev.ToScanResults())
+			})
+		}
+	}
+
 	// PR-S7：PA SearchResults 路径要查用户加入的项目；复用 tenancy member repo
 	memberDB := tenancyrepo.NewProjectMemberPG(pool.App)
 	h, err := scanhandler.New(svc, authSvc, memberDB)

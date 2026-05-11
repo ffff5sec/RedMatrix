@@ -12,7 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/platform/eventbus"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/scan/domain"
 	"github.com/ffff5sec/RedMatrix/internal/scan/indexer"
@@ -248,17 +252,20 @@ type service struct {
 	projects    ProjectLookup
 	nodes       NodeLister
 	allowed     AllowedNodesLookup
-	indexer     Indexer       // 可空
-	assets      AssetDeriver  // 可空
-	scheduler   Scheduler     // 可空
-	artifacts   ArtifactStore // 可空
-	metrics     *metricsscan.Collectors
-	logger      *log.Logger
-	now         func() time.Time
+	// pool 用于 ReportResults 开 tx（PR-S17-OUTB：InsertBulk + PublishTx 原子）。
+	// 可空 — 测试 / scaffold 不挂 PG 时 ReportResults 走非-tx 老路径（best-effort）。
+	pool      *pgxpool.Pool
+	indexer   Indexer       // 可空
+	assets    AssetDeriver  // 可空
+	scheduler Scheduler     // 可空
+	artifacts ArtifactStore // 可空
+	metrics   *metricsscan.Collectors
+	logger    *log.Logger
+	now       func() time.Time
 }
 
-// NewService 构造 scan Service；indexer / assets / scheduler / artifacts / logger 可空。
-// metrics 可空 — 测试 / scaffold 不挂 Prometheus 时用 metricsscan.Noop()。
+// NewService 构造 scan Service。pool / indexer / assets / scheduler / artifacts /
+// logger 可空（pool nil 时 ReportResults 走非-TX 兼容路径）。
 func NewService(
 	tasks repo.TaskRepository,
 	assignments repo.AssignmentRepository,
@@ -266,6 +273,7 @@ func NewService(
 	projects ProjectLookup,
 	nodes NodeLister,
 	allowed AllowedNodesLookup,
+	pool *pgxpool.Pool,
 	idx Indexer,
 	assets AssetDeriver,
 	scheduler Scheduler,
@@ -282,6 +290,7 @@ func NewService(
 	return &service{
 		tasks: tasks, assignments: assignments, results: results,
 		projects: projects, nodes: nodes, allowed: allowed,
+		pool:    pool,
 		indexer: idx, assets: assets, scheduler: scheduler, artifacts: artifacts,
 		metrics: met,
 		logger:  logger, now: time.Now,
@@ -676,22 +685,76 @@ func (s *service) ReportResults(
 			Data:         it.Data,
 		})
 	}
-	if err := s.results.InsertBulk(ctx, rows); err != nil {
+
+	// PR-S17-OUTB：开 tx → InsertBulkTx + PublishTx（outbox event）→ commit。
+	// PG 提交即"事件已落"承诺；relay 异步消费 → indexer.Index 投 ES。
+	// pool=nil（测试 / scaffold）退化到老 InsertBulk 非-TX 路径 + 同步 ES。
+	if s.pool == nil {
+		return s.reportResultsLegacy(ctx, t, a, rows)
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return errx.Wrap(errx.ErrDatabase, err, "scan: begin tx")
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := s.results.InsertBulkTx(ctx, tx, rows); err != nil {
 		return err
+	}
+	if err := eventbus.PublishTx(ctx, tx, resultsToEvent(rows)); err != nil {
+		return errx.Wrap(errx.ErrDatabase, err, "scan: publish outbox event")
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return errx.Wrap(errx.ErrDatabase, err, "scan: commit tx")
 	}
 	s.metrics.ResultsInserted.Add(float64(len(rows))) // PR-S17-OBSV
 
-	// PR-S6 ES 双写：PG 是 source-of-truth，ES 失败仅日志，不回滚 PG。
-	// rows 经过 InsertBulk 后已带 ID / CreatedAt（repo 用 RETURNING 回填）。
+	// PR-S8 资产派生：保持 inline 同步（失败仅日志，下次扫描会再追平）。
+	// 不放进 outbox：派生视图无幂等问题但出错频率低，且 asset 表 UPSERT 可
+	// 自然 catch-up；进 outbox 反增复杂度。
+	if s.assets != nil {
+		inputs := make([]AssetResultInput, 0, len(rows))
+		for _, r := range rows {
+			inputs = append(inputs, AssetResultInput{
+				TenantID:  r.TenantID,
+				ProjectID: r.ProjectID,
+				Kind:      string(r.Kind),
+				Data:      r.Data,
+			})
+		}
+		if err := s.assets.UpsertFromResults(ctx, inputs); err != nil && s.logger != nil {
+			s.logger.LogError(ctx, "scan: derive assets failed", err,
+				"task_id", t.ID, "assignment_id", a.ID, "count", len(rows))
+		}
+	}
+
+	// 即时 ES 写（best-effort，relay 兜底 at-least-once；doc id=ScanResult.ID 幂等）
+	if s.indexer != nil {
+		if err := s.indexer.Index(ctx, rows); err != nil && s.logger != nil {
+			s.logger.LogError(ctx, "scan: index results to ES failed (relay 将兜底重试)", err,
+				"task_id", t.ID, "assignment_id", a.ID, "count", len(rows))
+		}
+	}
+	return nil
+}
+
+// reportResultsLegacy 是 pool=nil 时（测试 / scaffold）的非-TX 兼容路径。
+// 等价于 PR-S6 的原 inline 写法：InsertBulk + sync ES + sync asset。
+func (s *service) reportResultsLegacy(
+	ctx context.Context,
+	t *domain.ScanTask,
+	a *domain.TaskAssignment,
+	rows []*domain.ScanResult,
+) error {
+	if err := s.results.InsertBulk(ctx, rows); err != nil {
+		return err
+	}
+	s.metrics.ResultsInserted.Add(float64(len(rows)))
 	if s.indexer != nil {
 		if err := s.indexer.Index(ctx, rows); err != nil && s.logger != nil {
 			s.logger.LogError(ctx, "scan: index results to ES failed", err,
 				"task_id", t.ID, "assignment_id", a.ID, "count", len(rows))
 		}
 	}
-
-	// PR-S8 资产派生：把 result 行转 ResultInput 调 asset.UpsertFromResults。
-	// 失败仅日志，不回滚 PG / ES（asset 是派生视图，下次扫描会再追平）。
 	if s.assets != nil {
 		inputs := make([]AssetResultInput, 0, len(rows))
 		for _, r := range rows {

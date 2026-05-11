@@ -383,10 +383,18 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			logger.Info("artifact store ready", "bucket", artifact.DefaultBucket)
 		}
 
+		// === 8a₂''. EventBus + Registry + Outbox + Relay（PR-S17-OUTB 提前构造）===
+		// 提前于 buildScanMount，让 scan.wire 注册 ResultBatchInsertedEvent + handler；
+		// Relay goroutine 在 8b 区段统一启动。
+		eventBus := eventbus.New(logger)
+		eventRegistry := eventbus.NewRegistry()
+		outbox := eventbus.NewOutbox(pool.Maintenance)
+		relay := eventbus.NewRelay(outbox, eventBus, eventRegistry, eventbus.RelayConfig{}, logger)
+
 		// === 8a₃. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。同时返回 scheduler 让 main 控生命周期（PR-S12）。
-		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, scanMetrics, logger)
+		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, scanMetrics, eventBus, eventRegistry, logger)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -441,15 +449,10 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 
 		// === 8b. Async eventbus Relay ===
-		// Relay 跑在独立 goroutine，与 HTTP server 共用 ctx；ctx 取消时同步退出。
-		// Bus + Registry 在 boot 时为空 — 业务模块（待落）会调 RegisterType[T] +
-		// Subscribe[T] 自管。空 Registry 时 Relay 遇到事件会标 failed（unknown topic），
-		// 但 scaffold 阶段无业务 PublishTx 调用，pending 队列恒空。
-		eventBus := eventbus.New(logger)
-		eventRegistry := eventbus.NewRegistry()
-		outbox := eventbus.NewOutbox(pool.Maintenance)
-		relay := eventbus.NewRelay(outbox, eventBus, eventRegistry, eventbus.RelayConfig{}, logger)
-
+		// Bus / Registry / Outbox / Relay 已在 8a₂'' 提前构造（让 scan.wire 注册类型 + handler）。
+		// 这里只启动 goroutine；ctx 取消时同步退出。
+		// PR-S17-OUTB：scan.ReportResults 会通过 PublishTx 推 ResultBatchInsertedEvent，
+		// relay 异步消费 → indexer.Index 投 ES（doc id=ScanResult.ID 幂等，与同步 inline 写双保）。
 		var relayWG sync.WaitGroup
 		relayWG.Add(1)
 		go func() {

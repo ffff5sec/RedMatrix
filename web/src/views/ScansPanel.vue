@@ -155,6 +155,7 @@ function kindLabel(k: string) {
     case 'web_crawl':   return '网页爬取';
     case 'subdomain':   return '子域名';
     case 'fingerprint': return '指纹识别';
+    case 'vuln_scan':   return '漏洞扫描';
     default:            return k;
   }
 }
@@ -293,6 +294,7 @@ function targetKindLabel(k: string) {
               <option value="web_crawl">网页爬取 (web_crawl)</option>
               <option value="subdomain">子域名 (subdomain)</option>
               <option value="fingerprint">指纹识别 (fingerprint)</option>
+              <option value="vuln_scan">漏洞扫描 (vuln_scan)</option>
             </select>
           </div>
 

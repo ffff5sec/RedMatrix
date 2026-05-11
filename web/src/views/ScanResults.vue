@@ -124,8 +124,35 @@ function kindLabel(k: string) {
     case 'web_crawl':   return '网页爬取';
     case 'subdomain':   return '子域名';
     case 'fingerprint': return '指纹识别';
+    case 'vuln_scan':   return '漏洞扫描';
     default:            return k;
   }
+}
+
+// PR-S21：漏洞 severity 转 CSS class 用于行/chip 高亮。
+function severityClass(s: unknown): string {
+  const v = typeof s === 'string' ? s.toLowerCase() : '';
+  switch (v) {
+    case 'critical': return 'sev-critical';
+    case 'high':     return 'sev-high';
+    case 'medium':   return 'sev-medium';
+    case 'low':      return 'sev-low';
+    case 'info':     return 'sev-info';
+    default:         return '';
+  }
+}
+
+// vulnSeverity 从 data 中提 severity（适配 Struct.toJson 或 plain map）。
+function vulnSeverity(data: unknown): string | null {
+  if (!data) return null;
+  let obj: Record<string, unknown>;
+  if (typeof (data as { toJson?: () => unknown }).toJson === 'function') {
+    obj = (data as { toJson: () => Record<string, unknown> }).toJson();
+  } else {
+    obj = data as Record<string, unknown>;
+  }
+  const s = obj['severity'];
+  return typeof s === 'string' && s !== '' ? s : null;
 }
 
 // formatData 把 Struct 渲染成简洁 KV 串（与 ScanDetail 同形）。
@@ -170,6 +197,7 @@ function facetBuckets(field: string) {
           <option value="web_crawl">网页爬取</option>
           <option value="subdomain">子域名</option>
           <option value="fingerprint">指纹识别</option>
+          <option value="vuln_scan">漏洞扫描</option>
         </select>
         <select v-model="filterProjectId" :disabled="loading">
           <option value="">全部项目</option>
@@ -197,8 +225,16 @@ function facetBuckets(field: string) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in items" :key="r.id">
-              <td><span class="chip">{{ kindLabel(r.kind) }}</span></td>
+            <tr v-for="r in items" :key="r.id" :class="r.kind === 'vuln_scan' ? severityClass(r.data) : ''">
+              <td>
+                <span class="chip">{{ kindLabel(r.kind) }}</span>
+                <span
+                  v-if="r.kind === 'vuln_scan' && vulnSeverity(r.data)"
+                  class="sev-chip"
+                  :class="severityClass(r.data)"
+                  style="margin-left: 4px"
+                >{{ vulnSeverity(r.data) }}</span>
+              </td>
               <td><code class="data">{{ formatData(r.data) }}</code></td>
               <td class="muted">{{ projectName.get(r.projectId) || r.projectId.slice(0, 8) }}</td>
               <td class="muted">
@@ -354,6 +390,24 @@ function facetBuckets(field: string) {
   text-decoration: none;
 }
 .link:hover { text-decoration: underline; }
+
+/* PR-S21：漏洞 severity 色（chip + 行背景轻染） */
+.sev-chip {
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.sev-critical { background: rgba(220, 38, 38, 0.14); color: #991b1b; }
+.sev-high     { background: rgba(234, 88, 12, 0.14); color: #9a3412; }
+.sev-medium   { background: rgba(202, 138, 4, 0.14); color: #854d0e; }
+.sev-low      { background: rgba(59, 130, 246, 0.10); color: #1e40af; }
+.sev-info     { background: rgba(107, 114, 128, 0.10); color: #4b5563; }
+
+/* 行级 severity tint（仅 critical / high 高亮，避免低优先级闪烁太多） */
+tr.sev-critical td { background: rgba(220, 38, 38, 0.04); }
+tr.sev-high td     { background: rgba(234, 88, 12, 0.03); }
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }

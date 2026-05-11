@@ -50,16 +50,37 @@ func (mockFingerprint) Run(_ context.Context, target, _ string, _ map[string]any
 	}, nil
 }
 
+// PR-S21：vuln_scan mock — 没装 nuclei 时 fallback；返典型漏洞 fixture。
+type mockVulnScan struct{}
+
+func (mockVulnScan) Kind() string { return "vuln_scan" }
+func (mockVulnScan) IsMock() bool { return true }
+func (mockVulnScan) Run(_ context.Context, target, _ string, _ map[string]any) ([]map[string]any, error) {
+	return []map[string]any{
+		{
+			"template_id": "mock-cve-2023-fake",
+			"severity":    "medium",
+			"name":        "Mock medium vulnerability",
+			"description": "demo placeholder (install nuclei for real scan)",
+			"host":        target,
+			"matched_at":  target,
+			"type":        "http",
+		},
+	}, nil
+}
+
 // MockPortScan 等可用作真插件构造失败时的 fallback。
 func MockPortScan() Plugin    { return mockPortScan{} }
 func MockWebCrawl() Plugin    { return mockWebCrawl{} }
 func MockSubdomain() Plugin   { return mockSubdomain{} }
 func MockFingerprint() Plugin { return mockFingerprint{} }
+func MockVulnScan() Plugin    { return mockVulnScan{} }
 
-// RegisterAllMock 一键把 4 类 mock 注册到 Registry；测试 / dev 用。
+// RegisterAllMock 一键把 5 类 mock 注册到 Registry；测试 / dev 用。
 func RegisterAllMock(r *Registry) {
 	r.Register(mockPortScan{})
 	r.Register(mockWebCrawl{})
 	r.Register(mockSubdomain{})
 	r.Register(mockFingerprint{})
+	r.Register(mockVulnScan{})
 }

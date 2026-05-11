@@ -117,6 +117,7 @@ function kindLabel(k: string) {
     case 'web_crawl':   return '网页爬取';
     case 'subdomain':   return '子域名';
     case 'fingerprint': return '指纹识别';
+    case 'vuln_scan':   return '漏洞扫描';
     default:            return k;
   }
 }

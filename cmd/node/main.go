@@ -30,6 +30,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nuclei"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
 	"github.com/ffff5sec/RedMatrix/internal/agent/store"
 	"github.com/ffff5sec/RedMatrix/internal/agent/tasks"
@@ -189,6 +190,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 	} else {
 		logger.Info("plugin not installed; falling back to mock",
 			"kind", "web_crawl", "tool", "httpx", "err", err.Error())
+	}
+	if vp, err := nuclei.New(); err == nil {
+		registry.Register(vp)
+		logger.Info("plugin registered", "kind", "vuln_scan", "impl", "nuclei")
+	} else {
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "vuln_scan", "tool", "nuclei", "err", err.Error())
 	}
 	tl := &tasks.Loop{
 		Client:        naClient,

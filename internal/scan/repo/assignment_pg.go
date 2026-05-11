@@ -98,15 +98,27 @@ func (r *pgAssignmentRepo) PullForNode(ctx context.Context, nodeID string) ([]*d
 	if r == nil || r.pool == nil {
 		return nil, errx.New(errx.ErrInternal, "scan.repo: nil pool")
 	}
+	// 直接在 UPDATE ... RETURNING 上取所有列，避免"CTE updated → 外层 SELECT 同表"
+	// 的 PG 快照陷阱（外层 SELECT 拿的是 UPDATE 之前的版本，status/pulled_at 还是旧值）。
+	// 排序在外层，因 UPDATE...RETURNING 本身不支持 ORDER BY。
 	rows, err := r.pool.Query(ctx, `
 		WITH updated AS (
 			UPDATE scan_task_assignments
 			   SET status = 'pulled', pulled_at = now()
 			 WHERE node_id = $1::uuid AND status = 'assigned'
-			RETURNING id
+			RETURNING
+			    id::text,
+			    task_id::text,
+			    node_id::text,
+			    status,
+			    assigned_at,
+			    pulled_at,
+			    started_at,
+			    finished_at,
+			    COALESCE(error, '') AS error
 		)
-		`+selectAssignmentSQL+`
-		WHERE id IN (SELECT id FROM updated)
+		SELECT id, task_id, node_id, status, assigned_at, pulled_at, started_at, finished_at, error
+		FROM updated
 		ORDER BY assigned_at ASC
 	`, nodeID)
 	if err != nil {

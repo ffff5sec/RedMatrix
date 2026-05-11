@@ -239,6 +239,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: vitest run
+        run: pnpm test
+
       - name: vite build
         run: pnpm exec vite build
 

@@ -15,7 +15,13 @@
 //   1. requiresAuth + 无 token → /login（带 redirect query 让登录后跳回）
 //   2. 有 token 访问 /login → /
 //   3. requiresRole + 当前 role 不在白名单 → /403
-import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router';
+import {
+  createRouter,
+  createWebHashHistory,
+  type RouteRecordRaw,
+  type RouteLocationNormalized,
+  type RouteLocationRaw,
+} from 'vue-router';
 
 import { authStore } from '@/store/auth';
 
@@ -158,7 +164,13 @@ export const router = createRouter({
   routes,
 });
 
-router.beforeEach((to) => {
+// authGuard 是路由守卫纯函数，导出供 vitest 单测（PR-S20-B）。
+// 通用规则：
+//   - 已登录访 /login → /
+//   - 未登录且 meta.requiresAuth → /login?redirect=...
+//   - meta.requiresRoles 不命中当前 role → /403
+//   - 其它 → 放行
+export function authGuard(to: RouteLocationNormalized): RouteLocationRaw | true {
   const authed = authStore.isAuthed();
 
   // 已登录访问 /login → /
@@ -182,7 +194,9 @@ router.beforeEach((to) => {
   }
 
   return true;
-});
+}
+
+router.beforeEach(authGuard);
 
 router.afterEach((to) => {
   if (to.meta.title) {

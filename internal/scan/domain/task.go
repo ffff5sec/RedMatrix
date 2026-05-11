@@ -117,7 +117,10 @@ type ScanTask struct {
 	ProjectID  string
 	Name       string
 	Kind       TaskKind
+	// Target 是单 target 形态；批量场景下 Targets 非空时以 Targets 为准（PR-S22）。
+	// 兼容老调用：单 target 时仍写 Target；service 会在 Targets 空时回填 [Target]。
 	Target     string
+	Targets    []string
 	TargetKind TargetKind
 	Status     TaskStatus
 

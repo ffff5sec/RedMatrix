@@ -113,6 +113,14 @@ export class ScanTask extends Message<ScanTask> {
    */
   sourceTaskId = "";
 
+  /**
+   * targets（PR-S22）：批量目标。非空时 target 显示用 targets[0]，
+   * dispatch 按 online node 数把 targets 切片到每个 assignment。
+   *
+   * @generated from field: repeated string targets = 18;
+   */
+  targets: string[] = [];
+
   constructor(data?: PartialMessage<ScanTask>) {
     super();
     proto3.util.initPartial(data, this);
@@ -138,6 +146,7 @@ export class ScanTask extends Message<ScanTask> {
     { no: 15, name: "started_at", kind: "message", T: Timestamp, opt: true },
     { no: 16, name: "finished_at", kind: "message", T: Timestamp, opt: true },
     { no: 17, name: "source_task_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 18, name: "targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ScanTask {
@@ -177,6 +186,8 @@ export class CreateScanTaskRequest extends Message<CreateScanTaskRequest> {
   kind = "";
 
   /**
+   * target 单目标兼容字段；targets 非空时被忽略（service 用 targets[0] 回填）。
+   *
    * @generated from field: string target = 4;
    */
   target = "";
@@ -203,6 +214,14 @@ export class CreateScanTaskRequest extends Message<CreateScanTaskRequest> {
    */
   settings?: Struct;
 
+  /**
+   * targets（PR-S22）：批量目标列表。每条都是同 target_kind 的目标
+   * （host/ip/cidr/url），service 端 dispatch 时切到 online nodes。
+   *
+   * @generated from field: repeated string targets = 9;
+   */
+  targets: string[] = [];
+
   constructor(data?: PartialMessage<CreateScanTaskRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -219,6 +238,7 @@ export class CreateScanTaskRequest extends Message<CreateScanTaskRequest> {
     { no: 6, name: "schedule_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "cron_expr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "settings", kind: "message", T: Struct },
+    { no: 9, name: "targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateScanTaskRequest {
@@ -816,6 +836,13 @@ export class TaskAssignment extends Message<TaskAssignment> {
    */
   error = "";
 
+  /**
+   * PR-S22: dispatch 给该 assignment 的 target 分片（空 = 走 task.target 单值）
+   *
+   * @generated from field: repeated string targets = 10;
+   */
+  targets: string[] = [];
+
   constructor(data?: PartialMessage<TaskAssignment>) {
     super();
     proto3.util.initPartial(data, this);
@@ -833,6 +860,7 @@ export class TaskAssignment extends Message<TaskAssignment> {
     { no: 7, name: "started_at", kind: "message", T: Timestamp, opt: true },
     { no: 8, name: "finished_at", kind: "message", T: Timestamp, opt: true },
     { no: 9, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TaskAssignment {

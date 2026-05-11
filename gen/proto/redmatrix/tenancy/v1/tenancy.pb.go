@@ -2686,13 +2686,16 @@ func (x *ReissueCertResponse) GetCertExpiresAt() string {
 // AssignedTask 是 Agent 拉到的任务承载（task 字段 + assignment id）。
 // 不重复 ScanTask 全字段，仅暴露 Agent 执行所需。
 type AssignedTask struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AssignmentId  string                 `protobuf:"bytes,1,opt,name=assignment_id,json=assignmentId,proto3" json:"assignment_id,omitempty"`
-	TaskId        string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	ProjectId     string                 `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	Kind          string                 `protobuf:"bytes,4,opt,name=kind,proto3" json:"kind,omitempty"` // port_scan / web_crawl / subdomain / fingerprint
-	Target        string                 `protobuf:"bytes,5,opt,name=target,proto3" json:"target,omitempty"`
-	TargetKind    string                 `protobuf:"bytes,6,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"` // host / ip / cidr / url
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	AssignmentId string                 `protobuf:"bytes,1,opt,name=assignment_id,json=assignmentId,proto3" json:"assignment_id,omitempty"`
+	TaskId       string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	ProjectId    string                 `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Kind         string                 `protobuf:"bytes,4,opt,name=kind,proto3" json:"kind,omitempty"` // port_scan / web_crawl / subdomain / fingerprint / vuln_scan
+	Target       string                 `protobuf:"bytes,5,opt,name=target,proto3" json:"target,omitempty"`
+	TargetKind   string                 `protobuf:"bytes,6,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"` // host / ip / cidr / url
+	// PR-S22: 批量目标分片。非空时 agent 循环每个 target 调 plugin；
+	// 空时退化到 target 单值（兼容老 agent / 单目标场景）。
+	Targets       []string `protobuf:"bytes,7,rep,name=targets,proto3" json:"targets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2767,6 +2770,13 @@ func (x *AssignedTask) GetTargetKind() string {
 		return x.TargetKind
 	}
 	return ""
+}
+
+func (x *AssignedTask) GetTargets() []string {
+	if x != nil {
+		return x.Targets
+	}
+	return nil
 }
 
 type PullTasksRequest struct {
@@ -3784,7 +3794,7 @@ const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
 	"nodeKeyPem\x12\x1e\n" +
 	"\vca_cert_pem\x18\x03 \x01(\tR\tcaCertPem\x12 \n" +
 	"\vfingerprint\x18\x04 \x01(\tR\vfingerprint\x12&\n" +
-	"\x0fcert_expires_at\x18\x05 \x01(\tR\rcertExpiresAt\"\xb8\x01\n" +
+	"\x0fcert_expires_at\x18\x05 \x01(\tR\rcertExpiresAt\"\xd2\x01\n" +
 	"\fAssignedTask\x12#\n" +
 	"\rassignment_id\x18\x01 \x01(\tR\fassignmentId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x1d\n" +
@@ -3793,7 +3803,8 @@ const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
 	"\x04kind\x18\x04 \x01(\tR\x04kind\x12\x16\n" +
 	"\x06target\x18\x05 \x01(\tR\x06target\x12\x1f\n" +
 	"\vtarget_kind\x18\x06 \x01(\tR\n" +
-	"targetKind\"\x12\n" +
+	"targetKind\x12\x18\n" +
+	"\atargets\x18\a \x03(\tR\atargets\"\x12\n" +
 	"\x10PullTasksRequest\"M\n" +
 	"\x11PullTasksResponse\x128\n" +
 	"\x05tasks\x18\x01 \x03(\v2\".redmatrix.tenancy.v1.AssignedTaskR\x05tasks\"n\n" +

@@ -231,6 +231,11 @@ async function downloadArtifact(key: string) {
               <span class="muted">·</span>
               <span class="muted">
                 <code>{{ task.target }}</code>
+                <span
+                  v-if="task.targets && task.targets.length > 1"
+                  class="chip batch-chip"
+                  :title="`查看下方 目标列表（${task.targets.length}）`"
+                >+{{ task.targets.length - 1 }}</span>
                 <span class="target-kind">{{ task.targetKind }}</span>
               </span>
             </div>
@@ -281,6 +286,18 @@ async function downloadArtifact(key: string) {
         </div>
       </div>
 
+      <div class="card" v-if="task.targets && task.targets.length > 1">
+        <h2>目标列表 <span class="muted">（{{ task.targets.length }}）</span></h2>
+        <p class="muted">
+          批量目标。创建时 service 把 N targets 切片到 M online 节点（PR-S22），每个 agent 循环执行。
+        </p>
+        <ul class="targets-list">
+          <li v-for="(tg, i) in task.targets" :key="i">
+            <code>{{ tg }}</code>
+          </li>
+        </ul>
+      </div>
+
       <div class="card">
         <h2>派发单 <span class="muted">（{{ assignments.length }}）</span></h2>
         <p class="muted">
@@ -292,6 +309,7 @@ async function downloadArtifact(key: string) {
               <th>节点</th>
               <th>节点状态</th>
               <th>派发状态</th>
+              <th>分片目标</th>
               <th>派发时间</th>
               <th>开跑时间</th>
               <th>结束时间</th>
@@ -308,6 +326,12 @@ async function downloadArtifact(key: string) {
               </td>
               <td>
                 <span class="badge" :class="assignmentBadge(a.status)">{{ a.status }}</span>
+              </td>
+              <td>
+                <span v-if="a.targets && a.targets.length > 0" class="chip" :title="a.targets.join('\n')">
+                  {{ a.targets.length }} 个
+                </span>
+                <span v-else class="muted">–</span>
               </td>
               <td :title="formatAbsoluteTime(a.assignedAt)">
                 {{ formatRelativeTime(a.assignedAt, nowTick) }}
@@ -386,6 +410,21 @@ async function downloadArtifact(key: string) {
 .meta-row { align-items: center; gap: 8px; font-size: 13px; }
 .muted { color: var(--muted, #6b7280); }
 .target-kind { font-size: 11px; margin-left: 6px; color: var(--muted, #6b7280); }
+.batch-chip {
+  margin-left: 6px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  cursor: help;
+}
+.targets-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  max-height: 240px;
+  overflow: auto;
+  font-size: 13px;
+}
+.targets-list li { margin: 2px 0; }
+.targets-list code { font-family: ui-monospace, SFMono-Regular, monospace; }
 
 .card {
   background: var(--surface, #fff);

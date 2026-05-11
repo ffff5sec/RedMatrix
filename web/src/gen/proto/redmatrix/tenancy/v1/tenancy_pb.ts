@@ -2259,7 +2259,7 @@ export class AssignedTask extends Message<AssignedTask> {
   projectId = "";
 
   /**
-   * port_scan / web_crawl / subdomain / fingerprint
+   * port_scan / web_crawl / subdomain / fingerprint / vuln_scan
    *
    * @generated from field: string kind = 4;
    */
@@ -2277,6 +2277,14 @@ export class AssignedTask extends Message<AssignedTask> {
    */
   targetKind = "";
 
+  /**
+   * PR-S22: 批量目标分片。非空时 agent 循环每个 target 调 plugin；
+   * 空时退化到 target 单值（兼容老 agent / 单目标场景）。
+   *
+   * @generated from field: repeated string targets = 7;
+   */
+  targets: string[] = [];
+
   constructor(data?: PartialMessage<AssignedTask>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2291,6 +2299,7 @@ export class AssignedTask extends Message<AssignedTask> {
     { no: 4, name: "kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "target", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "target_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AssignedTask {

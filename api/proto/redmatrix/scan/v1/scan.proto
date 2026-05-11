@@ -57,18 +57,25 @@ message ScanTask {
   // source_task_id（PR-S15）：cron 模板触发的实例 / Retry 实例指回原 task。
   // 用户手动创建为空。
   string source_task_id = 17;
+  // targets（PR-S22）：批量目标。非空时 target 显示用 targets[0]，
+  // dispatch 按 online node 数把 targets 切片到每个 assignment。
+  repeated string targets = 18;
 }
 
 message CreateScanTaskRequest {
   string project_id = 1;
   string name = 2;
   string kind = 3;
+  // target 单目标兼容字段；targets 非空时被忽略（service 用 targets[0] 回填）。
   string target = 4;
   string target_kind = 5;
   // 可选：默认 immediate
   string schedule_kind = 6;
   string cron_expr = 7;
   google.protobuf.Struct settings = 8;
+  // targets（PR-S22）：批量目标列表。每条都是同 target_kind 的目标
+  // （host/ip/cidr/url），service 端 dispatch 时切到 online nodes。
+  repeated string targets = 9;
 }
 message CreateScanTaskResponse {
   ScanTask task = 1;
@@ -134,6 +141,8 @@ message TaskAssignment {
   optional google.protobuf.Timestamp started_at = 7;
   optional google.protobuf.Timestamp finished_at = 8;
   string error = 9;
+  // PR-S22: dispatch 给该 assignment 的 target 分片（空 = 走 task.target 单值）
+  repeated string targets = 10;
 }
 
 message ListTaskAssignmentsRequest {

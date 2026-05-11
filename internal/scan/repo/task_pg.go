@@ -43,7 +43,8 @@ SELECT id::text,
        started_at,
        finished_at,
        deleted_at,
-       source_task_id::text
+       source_task_id::text,
+       targets
 FROM scan_tasks
 `
 
@@ -58,17 +59,23 @@ func (r *pgTaskRepo) Insert(ctx context.Context, t *domain.ScanTask) error {
 	if err != nil {
 		return errx.Wrap(errx.ErrInternal, err, "marshal scan_task.settings")
 	}
+	// PR-S22：Targets 空时回填 [Target]，避免老调用与新列不一致
+	targets := t.Targets
+	if len(targets) == 0 && strings.TrimSpace(t.Target) != "" {
+		targets = []string{t.Target}
+	}
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO scan_tasks (
 			tenant_id, project_id, name, kind, target, target_kind, status,
-			schedule_kind, cron_expr, settings, created_by, source_task_id
-		) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			schedule_kind, cron_expr, settings, created_by, source_task_id, targets
+		) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::text[])
 		RETURNING id::text, created_at, updated_at
 	`,
 		t.TenantID, t.ProjectID, t.Name, string(t.Kind), t.Target, string(t.TargetKind),
 		string(t.Status), string(t.ScheduleKind),
 		nullableString(t.CronExpr), settingsJSON, nullableUUID(t.CreatedBy),
 		nullableUUIDPtr(t.SourceTaskID),
+		targets,
 	)
 	if err := row.Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt); err != nil {
 		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: insert task").
@@ -235,6 +242,7 @@ func scanTask(s interface {
 		&t.CronExpr, &settingsBytes, &t.CreatedBy,
 		&t.CreatedAt, &t.UpdatedAt, &t.StartedAt, &t.FinishedAt, &t.DeletedAt,
 		&sourceTaskID,
+		&t.Targets,
 	); err != nil {
 		return nil, err
 	}

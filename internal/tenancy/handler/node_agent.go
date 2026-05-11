@@ -115,6 +115,7 @@ func (h *NodeAgentHandler) PullTasks(
 			Kind:         string(p.Kind),
 			Target:       p.Target,
 			TargetKind:   string(p.TargetKind),
+			Targets:      p.Targets, // PR-S22
 		})
 	}
 	return connect.NewResponse(&tenancyv1.PullTasksResponse{Tasks: out}), nil

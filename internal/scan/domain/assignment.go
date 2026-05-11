@@ -35,10 +35,13 @@ func (s AssignmentStatus) IsTerminal() bool {
 
 // TaskAssignment 派发单领域实体。
 type TaskAssignment struct {
-	ID         string
-	TaskID     string
-	NodeID     string
-	Status     AssignmentStatus
+	ID     string
+	TaskID string
+	NodeID string
+	Status AssignmentStatus
+	// Targets 是 dispatch 时切给本 assignment 的 target 子集（PR-S22 批量目标）。
+	// 空表示走老路径（agent 用 task.target 单值）。
+	Targets    []string
 	AssignedAt time.Time
 	PulledAt   *time.Time
 	StartedAt  *time.Time

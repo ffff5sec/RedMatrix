@@ -207,16 +207,23 @@ type PulledAssignment struct {
 	ProjectID    string
 	Kind         domain.TaskKind
 	Target       string
-	TargetKind   domain.TargetKind
+	// Targets（PR-S22）：dispatch 切给本 assignment 的 target 子集。
+	// 空：agent 退化到 [Target] 单值。非空：agent 循环每个调 plugin。
+	Targets    []string
+	TargetKind domain.TargetKind
 }
 
 // CreateTaskRequest 入参；handler 从 principal 注 TenantID + CreatedBy。
 type CreateTaskRequest struct {
-	TenantID     string
-	ProjectID    string
-	Name         string
-	Kind         domain.TaskKind
-	Target       string
+	TenantID  string
+	ProjectID string
+	Name      string
+	Kind      domain.TaskKind
+	// Target 单目标兼容字段；handler 可只传 Target 走老路径。
+	Target string
+	// Targets 批量目标（PR-S22）。非空时 service 用 Targets[0] 回填 Target，
+	// dispatch 时把 Targets 按 online node 数切片到每个 assignment。
+	Targets      []string
 	TargetKind   domain.TargetKind
 	ScheduleKind domain.ScheduleKind // 空 → immediate
 	CronExpr     string
@@ -329,12 +336,21 @@ func (s *service) CreateTask(ctx context.Context, req CreateTaskRequest) (*domai
 			WithFields("project_id", p.ID)
 	}
 
+	// PR-S22：规范化 Target / Targets 关系。
+	//   - Targets 非空：去重后写 task.Targets；Target 取 Targets[0]（兼容老 column）
+	//   - Targets 空：保持老路径，dispatch 走 [Target] 单值
+	targets := dedupTargets(req.Targets)
+	target := strings.TrimSpace(req.Target)
+	if len(targets) > 0 {
+		target = targets[0]
+	}
 	t := &domain.ScanTask{
 		TenantID:     p.TenantID, // 信任 project 的 tenant
 		ProjectID:    req.ProjectID,
 		Name:         req.Name,
 		Kind:         req.Kind,
-		Target:       req.Target,
+		Target:       target,
+		Targets:      targets,
 		TargetKind:   req.TargetKind,
 		ScheduleKind: req.ScheduleKind,
 		CronExpr:     req.CronExpr,
@@ -387,7 +403,7 @@ func (s *service) dispatch(ctx context.Context, t *domain.ScanTask) error {
 		return err
 	}
 	now := s.now()
-	picked := make([]*domain.TaskAssignment, 0, len(nodes))
+	online := make([]string, 0, len(nodes))
 	for _, n := range nodes {
 		// DeriveStatus 让"持久化 online + 心跳过期"展示成 offline，避免派给已离线
 		if n.DeriveStatus(now) != tenancydomain.NodeOnline {
@@ -396,14 +412,97 @@ func (s *service) dispatch(ctx context.Context, t *domain.ScanTask) error {
 		if !allowed.Contains(n.ID) {
 			continue
 		}
-		picked = append(picked, &domain.TaskAssignment{
-			TaskID: t.ID, NodeID: n.ID, Status: domain.AssignmentAssigned,
-		})
+		online = append(online, n.ID)
+	}
+	if len(online) == 0 {
+		return nil
+	}
+
+	// PR-S22：把 task.Targets 按 online node 数 round-robin 切片。
+	//   - Targets 空：走老路径，每 node 一条空 targets 的 assignment（agent 读 task.target）
+	//   - Targets 非空且数量 ≤ online：每 node 拿到的 assignment.targets 长度 0 或 1
+	//   - Targets 数量 > online：取模分配，每 node 拿 ceil(N/M) 或 floor(N/M)
+	picked := make([]*domain.TaskAssignment, 0, len(online))
+	if len(t.Targets) == 0 {
+		for _, nid := range online {
+			picked = append(picked, &domain.TaskAssignment{
+				TaskID: t.ID, NodeID: nid, Status: domain.AssignmentAssigned,
+			})
+		}
+	} else {
+		shards := sliceTargets(t.Targets, len(online))
+		for i, nid := range online {
+			if len(shards[i]) == 0 {
+				// 切片为空说明 N < M，给该 node 不派；保持 picked 紧凑
+				continue
+			}
+			picked = append(picked, &domain.TaskAssignment{
+				TaskID: t.ID, NodeID: nid, Status: domain.AssignmentAssigned,
+				Targets: shards[i],
+			})
+		}
 	}
 	if len(picked) == 0 {
 		return nil
 	}
 	return s.assignments.InsertBulk(ctx, picked)
+}
+
+// dedupTargets 去空白 / 去重，保持顺序。空 slice → nil。
+func dedupTargets(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// sliceTargets 把 N 个 target 平均切到 M 个 shard：
+//   - N ≥ M：每 shard 至少 floor(N/M)，前 (N%M) 个 shard 多分 1 个
+//   - N < M：前 N 个 shard 各拿 1 个，剩 (M-N) 个 shard 空
+//
+// 这样保证 dispatch 不漏 target；空 shard 的 assignment 由 caller 跳过避免空 task。
+func sliceTargets(targets []string, shardCount int) [][]string {
+	out := make([][]string, shardCount)
+	if shardCount <= 0 || len(targets) == 0 {
+		return out
+	}
+	n := len(targets)
+	base := n / shardCount
+	extra := n % shardCount
+	idx := 0
+	for i := 0; i < shardCount; i++ {
+		size := base
+		if i < extra {
+			size++
+		}
+		if size == 0 {
+			out[i] = nil
+			continue
+		}
+		end := idx + size
+		if end > n {
+			end = n
+		}
+		out[i] = targets[idx:end]
+		idx = end
+	}
+	return out
 }
 
 // ListTasks 透传 repo（filter 由 handler 决定）。
@@ -514,12 +613,21 @@ func (s *service) PullForNode(ctx context.Context, nodeID string) ([]*PulledAssi
 			}
 			continue
 		}
+		// PR-S22：优先用 assignment.Targets（dispatch 切片结果）；
+		// 退化 1：assignment.Targets 空但 task.Targets 非空 → 把 task 全量发下去
+		//   （兜底；正常 dispatch 后 assignment.Targets 不会为空）
+		// 退化 2：都为空 → agent 仍读 task.Target 单值
+		targets := a.Targets
+		if len(targets) == 0 && len(t.Targets) > 0 {
+			targets = append([]string(nil), t.Targets...)
+		}
 		out = append(out, &PulledAssignment{
 			AssignmentID: a.ID,
 			TaskID:       t.ID,
 			ProjectID:    t.ProjectID,
 			Kind:         t.Kind,
 			Target:       t.Target,
+			Targets:      targets,
 			TargetKind:   t.TargetKind,
 		})
 		touched[t.ID] = struct{}{}
@@ -918,6 +1026,7 @@ func (s *service) instantiateFromTemplate(t *domain.ScanTask, suffixLayout strin
 		Name:         name,
 		Kind:         t.Kind,
 		Target:       t.Target,
+		Targets:      append([]string(nil), t.Targets...), // PR-S22：保留批量目标
 		TargetKind:   t.TargetKind,
 		ScheduleKind: domain.ScheduleImmediate,
 		Settings:     t.Settings,

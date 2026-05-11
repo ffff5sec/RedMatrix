@@ -90,25 +90,57 @@ const newT = ref({
   projectId: '',
   name: '',
   kind: 'port_scan',
-  target: '',
+  // targetsRaw 是 textarea 原文；提交前按行拆 + trim + 去空。
+  // PR-S22：批量目标。1 行 = 老路径单 target；多行 = service 端切到各 online node。
+  targetsRaw: '',
   targetKind: 'host',
 });
 const submitting = ref(false);
 
+// 解析 textarea → 字符串数组（按行 / 逗号 / 空白 拆，去空 / 去重）
+function parseTargets(raw: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const line of raw.split(/[\n,]/)) {
+    const s = line.trim();
+    if (!s) continue;
+    if (seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
+}
+
+const newTargetsParsed = computed(() => parseTargets(newT.value.targetsRaw));
+const canSubmit = computed(
+  () =>
+    !!newT.value.projectId &&
+    !!newT.value.name &&
+    newTargetsParsed.value.length > 0,
+);
+
 async function create() {
   if (submitting.value) return;
+  const targets = newTargetsParsed.value;
+  if (targets.length === 0) return;
   submitting.value = true;
   try {
     await scanClient.createScanTask({
       projectId: newT.value.projectId,
       name: newT.value.name,
       kind: newT.value.kind,
-      target: newT.value.target,
+      // target 字段保留兼容：单目标场景与老 backend 行为一致
+      target: targets[0],
+      targets,
       targetKind: newT.value.targetKind,
     });
-    toast.success(`任务 ${newT.value.name} 已创建（pending）`);
+    const summary =
+      targets.length === 1
+        ? `任务 ${newT.value.name} 已创建（pending）`
+        : `任务 ${newT.value.name} 已创建，包含 ${targets.length} 个目标`;
+    toast.success(summary);
     showCreate.value = false;
-    newT.value = { projectId: '', name: '', kind: 'port_scan', target: '', targetKind: 'host' };
+    newT.value = { projectId: '', name: '', kind: 'port_scan', targetsRaw: '', targetKind: 'host' };
     await refresh();
   } catch (e) {
     toast.error(errorMessage(e));
@@ -228,6 +260,11 @@ function targetKindLabel(k: string) {
             </td>
             <td>
               <code class="target">{{ t.target }}</code>
+              <span
+                v-if="t.targets && t.targets.length > 1"
+                class="chip batch-chip"
+                :title="t.targets.join('\n')"
+              >+{{ t.targets.length - 1 }}</span>
               <span class="muted target-kind">{{ targetKindLabel(t.targetKind) }}</span>
             </td>
             <td>
@@ -308,9 +345,23 @@ function targetKindLabel(k: string) {
             </select>
           </div>
 
-          <div class="form-row">
-            <span class="label">目标</span>
-            <input v-model="newT.target" placeholder="如 example.com / 192.168.1.0/24" :disabled="submitting" style="flex: 1" />
+          <div class="form-row form-row-top">
+            <span class="label">目标列表</span>
+            <div style="flex: 1">
+              <textarea
+                v-model="newT.targetsRaw"
+                placeholder="一行一个目标，也支持逗号分隔。例：&#10;example.com&#10;api.example.com&#10;192.168.1.0/24"
+                :disabled="submitting"
+                rows="5"
+                style="width: 100%; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px"
+              />
+              <div class="muted" style="font-size: 12px; margin-top: 4px">
+                {{ newTargetsParsed.length }} 个目标
+                <span v-if="newTargetsParsed.length > 1">
+                  · 创建后按 online 节点数切片到每个 agent 并行执行
+                </span>
+              </div>
+            </div>
           </div>
 
           <p class="muted">
@@ -320,7 +371,7 @@ function targetKindLabel(k: string) {
           <div class="row">
             <button
               class="primary"
-              :disabled="submitting || !newT.projectId || !newT.name || !newT.target"
+              :disabled="submitting || !canSubmit"
               @click="create"
             >
               {{ submitting ? '创建中…' : '创建' }}
@@ -384,6 +435,14 @@ function targetKindLabel(k: string) {
 
 .target { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
 .target-kind { font-size: 11px; margin-left: 6px; }
+.batch-chip {
+  margin-left: 6px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  cursor: help;
+}
+.form-row-top { align-items: flex-start; }
+.form-row-top .label { padding-top: 6px; }
 
 /* 给 status badge 加 blue 颜色支持（其它颜色复用全局 styles.css 的 .green/.amber/.red）*/
 .badge.blue {

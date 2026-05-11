@@ -30,7 +30,8 @@ SELECT id::text,
        pulled_at,
        started_at,
        finished_at,
-       COALESCE(error, '') AS error
+       COALESCE(error, '') AS error,
+       targets
 FROM scan_task_assignments
 `
 
@@ -52,12 +53,18 @@ func (r *pgAssignmentRepo) InsertBulk(ctx context.Context, items []*domain.TaskA
 		if i > 0 {
 			values += ", "
 		}
-		base := i*3 + 1
-		values += `($` + itoa(base) + `::uuid, $` + itoa(base+1) + `::uuid, $` + itoa(base+2) + `)`
-		args = append(args, a.TaskID, a.NodeID, string(a.Status))
+		base := i*4 + 1
+		values += `($` + itoa(base) + `::uuid, $` + itoa(base+1) + `::uuid, $` + itoa(base+2) +
+			`, $` + itoa(base+3) + `::text[])`
+		// targets 空时给 []string{} 而非 nil，避免 NOT NULL DEFAULT '{}' 触发 driver NULL 推断
+		targets := a.Targets
+		if targets == nil {
+			targets = []string{}
+		}
+		args = append(args, a.TaskID, a.NodeID, string(a.Status), targets)
 	}
 
-	q := `INSERT INTO scan_task_assignments (task_id, node_id, status) VALUES ` + values
+	q := `INSERT INTO scan_task_assignments (task_id, node_id, status, targets) VALUES ` + values
 	if _, err := r.pool.Exec(ctx, q, args...); err != nil {
 		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: insert assignments")
 	}
@@ -83,6 +90,7 @@ func (r *pgAssignmentRepo) ListByTask(ctx context.Context, taskID string) ([]*do
 		if err := rows.Scan(
 			&a.ID, &a.TaskID, &a.NodeID, &status,
 			&a.AssignedAt, &a.PulledAt, &a.StartedAt, &a.FinishedAt, &a.Error,
+			&a.Targets,
 		); err != nil {
 			return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: scan assignment")
 		}
@@ -115,9 +123,10 @@ func (r *pgAssignmentRepo) PullForNode(ctx context.Context, nodeID string) ([]*d
 			    pulled_at,
 			    started_at,
 			    finished_at,
-			    COALESCE(error, '') AS error
+			    COALESCE(error, '') AS error,
+			    targets
 		)
-		SELECT id, task_id, node_id, status, assigned_at, pulled_at, started_at, finished_at, error
+		SELECT id, task_id, node_id, status, assigned_at, pulled_at, started_at, finished_at, error, targets
 		FROM updated
 		ORDER BY assigned_at ASC
 	`, nodeID)
@@ -133,6 +142,7 @@ func (r *pgAssignmentRepo) PullForNode(ctx context.Context, nodeID string) ([]*d
 		if err := rows.Scan(
 			&a.ID, &a.TaskID, &a.NodeID, &status,
 			&a.AssignedAt, &a.PulledAt, &a.StartedAt, &a.FinishedAt, &a.Error,
+			&a.Targets,
 		); err != nil {
 			return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: scan pulled")
 		}
@@ -152,6 +162,7 @@ func (r *pgAssignmentRepo) GetByID(ctx context.Context, id string) (*domain.Task
 	if err := row.Scan(
 		&a.ID, &a.TaskID, &a.NodeID, &status,
 		&a.AssignedAt, &a.PulledAt, &a.StartedAt, &a.FinishedAt, &a.Error,
+		&a.Targets,
 	); err != nil {
 		return nil, errx.New(errx.ErrTaskNotFound, "assignment 不存在").
 			WithFields("id", id)
@@ -251,6 +262,7 @@ func (r *pgAssignmentRepo) ListStaleRunning(ctx context.Context, staleBefore tim
 		if err := rows.Scan(
 			&a.ID, &a.TaskID, &a.NodeID, &status,
 			&a.AssignedAt, &a.PulledAt, &a.StartedAt, &a.FinishedAt, &a.Error,
+			&a.Targets,
 		); err != nil {
 			return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: scan stale assignment")
 		}

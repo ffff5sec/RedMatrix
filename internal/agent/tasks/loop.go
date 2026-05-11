@@ -139,10 +139,15 @@ func (l *Loop) execTask(
 			"assignment_id", at.GetAssignmentId(), "err", err.Error())
 		return
 	}
+	// PR-S22：targets[] 非空时逐 target 跑；空退化到 [target]
+	targets := at.GetTargets()
+	if len(targets) == 0 {
+		targets = []string{at.GetTarget()}
+	}
 	logger.Info("tasks: running",
 		"assignment_id", at.GetAssignmentId(),
 		"kind", at.GetKind(),
-		"target", at.GetTarget(),
+		"target_count", len(targets),
 	)
 
 	// 2. 选 plugin
@@ -162,6 +167,8 @@ func (l *Loop) execTask(
 
 	var results []map[string]any
 	var execErr error
+	successCount := 0
+	failedCount := 0
 	if !failed {
 		// 保留 PR-S3 demo 节奏：mock 路径才 sleep ExecDuration
 		if isMockPlugin(p) {
@@ -176,20 +183,38 @@ func (l *Loop) execTask(
 			}
 		}
 		// 总超时：真插件 ≤ PluginTimeout（防卡死）
+		// 注意：此超时是单 target 的，不是整个 assignment；批量 N targets 串行
+		// 时整体最长 N*PluginTimeout — MVP 接受，后续可引入 assignment 总预算。
 		timeout := l.PluginTimeout
 		if timeout <= 0 {
 			timeout = DefaultPluginTimeout
 		}
-		runCtx, cancel := context.WithTimeout(ctx, timeout)
-		// MVP：settings 暂未在 AssignedTask 上承载（后续扩 proto）。
-		results, execErr = p.Run(runCtx, at.GetTarget(), at.GetTargetKind(), nil)
-		cancel()
-		if execErr != nil {
+		for _, tgt := range targets {
+			if ctx.Err() != nil {
+				return
+			}
+			runCtx, cancel := context.WithTimeout(ctx, timeout)
+			// MVP：settings 暂未在 AssignedTask 上承载（后续扩 proto）。
+			r, err := p.Run(runCtx, tgt, at.GetTargetKind(), nil)
+			cancel()
+			if err != nil {
+				failedCount++
+				if execErr == nil {
+					execErr = err
+				}
+				logger.Warn("tasks: plugin run failed (one target)",
+					"assignment_id", at.GetAssignmentId(),
+					"kind", at.GetKind(),
+					"target", tgt,
+					"err", err.Error())
+				continue
+			}
+			results = append(results, r...)
+			successCount++
+		}
+		// 所有 target 都失败 → assignment failed；部分成功 → 仍 completed
+		if successCount == 0 && failedCount > 0 {
 			failed = true
-			logger.Warn("tasks: plugin run failed",
-				"assignment_id", at.GetAssignmentId(),
-				"kind", at.GetKind(),
-				"err", execErr.Error())
 		}
 	}
 
@@ -224,6 +249,8 @@ func (l *Loop) execTask(
 		"assignment_id", at.GetAssignmentId(),
 		"status", status,
 		"result_count", len(results),
+		"target_success", successCount,
+		"target_failed", failedCount,
 	)
 }
 

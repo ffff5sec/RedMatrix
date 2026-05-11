@@ -892,3 +892,55 @@ func TestAggregateTaskStatus_AllCanceledAssignments_NoChange(t *testing.T) {
 	// 全 assigned → next = pending；与原状态 pending 相同 → 不写
 	assert.Empty(t, h.tasks.statusLog)
 }
+
+// === PR-S22 targets dispatch slicing ===
+
+func TestSliceTargets_NLessThanShards(t *testing.T) {
+	got := sliceTargets([]string{"a", "b"}, 5)
+	require.Len(t, got, 5)
+	assert.Equal(t, []string{"a"}, got[0])
+	assert.Equal(t, []string{"b"}, got[1])
+	assert.Nil(t, got[2])
+	assert.Nil(t, got[3])
+	assert.Nil(t, got[4])
+}
+
+func TestSliceTargets_NGreaterThanShards_Remainder(t *testing.T) {
+	// N=7, M=3 → 3,2,2
+	got := sliceTargets([]string{"a", "b", "c", "d", "e", "f", "g"}, 3)
+	require.Len(t, got, 3)
+	assert.Equal(t, []string{"a", "b", "c"}, got[0])
+	assert.Equal(t, []string{"d", "e"}, got[1])
+	assert.Equal(t, []string{"f", "g"}, got[2])
+}
+
+func TestSliceTargets_EqualNAndShards(t *testing.T) {
+	got := sliceTargets([]string{"a", "b", "c"}, 3)
+	require.Len(t, got, 3)
+	assert.Equal(t, []string{"a"}, got[0])
+	assert.Equal(t, []string{"b"}, got[1])
+	assert.Equal(t, []string{"c"}, got[2])
+}
+
+func TestSliceTargets_ZeroShards(t *testing.T) {
+	got := sliceTargets([]string{"a"}, 0)
+	assert.Empty(t, got)
+}
+
+func TestSliceTargets_EmptyTargets(t *testing.T) {
+	got := sliceTargets(nil, 3)
+	require.Len(t, got, 3)
+	for _, s := range got {
+		assert.Nil(t, s)
+	}
+}
+
+func TestDedupTargets(t *testing.T) {
+	got := dedupTargets([]string{" a ", "b", "a", "", "  ", "c"})
+	assert.Equal(t, []string{"a", "b", "c"}, got)
+}
+
+func TestDedupTargets_AllEmpty_ReturnsNil(t *testing.T) {
+	got := dedupTargets([]string{"", "  ", "\t"})
+	assert.Nil(t, got)
+}

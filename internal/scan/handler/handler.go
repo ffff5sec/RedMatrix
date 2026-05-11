@@ -150,6 +150,7 @@ func (h *Handler) CreateScanTask(
 		Name:         in.GetName(),
 		Kind:         scandomain.TaskKind(in.GetKind()),
 		Target:       in.GetTarget(),
+		Targets:      in.GetTargets(), // PR-S22 批量目标
 		TargetKind:   scandomain.TargetKind(in.GetTargetKind()),
 		ScheduleKind: scandomain.ScheduleKind(in.GetScheduleKind()),
 		CronExpr:     in.GetCronExpr(),
@@ -461,6 +462,7 @@ func taskToProto(t *scandomain.ScanTask) *scanv1.ScanTask {
 		Name:         t.Name,
 		Kind:         string(t.Kind),
 		Target:       t.Target,
+		Targets:      append([]string(nil), t.Targets...), // PR-S22
 		TargetKind:   string(t.TargetKind),
 		Status:       string(t.Status),
 		ScheduleKind: string(t.ScheduleKind),
@@ -495,6 +497,7 @@ func assignmentToProto(a *scandomain.TaskAssignment) *scanv1.TaskAssignment {
 		Status:     string(a.Status),
 		AssignedAt: timestamppb.New(a.AssignedAt),
 		Error:      a.Error,
+		Targets:    append([]string(nil), a.Targets...), // PR-S22
 	}
 	if a.PulledAt != nil {
 		out.PulledAt = timestamppb.New(*a.PulledAt)

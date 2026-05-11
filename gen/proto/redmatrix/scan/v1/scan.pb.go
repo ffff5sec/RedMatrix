@@ -49,7 +49,10 @@ type ScanTask struct {
 	FinishedAt   *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=finished_at,json=finishedAt,proto3,oneof" json:"finished_at,omitempty"`
 	// source_task_id（PR-S15）：cron 模板触发的实例 / Retry 实例指回原 task。
 	// 用户手动创建为空。
-	SourceTaskId  string `protobuf:"bytes,17,opt,name=source_task_id,json=sourceTaskId,proto3" json:"source_task_id,omitempty"`
+	SourceTaskId string `protobuf:"bytes,17,opt,name=source_task_id,json=sourceTaskId,proto3" json:"source_task_id,omitempty"`
+	// targets（PR-S22）：批量目标。非空时 target 显示用 targets[0]，
+	// dispatch 按 online node 数把 targets 切片到每个 assignment。
+	Targets       []string `protobuf:"bytes,18,rep,name=targets,proto3" json:"targets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -203,17 +206,28 @@ func (x *ScanTask) GetSourceTaskId() string {
 	return ""
 }
 
+func (x *ScanTask) GetTargets() []string {
+	if x != nil {
+		return x.Targets
+	}
+	return nil
+}
+
 type CreateScanTaskRequest struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId  string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	Name       string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Kind       string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
-	Target     string                 `protobuf:"bytes,4,opt,name=target,proto3" json:"target,omitempty"`
-	TargetKind string                 `protobuf:"bytes,5,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Name      string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Kind      string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	// target 单目标兼容字段；targets 非空时被忽略（service 用 targets[0] 回填）。
+	Target     string `protobuf:"bytes,4,opt,name=target,proto3" json:"target,omitempty"`
+	TargetKind string `protobuf:"bytes,5,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"`
 	// 可选：默认 immediate
-	ScheduleKind  string           `protobuf:"bytes,6,opt,name=schedule_kind,json=scheduleKind,proto3" json:"schedule_kind,omitempty"`
-	CronExpr      string           `protobuf:"bytes,7,opt,name=cron_expr,json=cronExpr,proto3" json:"cron_expr,omitempty"`
-	Settings      *structpb.Struct `protobuf:"bytes,8,opt,name=settings,proto3" json:"settings,omitempty"`
+	ScheduleKind string           `protobuf:"bytes,6,opt,name=schedule_kind,json=scheduleKind,proto3" json:"schedule_kind,omitempty"`
+	CronExpr     string           `protobuf:"bytes,7,opt,name=cron_expr,json=cronExpr,proto3" json:"cron_expr,omitempty"`
+	Settings     *structpb.Struct `protobuf:"bytes,8,opt,name=settings,proto3" json:"settings,omitempty"`
+	// targets（PR-S22）：批量目标列表。每条都是同 target_kind 的目标
+	// （host/ip/cidr/url），service 端 dispatch 时切到 online nodes。
+	Targets       []string `protobuf:"bytes,9,rep,name=targets,proto3" json:"targets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -300,6 +314,13 @@ func (x *CreateScanTaskRequest) GetCronExpr() string {
 func (x *CreateScanTaskRequest) GetSettings() *structpb.Struct {
 	if x != nil {
 		return x.Settings
+	}
+	return nil
+}
+
+func (x *CreateScanTaskRequest) GetTargets() []string {
+	if x != nil {
+		return x.Targets
 	}
 	return nil
 }
@@ -927,16 +948,18 @@ func (x *GetArtifactDownloadURLResponse) GetExpiresAt() *timestamppb.Timestamp {
 }
 
 type TaskAssignment struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	TaskId        string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	NodeId        string                 `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"` // assigned / pulled / running / completed / failed
-	AssignedAt    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=assigned_at,json=assignedAt,proto3" json:"assigned_at,omitempty"`
-	PulledAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=pulled_at,json=pulledAt,proto3,oneof" json:"pulled_at,omitempty"`
-	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=started_at,json=startedAt,proto3,oneof" json:"started_at,omitempty"`
-	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=finished_at,json=finishedAt,proto3,oneof" json:"finished_at,omitempty"`
-	Error         string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TaskId     string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	NodeId     string                 `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Status     string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"` // assigned / pulled / running / completed / failed
+	AssignedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=assigned_at,json=assignedAt,proto3" json:"assigned_at,omitempty"`
+	PulledAt   *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=pulled_at,json=pulledAt,proto3,oneof" json:"pulled_at,omitempty"`
+	StartedAt  *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=started_at,json=startedAt,proto3,oneof" json:"started_at,omitempty"`
+	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=finished_at,json=finishedAt,proto3,oneof" json:"finished_at,omitempty"`
+	Error      string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
+	// PR-S22: dispatch 给该 assignment 的 target 分片（空 = 走 task.target 单值）
+	Targets       []string `protobuf:"bytes,10,rep,name=targets,proto3" json:"targets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1032,6 +1055,13 @@ func (x *TaskAssignment) GetError() string {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *TaskAssignment) GetTargets() []string {
+	if x != nil {
+		return x.Targets
+	}
+	return nil
 }
 
 type ListTaskAssignmentsRequest struct {
@@ -1629,7 +1659,7 @@ var File_redmatrix_scan_v1_scan_proto protoreflect.FileDescriptor
 
 const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\n" +
-	"\x1credmatrix/scan/v1/scan.proto\x12\x11redmatrix.scan.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa2\x05\n" +
+	"\x1credmatrix/scan/v1/scan.proto\x12\x11redmatrix.scan.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbc\x05\n" +
 	"\bScanTask\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1d\n" +
@@ -1655,9 +1685,10 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"started_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampH\x00R\tstartedAt\x88\x01\x01\x12@\n" +
 	"\vfinished_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampH\x01R\n" +
 	"finishedAt\x88\x01\x01\x12$\n" +
-	"\x0esource_task_id\x18\x11 \x01(\tR\fsourceTaskIdB\r\n" +
+	"\x0esource_task_id\x18\x11 \x01(\tR\fsourceTaskId\x12\x18\n" +
+	"\atargets\x18\x12 \x03(\tR\atargetsB\r\n" +
 	"\v_started_atB\x0e\n" +
-	"\f_finished_at\"\x8e\x02\n" +
+	"\f_finished_at\"\xa8\x02\n" +
 	"\x15CreateScanTaskRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x12\n" +
@@ -1668,7 +1699,8 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"targetKind\x12#\n" +
 	"\rschedule_kind\x18\x06 \x01(\tR\fscheduleKind\x12\x1b\n" +
 	"\tcron_expr\x18\a \x01(\tR\bcronExpr\x123\n" +
-	"\bsettings\x18\b \x01(\v2\x17.google.protobuf.StructR\bsettings\"I\n" +
+	"\bsettings\x18\b \x01(\v2\x17.google.protobuf.StructR\bsettings\x12\x18\n" +
+	"\atargets\x18\t \x03(\tR\atargets\"I\n" +
 	"\x16CreateScanTaskResponse\x12/\n" +
 	"\x04task\x18\x01 \x01(\v2\x1b.redmatrix.scan.v1.ScanTaskR\x04task\"\xb9\x01\n" +
 	"\x14ListScanTasksRequest\x12\x1d\n" +
@@ -1705,7 +1737,7 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\x1eGetArtifactDownloadURLResponse\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x129\n" +
 	"\n" +
-	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xaa\x03\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xc4\x03\n" +
 	"\x0eTaskAssignment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x17\n" +
@@ -1718,7 +1750,9 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"started_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampH\x01R\tstartedAt\x88\x01\x01\x12@\n" +
 	"\vfinished_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampH\x02R\n" +
 	"finishedAt\x88\x01\x01\x12\x14\n" +
-	"\x05error\x18\t \x01(\tR\x05errorB\f\n" +
+	"\x05error\x18\t \x01(\tR\x05error\x12\x18\n" +
+	"\atargets\x18\n" +
+	" \x03(\tR\atargetsB\f\n" +
 	"\n" +
 	"_pulled_atB\r\n" +
 	"\v_started_atB\x0e\n" +

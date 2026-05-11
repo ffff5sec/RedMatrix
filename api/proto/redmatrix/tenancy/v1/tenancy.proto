@@ -399,9 +399,12 @@ message AssignedTask {
   string assignment_id = 1;
   string task_id = 2;
   string project_id = 3;
-  string kind = 4; // port_scan / web_crawl / subdomain / fingerprint
+  string kind = 4; // port_scan / web_crawl / subdomain / fingerprint / vuln_scan
   string target = 5;
   string target_kind = 6; // host / ip / cidr / url
+  // PR-S22: 批量目标分片。非空时 agent 循环每个 target 调 plugin；
+  // 空时退化到 target 单值（兼容老 agent / 单目标场景）。
+  repeated string targets = 7;
 }
 
 message PullTasksRequest {}

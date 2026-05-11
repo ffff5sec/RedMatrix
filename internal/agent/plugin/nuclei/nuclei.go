@@ -218,11 +218,11 @@ func truncate(s string, n int) string {
 // === nuclei -jsonl 单行解码结构（v3，仅取所需字段） ===
 
 type nucleiEntry struct {
-	TemplateID string      `json:"template-id"`
-	Info       nucleiInfo  `json:"info"`
-	Host       string      `json:"host"`
-	MatchedAt  string      `json:"matched-at"`
-	Type       string      `json:"type"`
+	TemplateID string     `json:"template-id"`
+	Info       nucleiInfo `json:"info"`
+	Host       string     `json:"host"`
+	MatchedAt  string     `json:"matched-at"`
+	Type       string     `json:"type"`
 	// 其它字段（curl-command / extracted-results / request 等）暂不取，scan_results.data
 	// schema-less 后续扩 ParseJSONLines 即可不破前向。
 }

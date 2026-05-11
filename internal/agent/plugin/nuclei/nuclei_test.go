@@ -99,12 +99,12 @@ func TestValidSeverityList(t *testing.T) {
 		}
 	}
 	bad := []string{
-		"",                  // empty
-		"all",               // not in set
-		"-h",                // arg injection
-		"high;rm -rf /",     // shell meta
-		"high,bogus",        // mixed bad
-		"high,,critical",    // empty list element
+		"",               // empty
+		"all",            // not in set
+		"-h",             // arg injection
+		"high;rm -rf /",  // shell meta
+		"high,bogus",     // mixed bad
+		"high,,critical", // empty list element
 	}
 	for _, b := range bad {
 		if validSeverityList(b) {

@@ -112,11 +112,11 @@ const TaskNameMaxLen = 128
 
 // ScanTask 扫描任务领域实体（与 schema 一一对应）。
 type ScanTask struct {
-	ID         string
-	TenantID   string
-	ProjectID  string
-	Name       string
-	Kind       TaskKind
+	ID        string
+	TenantID  string
+	ProjectID string
+	Name      string
+	Kind      TaskKind
 	// Target 是单 target 形态；批量场景下 Targets 非空时以 Targets 为准（PR-S22）。
 	// 兼容老调用：单 target 时仍写 Target；service 会在 Targets 空时回填 [Target]。
 	Target     string

@@ -39,12 +39,10 @@ func (h *Handler) CreateScanSuite(
 		if err := h.assertProjectMember(ctx, p, pid); err != nil {
 			return nil, toConnectError(err)
 		}
-	} else {
+	} else if p.Role == identitydomain.RoleProjectAdmin {
 		// 空 = 跨项目套件；仅 SA / TA 可以
-		if p.Role == identitydomain.RoleProjectAdmin {
-			return nil, toConnectError(errx.New(errx.ErrAuthzNotProjectMember,
-				"PA 不能创建跨项目套件，请指定 project_id"))
-		}
+		return nil, toConnectError(errx.New(errx.ErrAuthzNotProjectMember,
+			"PA 不能创建跨项目套件，请指定 project_id"))
 	}
 
 	kinds := make([]scandomain.TaskKind, 0, len(in.GetKinds()))

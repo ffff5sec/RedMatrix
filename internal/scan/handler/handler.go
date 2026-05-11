@@ -8,6 +8,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -46,13 +47,84 @@ var allRoles = []identitydomain.Role{
 	identitydomain.RolePlatformAuditor,
 }
 
-// New 构造 ScanService handler。memberDB 仅 PR-S7 SearchResults PA 路径用，可空
-// （SearchResults 时若为 PA 又无 memberDB 会拒绝；其他 RPC 不受影响）。
+// New 构造 ScanService handler。memberDB PA 路径必须传（assertTaskAccess /
+// SearchResults / ListAssets 等都要查 join 项目）；SA-only 部署可传 nil。
 func New(svc scan.Service, authSvc auth.Service, memberDB MembershipLookup) (*Handler, error) {
 	if svc == nil || authSvc == nil {
 		return nil, errx.New(errx.ErrInternal, "scan.handler.New: 依赖不能为 nil")
 	}
 	return &Handler{svc: svc, authSvc: authSvc, memberDB: memberDB}, nil
+}
+
+// assertTaskAccess（PR-S17 BOLA 收紧）—— 取 task 并校 caller 是否有权访问。
+//
+// 规则：
+//   - SA / PlatformAuditor: 不限
+//   - TA: task.TenantID == p.TenantID
+//   - PA: 上 + task.ProjectID ∈ memberDB.ListProjectIDsByUser(p.UserID)
+//
+// 不通过统一返 ErrTaskNotFound（不泄露存在性 / 跨租户枚举攻击）。
+func (h *Handler) assertTaskAccess(
+	ctx context.Context,
+	p *auth.UserPrincipal,
+	taskID string,
+) (*scandomain.ScanTask, error) {
+	t, err := h.svc.GetTask(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	switch p.Role {
+	case identitydomain.RoleSuperAdmin, identitydomain.RolePlatformAuditor:
+		return t, nil
+	case identitydomain.RoleTenantAuditor:
+		if t.TenantID != p.TenantID {
+			return nil, errx.New(errx.ErrTaskNotFound, "task 不存在").
+				WithFields("id", taskID)
+		}
+		return t, nil
+	case identitydomain.RoleProjectAdmin:
+		if t.TenantID != p.TenantID {
+			return nil, errx.New(errx.ErrTaskNotFound, "task 不存在").
+				WithFields("id", taskID)
+		}
+		if h.memberDB == nil {
+			return nil, errx.New(errx.ErrInternal,
+				"PA 校验需 memberDB 注入；handler wire 缺失")
+		}
+		ids, err := h.memberDB.ListProjectIDsByUser(ctx, p.UserID)
+		if err != nil {
+			return nil, err
+		}
+		for _, pid := range ids {
+			if pid == t.ProjectID {
+				return t, nil
+			}
+		}
+		return nil, errx.New(errx.ErrTaskNotFound, "task 不存在").
+			WithFields("id", taskID)
+	}
+	return nil, errx.New(errx.ErrTaskNotFound, "task 不存在")
+}
+
+// assertArtifactKeyAccess（PR-S17）—— artifact key 走 tenant 前缀校验。
+//
+// key 形态：<tenantID>/<uuid>[.<ext>]（artifact.MakeKey 落地）。
+// SA/PlatformAuditor 跨租户不限；TA/PA 必须 key 以本租户 ID + "/" 起头。
+// 不通过返 ErrInvalidInput 形态错误（与不存在等价，不泄露存在性）。
+func assertArtifactKeyAccess(p *auth.UserPrincipal, key string) error {
+	switch p.Role {
+	case identitydomain.RoleSuperAdmin, identitydomain.RolePlatformAuditor:
+		return nil
+	}
+	if p.TenantID == "" {
+		return errx.New(errx.ErrInvalidInput, "无权访问该 artifact")
+	}
+	prefix := p.TenantID + "/"
+	if !strings.HasPrefix(key, prefix) {
+		return errx.New(errx.ErrInvalidInput, "无权访问该 artifact").
+			WithFields("key_prefix", "<masked>")
+	}
+	return nil
 }
 
 func (h *Handler) CreateScanTask(
@@ -134,7 +206,7 @@ func (h *Handler) GetScanTask(
 	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
 		return nil, toConnectError(err)
 	}
-	t, err := h.svc.GetTask(ctx, req.Msg.GetId())
+	t, err := h.assertTaskAccess(ctx, p, req.Msg.GetId())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
@@ -150,6 +222,9 @@ func (h *Handler) CancelScanTask(
 		return nil, toConnectError(err)
 	}
 	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	if _, err := h.assertTaskAccess(ctx, p, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.CancelTask(ctx, req.Msg.GetId()); err != nil {
@@ -171,6 +246,9 @@ func (h *Handler) DeleteScanTask(
 		identitydomain.RoleSuperAdmin, identitydomain.RoleTenantAuditor); err != nil {
 		return nil, toConnectError(err)
 	}
+	if _, err := h.assertTaskAccess(ctx, p, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
 	if err := h.svc.DeleteTask(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
@@ -188,6 +266,10 @@ func (h *Handler) GetArtifactDownloadURL(
 		return nil, toConnectError(err)
 	}
 	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	// PR-S17: tenant 前缀校（SA / PlatformAuditor 跨租户不限）
+	if err := assertArtifactKeyAccess(p, req.Msg.GetKey()); err != nil {
 		return nil, toConnectError(err)
 	}
 	url, expires, err := h.svc.GetArtifactDownloadURL(ctx, req.Msg.GetKey())
@@ -213,6 +295,9 @@ func (h *Handler) RetryScanTask(
 	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
 		return nil, toConnectError(err)
 	}
+	if _, err := h.assertTaskAccess(ctx, p, req.Msg.GetId()); err != nil {
+		return nil, toConnectError(err)
+	}
 	t, err := h.svc.RetryTask(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, toConnectError(err)
@@ -229,6 +314,9 @@ func (h *Handler) ListTaskAssignments(
 		return nil, toConnectError(err)
 	}
 	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	if _, err := h.assertTaskAccess(ctx, p, req.Msg.GetTaskId()); err != nil {
 		return nil, toConnectError(err)
 	}
 	out, err := h.svc.ListAssignmentsByTask(ctx, req.Msg.GetTaskId())
@@ -255,6 +343,9 @@ func (h *Handler) ListTaskResults(
 		return nil, toConnectError(err)
 	}
 	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	if _, err := h.assertTaskAccess(ctx, p, req.Msg.GetTaskId()); err != nil {
 		return nil, toConnectError(err)
 	}
 	out, err := h.svc.ListResultsByTask(ctx, req.Msg.GetTaskId())

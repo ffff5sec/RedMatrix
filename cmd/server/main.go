@@ -400,8 +400,12 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		logger.Info("scan scheduler started", "cron_tasks", scanSched.Count())
 
 		// === 8a₃'. Sweeper（PR-S14）—— 回收卡 running 超时的派发 ===
+		// PR-S17-RACE：用 sweeperDone 让 shutdown 显式等 goroutine 退出，
+		// 避免 pool.Close 后 sweeper 仍在中段 SQL。
 		sw := sweeper.New(scanSvc, sweeper.DefaultInterval, sweeper.DefaultTimeout, logger)
+		sweeperDone := make(chan struct{})
 		go func() {
+			defer close(sweeperDone)
 			if err := sw.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 				logger.LogError(ctx, "scan: sweeper exited with error", err)
 			}
@@ -514,6 +518,9 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		// 等 Relay goroutine 退出（ctx 已取消触发优雅退出）
 		relayWG.Wait()
 		logger.Info("relay shutdown complete")
+		// PR-S17-RACE：等 sweeper 退出（ctx 已 cancel）。在 pool.Close defer 前。
+		<-sweeperDone
+		logger.Info("sweeper shutdown complete")
 		return 0
 	}
 

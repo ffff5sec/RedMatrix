@@ -51,6 +51,11 @@ type Scheduler struct {
 	trigger Trigger
 	logger  *log.Logger
 
+	// PR-S17-RACE：trigger goroutine 用 rootCtx 派生 ctx，shutdown 时统一
+	// cancel；不再用 context.Background() 阻断 graceful shutdown。
+	rootCtx    context.Context
+	rootCancel context.CancelFunc
+
 	mu      sync.Mutex
 	entries map[string]cron.EntryID // taskID → cron entry id
 }
@@ -62,12 +67,15 @@ func New(listing TaskListing, trigger Trigger, logger *log.Logger) (*Scheduler, 
 	}
 	// 用默认 5 字段 parser（兼容 Linux crontab）；不开秒级
 	c := cron.New()
+	rootCtx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
-		cron:    c,
-		listing: listing,
-		trigger: trigger,
-		logger:  logger,
-		entries: make(map[string]cron.EntryID),
+		cron:       c,
+		listing:    listing,
+		trigger:    trigger,
+		logger:     logger,
+		rootCtx:    rootCtx,
+		rootCancel: cancel,
+		entries:    make(map[string]cron.EntryID),
 	}, nil
 }
 
@@ -149,10 +157,14 @@ func (s *Scheduler) Start() {
 	s.cron.Start()
 }
 
-// Stop 停调度（等所有运行中的 job 完成）。
+// Stop 停调度。先 cancel rootCtx 让运行中 trigger 能感知（TriggerCronTask
+// 内 CreateTask 会传 ctx 给后续 dispatch）；再等 cron 现有 job goroutine 完成。
 func (s *Scheduler) Stop() {
 	if s == nil {
 		return
+	}
+	if s.rootCancel != nil {
+		s.rootCancel()
 	}
 	<-s.cron.Stop().Done()
 }
@@ -169,8 +181,8 @@ func (s *Scheduler) Count() int {
 
 func (s *Scheduler) makeJob(taskID string) func() {
 	return func() {
-		// 每次触发都用新 ctx（cron 自己跑 goroutine；不该和 LoadAll 共用 ctx）
-		ctx := context.Background()
-		s.trigger(ctx, taskID)
+		// PR-S17-RACE：从 rootCtx 派生，server shutdown → cancel → trigger
+		// 内的 service.CreateTask（含 dispatch / ES / asset 写）能及时退出。
+		s.trigger(s.rootCtx, taskID)
 	}
 }

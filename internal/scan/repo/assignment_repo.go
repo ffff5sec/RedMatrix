@@ -42,4 +42,12 @@ type AssignmentRepository interface {
 	// status IN ('pulled', 'running') 且 COALESCE(started_at, pulled_at, assigned_at)
 	// < staleBefore 的 assignment。caller 把它们标 failed。
 	ListStaleRunning(ctx context.Context, staleBefore time.Time) ([]*domain.TaskAssignment, error)
+
+	// UpdateStatusByNode（PR-S17-RACE）—— 原子化 update：WHERE 子句一次性
+	// 校 id + node_id（防伪造）+ status NOT IN ('completed','failed')（防 TOCTOU
+	// 重复终态写入 / 并发结果覆盖）+ 返回 task_id 让 caller 做 task 聚合。
+	//
+	// 行数 0 → ErrTaskNotFound（含"不属于此节点"和"已终态"两种情况；不区分以
+	// 不泄露存在性）。行数 1 → 返 taskID 让 caller 触发 aggregator。
+	UpdateStatusByNode(ctx context.Context, id, nodeID string, status domain.AssignmentStatus, errMsg string) (taskID string, err error)
 }

@@ -525,27 +525,18 @@ func (s *service) UpdateAssignmentProgress(
 			"status 必须是 running / completed / failed").
 			WithFields("got", string(status))
 	}
-	a, err := s.assignments.GetByID(ctx, assignmentID)
+	// PR-S17-RACE：原子化 — WHERE 子句一次性校 node_id（防伪造）+ 非终态
+	// （防 TOCTOU 并发覆盖）。失败统一 NotFound 不区分原因。
+	taskID, err := s.assignments.UpdateStatusByNode(ctx, assignmentID, callerNodeID, status, errMsg)
 	if err != nil {
-		return err
-	}
-	if a.NodeID != callerNodeID {
-		return errx.New(errx.ErrTaskNotFound, "assignment 不属于此节点（防伪造）").
-			WithFields("assignment_id", a.ID)
-	}
-	if a.Status.IsTerminal() {
-		return errx.New(errx.ErrTaskInvalidState, "终态不可再转").
-			WithFields("current", string(a.Status))
-	}
-	if err := s.assignments.UpdateStatus(ctx, assignmentID, status, errMsg); err != nil {
 		return err
 	}
 
 	// PR-S4 task 聚合：失败仅日志，不影响 agent 报进度的成功语义
-	if err := s.aggregateTaskStatus(ctx, a.TaskID); err != nil {
+	if err := s.aggregateTaskStatus(ctx, taskID); err != nil {
 		if s.logger != nil {
 			s.logger.LogError(ctx, "scan: aggregate task status failed", err,
-				"task_id", a.TaskID, "assignment_id", assignmentID)
+				"task_id", taskID, "assignment_id", assignmentID)
 		}
 	}
 	return nil

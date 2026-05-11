@@ -2,8 +2,10 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
@@ -170,6 +172,46 @@ func (r *pgAssignmentRepo) UpdateStatus(ctx context.Context, id string, status d
 		return errx.New(errx.ErrTaskNotFound, "assignment 不存在").WithFields("id", id)
 	}
 	return nil
+}
+
+// UpdateStatusByNode（PR-S17-RACE）—— 原子化 UPDATE WHERE id+node_id+非终态。
+// RETURNING task_id 让 caller 做后续聚合且免一次额外 GetByID。
+func (r *pgAssignmentRepo) UpdateStatusByNode(
+	ctx context.Context,
+	id, nodeID string,
+	status domain.AssignmentStatus,
+	errMsg string,
+) (string, error) {
+	if r == nil || r.pool == nil {
+		return "", errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	if !status.Valid() {
+		return "", errx.New(errx.ErrTaskInvalidState, "status 不合法").
+			WithFields("got", string(status))
+	}
+	var taskID string
+	err := r.pool.QueryRow(ctx, `
+		UPDATE scan_task_assignments
+		   SET status = $3::varchar,
+		       started_at  = CASE WHEN $3::varchar = 'running'  AND started_at IS NULL THEN now() ELSE started_at END,
+		       finished_at = CASE WHEN $3::varchar IN ('completed','failed') THEN now() ELSE finished_at END,
+		       error       = CASE WHEN $3::varchar = 'failed' THEN $4::text ELSE NULL END
+		 WHERE id = $1::uuid
+		   AND node_id = $2::uuid
+		   AND status NOT IN ('completed', 'failed')
+		RETURNING task_id::text
+	`, id, nodeID, string(status), errMsg).Scan(&taskID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// 不存在 / 不属于此节点 / 已终态 — 统一返 NotFound 不区分
+			return "", errx.New(errx.ErrTaskNotFound,
+				"assignment 不存在 / 不属于此节点 / 已终态").
+				WithFields("id", id)
+		}
+		return "", errx.Wrap(errx.ErrDatabase, err, "scan.repo: update by node").
+			WithFields("id", id)
+	}
+	return taskID, nil
 }
 
 // ListStaleRunning（PR-S14 sweeper）—— 列卡在 pulled / running 超过 staleBefore 的派发。

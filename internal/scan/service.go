@@ -18,6 +18,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/platform/eventbus"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
+	"github.com/ffff5sec/RedMatrix/internal/scan/artifact"
 	"github.com/ffff5sec/RedMatrix/internal/scan/domain"
 	"github.com/ffff5sec/RedMatrix/internal/scan/indexer"
 	"github.com/ffff5sec/RedMatrix/internal/scan/metricsscan"
@@ -266,34 +267,44 @@ type service struct {
 
 // NewService 构造 scan Service。pool / indexer / assets / scheduler / artifacts /
 // logger 可空（pool nil 时 ReportResults 走非-TX 兼容路径）。
-func NewService(
-	tasks repo.TaskRepository,
-	assignments repo.AssignmentRepository,
-	results repo.ResultRepository,
-	projects ProjectLookup,
-	nodes NodeLister,
-	allowed AllowedNodesLookup,
-	pool *pgxpool.Pool,
-	idx Indexer,
-	assets AssetDeriver,
-	scheduler Scheduler,
-	artifacts ArtifactStore,
-	met *metricsscan.Collectors,
-	logger *log.Logger,
-) (Service, error) {
-	if tasks == nil || assignments == nil || results == nil || projects == nil || nodes == nil || allowed == nil {
-		return nil, errx.New(errx.ErrInternal, "scan.NewService: 依赖不能为 nil")
+// Deps 是 NewService 的依赖集合（PR-S18-A）—— 原 13 位置参 → 命名字段，
+// 测试 / wire 不易传错；可空字段在注释里明确标注。
+type Deps struct {
+	// 必填
+	Tasks       repo.TaskRepository
+	Assignments repo.AssignmentRepository
+	Results     repo.ResultRepository
+	Projects    ProjectLookup
+	Nodes       NodeLister
+	Allowed     AllowedNodesLookup
+
+	// 可空
+	Pool      *pgxpool.Pool           // nil → ReportResults 走 legacy 非-TX 路径
+	Indexer   Indexer                 // nil → ES 双写 / 搜索禁用
+	Assets    AssetDeriver            // nil → 资产派生禁用
+	Scheduler Scheduler               // nil → cron 注册禁用（重启 LoadAll 兜底）
+	Artifacts ArtifactStore           // nil → 大文件下载禁用
+	Metrics   *metricsscan.Collectors // nil → Noop 兜底
+	Logger    *log.Logger
+}
+
+// NewService 构造 scan Service（PR-S18-A：options pattern）。
+func NewService(d Deps) (Service, error) {
+	if d.Tasks == nil || d.Assignments == nil || d.Results == nil ||
+		d.Projects == nil || d.Nodes == nil || d.Allowed == nil {
+		return nil, errx.New(errx.ErrInternal, "scan.NewService: 必填依赖不能为 nil")
 	}
+	met := d.Metrics
 	if met == nil {
 		met = metricsscan.Noop()
 	}
 	return &service{
-		tasks: tasks, assignments: assignments, results: results,
-		projects: projects, nodes: nodes, allowed: allowed,
-		pool:    pool,
-		indexer: idx, assets: assets, scheduler: scheduler, artifacts: artifacts,
+		tasks: d.Tasks, assignments: d.Assignments, results: d.Results,
+		projects: d.Projects, nodes: d.Nodes, allowed: d.Allowed,
+		pool:    d.Pool,
+		indexer: d.Indexer, assets: d.Assets, scheduler: d.Scheduler, artifacts: d.Artifacts,
 		metrics: met,
-		logger:  logger, now: time.Now,
+		logger:  d.Logger, now: time.Now,
 	}, nil
 }
 
@@ -873,25 +884,7 @@ func (s *service) TriggerCronTask(ctx context.Context, taskID string) error {
 		}
 		return nil
 	}
-	// 复制为 immediate 实例
-	suffix := s.now().UTC().Format("[2006-01-02 15:04]")
-	name := t.Name + " " + suffix
-	if len(name) > domain.TaskNameMaxLen {
-		name = name[:domain.TaskNameMaxLen]
-	}
-	srcID := t.ID // PR-S15 cron 实例 source = 模板
-	req := CreateTaskRequest{
-		TenantID:     t.TenantID,
-		ProjectID:    t.ProjectID,
-		Name:         name,
-		Kind:         t.Kind,
-		Target:       t.Target,
-		TargetKind:   t.TargetKind,
-		ScheduleKind: domain.ScheduleImmediate,
-		Settings:     t.Settings,
-		CreatedBy:    t.CreatedBy, // 沿用模板 owner
-		SourceTaskID: &srcID,
-	}
+	req := s.instantiateFromTemplate(t, "[2006-01-02 15:04]")
 	if _, err := s.CreateTask(ctx, req); err != nil {
 		if s.logger != nil {
 			s.logger.LogError(ctx, "scan: cron trigger CreateTask failed", err,
@@ -901,9 +894,36 @@ func (s *service) TriggerCronTask(ctx context.Context, taskID string) error {
 	}
 	if s.logger != nil {
 		s.logger.Info("scan: cron triggered",
-			"template_task_id", taskID, "instance_name", name)
+			"template_task_id", taskID, "instance_name", req.Name)
 	}
 	return nil
+}
+
+// instantiateFromTemplate（PR-S18-A）—— 把模板 task 字段复制成新 immediate
+// 实例的 CreateTaskRequest。被 TriggerCronTask（cron 触发）+ RetryTask（重试）
+// 共用。suffixLayout 是 time.Format 的布局字串：
+//   - "[2006-01-02 15:04]"          cron trigger 用
+//   - "[retry 2006-01-02 15:04]"   RetryTask 用
+//
+// 自动截断 name 不超 TaskNameMaxLen；SourceTaskID 指模板 ID。
+func (s *service) instantiateFromTemplate(t *domain.ScanTask, suffixLayout string) CreateTaskRequest {
+	name := t.Name + " " + s.now().UTC().Format(suffixLayout)
+	if len(name) > domain.TaskNameMaxLen {
+		name = name[:domain.TaskNameMaxLen]
+	}
+	srcID := t.ID
+	return CreateTaskRequest{
+		TenantID:     t.TenantID,
+		ProjectID:    t.ProjectID,
+		Name:         name,
+		Kind:         t.Kind,
+		Target:       t.Target,
+		TargetKind:   t.TargetKind,
+		ScheduleKind: domain.ScheduleImmediate,
+		Settings:     t.Settings,
+		CreatedBy:    t.CreatedBy,
+		SourceTaskID: &srcID,
+	}
 }
 
 // SweepStaleAssignments（PR-S14）—— 把卡 pulled/running > timeout 的派发
@@ -965,25 +985,7 @@ func (s *service) RetryTask(ctx context.Context, taskID string) (*domain.ScanTas
 			"仅 failed / canceled 可重试").
 			WithFields("status", string(t.Status))
 	}
-	suffix := s.now().UTC().Format("[retry 2006-01-02 15:04]")
-	name := t.Name + " " + suffix
-	if len(name) > domain.TaskNameMaxLen {
-		name = name[:domain.TaskNameMaxLen]
-	}
-	srcID := t.ID // PR-S15 retry 实例 source = 失败 task
-	req := CreateTaskRequest{
-		TenantID:     t.TenantID,
-		ProjectID:    t.ProjectID,
-		Name:         name,
-		Kind:         t.Kind,
-		Target:       t.Target,
-		TargetKind:   t.TargetKind,
-		ScheduleKind: domain.ScheduleImmediate,
-		Settings:     t.Settings,
-		CreatedBy:    t.CreatedBy,
-		SourceTaskID: &srcID,
-	}
-	return s.CreateTask(ctx, req)
+	return s.CreateTask(ctx, s.instantiateFromTemplate(t, "[retry 2006-01-02 15:04]"))
 }
 
 // GetArtifactDownloadURL（PR-S16）—— 签预签名 GET URL。
@@ -999,8 +1001,8 @@ func (s *service) GetArtifactDownloadURL(
 		return "", time.Time{}, errx.New(errx.ErrUpstreamTimeout,
 			"scan: artifact store 未配置")
 	}
-	// 委托给 artifact 包做 key 校验
-	if err := validateArtifactKey(key); err != nil {
+	// PR-S18-A: 复用 artifact.ValidateKey，删本地副本
+	if err := artifact.ValidateKey(key); err != nil {
 		return "", time.Time{}, err
 	}
 	const ttl = 10 * time.Minute
@@ -1009,25 +1011,4 @@ func (s *service) GetArtifactDownloadURL(
 		return "", time.Time{}, err
 	}
 	return url, s.now().Add(ttl), nil
-}
-
-// validateArtifactKey 与 artifact.ValidateKey 同语义；本地复制避免 service
-// import artifact 子包（artifact 包反过来不依赖 service）。
-func validateArtifactKey(key string) error {
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return errx.New(errx.ErrInvalidInput, "artifact.key 不能为空")
-	}
-	if len(key) > 1024 {
-		return errx.New(errx.ErrInvalidInput, "artifact.key 超长")
-	}
-	if strings.HasPrefix(key, "/") || strings.Contains(key, "..") {
-		return errx.New(errx.ErrInvalidInput, "artifact.key 含非法字符（路径穿越）")
-	}
-	for _, c := range key {
-		if c < 0x20 || c == 0x7f {
-			return errx.New(errx.ErrInvalidInput, "artifact.key 含控制字符")
-		}
-	}
-	return nil
 }

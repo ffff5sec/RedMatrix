@@ -455,17 +455,17 @@ func newHarness(t *testing.T) *testHarness {
 		scheduler:   &stubScheduler{},
 		metrics:     metricsscan.Noop(),
 	}
-	svc, err := NewService(
-		h.tasks, h.assignments, h.results,
-		h.projects, h.nodes, h.allowed,
-		nil, // pool=nil → ReportResults 走 legacy
-		nil, // indexer
-		nil, // assets
-		h.scheduler,
-		nil, // artifacts
-		h.metrics,
-		nil, // logger
-	)
+	svc, err := NewService(Deps{
+		Tasks:       h.tasks,
+		Assignments: h.assignments,
+		Results:     h.results,
+		Projects:    h.projects,
+		Nodes:       h.nodes,
+		Allowed:     h.allowed,
+		Scheduler:   h.scheduler,
+		Metrics:     h.metrics,
+		// pool/indexer/assets/artifacts/logger 均 nil → 走兼容路径
+	})
 	require.NoError(t, err)
 	s := svc.(*service)
 	s.now = fixedTime

@@ -90,7 +90,21 @@ func buildScanMount(
 		return nil, nil, nil, err
 	}
 
-	svc, err = scan.NewService(tasks, assignments, results, projects, nodes, allowed, pool.App, idx, assetDeriver, sched, artifactStore, scanMetrics, logger)
+	svc, err = scan.NewService(scan.Deps{
+		Tasks:       tasks,
+		Assignments: assignments,
+		Results:     results,
+		Projects:    projects,
+		Nodes:       nodes,
+		Allowed:     allowed,
+		Pool:        pool.App,
+		Indexer:     idx,
+		Assets:      assetDeriver,
+		Scheduler:   sched,
+		Artifacts:   artifactStore,
+		Metrics:     scanMetrics,
+		Logger:      logger,
+	})
 	if err != nil {
 		return nil, nil, nil, err
 	}

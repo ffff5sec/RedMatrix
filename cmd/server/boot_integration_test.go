@@ -226,12 +226,12 @@ func TestRun_HTTPHealthEndpoints(t *testing.T) {
 	var addr string
 	select {
 	case addr = <-addrCh:
-	case <-time.After(3 * time.Minute):
-		// GitHub Actions runner 拉 4 容器（PG+Redis+ES+MinIO）+ build 较慢；
-		// PR-S17/S18 后 boot 多 metricsscan/bus/outbox/scheduler/sweeper 几步
-		// 启动也增加；2min 紧。
+	case <-time.After(5 * time.Minute):
+		// GitHub Actions runner 启 ES container（JVM cluster green ~90s）+
+		// PG/Redis/MinIO 串行 ping + PR-S17/S18 boot 多 metricsscan/bus/outbox/
+		// scheduler/sweeper 步骤。本机 / 已 warm 通常 5-10s，CI 偶现 200s+。
 		cancel()
-		t.Fatal("HTTP server 未在 3 分钟内监听")
+		t.Fatal("HTTP server 未在 5 分钟内监听（CI 资源紧 / ES 起慢）")
 	}
 
 	t.Logf("HTTP server listening at http://%s", addr)

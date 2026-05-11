@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/safetarget"
 )
 
 // DefaultPorts 默认扫端口范围。MVP 取 top-100 等价（手写常用列表，避免依赖
@@ -65,12 +66,13 @@ func (p *Plugin) Run(
 		return nil, plugin.ErrNotInstalled
 	}
 	target = strings.TrimSpace(target)
-	if target == "" {
-		return nil, fmt.Errorf("nmap: empty target")
-	}
 	// url 不适合 port_scan；caller 应不该派；我们防御一下
 	if targetKind == "url" {
 		return nil, fmt.Errorf("nmap: target_kind=url 不支持 port_scan")
+	}
+	// PR-S17-SAFE：拒选项注入 / shell metachar / 非法格式
+	if err := safetarget.ValidateTarget(target, targetKind); err != nil {
+		return nil, fmt.Errorf("nmap: %w", err)
 	}
 
 	ports := DefaultPorts
@@ -79,11 +81,16 @@ func (p *Plugin) Run(
 			ports = strings.TrimSpace(v)
 		}
 	}
+	if err := safetarget.ValidatePorts(ports); err != nil {
+		return nil, fmt.Errorf("nmap: %w", err)
+	}
 
+	// "--" end-of-options 哨兵：把 target 推到 positional 区，让 nmap 不再当 option 解析
 	args := []string{
 		"-sT", "-Pn", "-oX", "-",
 		"--host-timeout", "5m",
 		"-p", ports,
+		"--",
 		target,
 	}
 	cmd := exec.CommandContext(ctx, p.bin, args...)

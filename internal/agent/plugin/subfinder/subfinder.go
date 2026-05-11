@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/safetarget"
 )
 
 // binaryName subfinder 可执行文件名；可被测试覆盖。
@@ -65,14 +66,17 @@ func (p *Plugin) Run(
 		return nil, plugin.ErrNotInstalled
 	}
 	target = strings.TrimSpace(target)
-	if target == "" {
-		return nil, fmt.Errorf("subfinder: empty target")
-	}
 	// 被动子域枚举只对域名有意义；ip/cidr/url 都不合适
 	if targetKind != "" && targetKind != "host" {
 		return nil, fmt.Errorf("subfinder: target_kind=%q 不支持（仅 host）", targetKind)
 	}
+	// PR-S17-SAFE：拒选项注入 / shell metachar / 格式错
+	if err := safetarget.ValidateTarget(target, "host"); err != nil {
+		return nil, fmt.Errorf("subfinder: %w", err)
+	}
 
+	// 注意 subfinder -d 后参就是 target；不需要 -- 哨兵（target 不放尾部）
+	// 但仍走 safetarget 校已挡 "-" 起头攻击
 	args := []string{"-d", target, "-silent", "-oJ"}
 	cmd := exec.CommandContext(ctx, p.bin, args...)
 	var stdout, stderr bytes.Buffer

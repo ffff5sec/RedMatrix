@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/safetarget"
 )
 
 // binaryName httpx 可执行文件名；可被测试覆盖。
@@ -77,11 +78,16 @@ func (p *Plugin) Run(
 		return nil, plugin.ErrNotInstalled
 	}
 	target = strings.TrimSpace(target)
-	if target == "" {
-		return nil, fmt.Errorf("httpx: empty target")
-	}
 	if targetKind == "cidr" {
 		return nil, fmt.Errorf("httpx: target_kind=cidr 不支持（用 nmap 跑 port_scan）")
+	}
+	// PR-S17-SAFE：拒选项注入 / shell metachar；targetKind 空当 url 处理（与 httpx 自动 probe 兼容）
+	tk := targetKind
+	if tk == "" {
+		tk = "host"
+	}
+	if err := safetarget.ValidateTarget(target, tk); err != nil {
+		return nil, fmt.Errorf("httpx: %w", err)
 	}
 
 	args := []string{

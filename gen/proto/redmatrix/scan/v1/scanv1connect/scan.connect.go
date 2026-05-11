@@ -63,6 +63,9 @@ const (
 	// ScanServiceRetryScanTaskProcedure is the fully-qualified name of the ScanService's RetryScanTask
 	// RPC.
 	ScanServiceRetryScanTaskProcedure = "/redmatrix.scan.v1.ScanService/RetryScanTask"
+	// ScanServiceGetArtifactDownloadURLProcedure is the fully-qualified name of the ScanService's
+	// GetArtifactDownloadURL RPC.
+	ScanServiceGetArtifactDownloadURLProcedure = "/redmatrix.scan.v1.ScanService/GetArtifactDownloadURL"
 )
 
 // ScanServiceClient is a client for the redmatrix.scan.v1.ScanService service.
@@ -82,6 +85,10 @@ type ScanServiceClient interface {
 	// RetryScanTask（PR-S14）—— 把 failed/canceled task 复制成 immediate
 	// 实例触发 dispatch；返新实例 task。pending/running 拒。
 	RetryScanTask(context.Context, *connect.Request[v1.RetryScanTaskRequest]) (*connect.Response[v1.RetryScanTaskResponse], error)
+	// GetArtifactDownloadURL（PR-S16）—— 前端拿大文件 result 的下载链接。
+	// server 签预签名 GET URL（TTL 10min）；前端浏览器跳转该 URL 直接拉 MinIO。
+	// RBAC: SA / TA / PA 同 ListResultsByTask。
+	GetArtifactDownloadURL(context.Context, *connect.Request[v1.GetArtifactDownloadURLRequest]) (*connect.Response[v1.GetArtifactDownloadURLResponse], error)
 }
 
 // NewScanServiceClient constructs a client for the redmatrix.scan.v1.ScanService service. By
@@ -149,20 +156,27 @@ func NewScanServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(scanServiceMethods.ByName("RetryScanTask")),
 			connect.WithClientOptions(opts...),
 		),
+		getArtifactDownloadURL: connect.NewClient[v1.GetArtifactDownloadURLRequest, v1.GetArtifactDownloadURLResponse](
+			httpClient,
+			baseURL+ScanServiceGetArtifactDownloadURLProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("GetArtifactDownloadURL")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // scanServiceClient implements ScanServiceClient.
 type scanServiceClient struct {
-	createScanTask      *connect.Client[v1.CreateScanTaskRequest, v1.CreateScanTaskResponse]
-	listScanTasks       *connect.Client[v1.ListScanTasksRequest, v1.ListScanTasksResponse]
-	getScanTask         *connect.Client[v1.GetScanTaskRequest, v1.GetScanTaskResponse]
-	cancelScanTask      *connect.Client[v1.CancelScanTaskRequest, v1.CancelScanTaskResponse]
-	deleteScanTask      *connect.Client[v1.DeleteScanTaskRequest, v1.DeleteScanTaskResponse]
-	listTaskAssignments *connect.Client[v1.ListTaskAssignmentsRequest, v1.ListTaskAssignmentsResponse]
-	listTaskResults     *connect.Client[v1.ListTaskResultsRequest, v1.ListTaskResultsResponse]
-	searchResults       *connect.Client[v1.SearchResultsRequest, v1.SearchResultsResponse]
-	retryScanTask       *connect.Client[v1.RetryScanTaskRequest, v1.RetryScanTaskResponse]
+	createScanTask         *connect.Client[v1.CreateScanTaskRequest, v1.CreateScanTaskResponse]
+	listScanTasks          *connect.Client[v1.ListScanTasksRequest, v1.ListScanTasksResponse]
+	getScanTask            *connect.Client[v1.GetScanTaskRequest, v1.GetScanTaskResponse]
+	cancelScanTask         *connect.Client[v1.CancelScanTaskRequest, v1.CancelScanTaskResponse]
+	deleteScanTask         *connect.Client[v1.DeleteScanTaskRequest, v1.DeleteScanTaskResponse]
+	listTaskAssignments    *connect.Client[v1.ListTaskAssignmentsRequest, v1.ListTaskAssignmentsResponse]
+	listTaskResults        *connect.Client[v1.ListTaskResultsRequest, v1.ListTaskResultsResponse]
+	searchResults          *connect.Client[v1.SearchResultsRequest, v1.SearchResultsResponse]
+	retryScanTask          *connect.Client[v1.RetryScanTaskRequest, v1.RetryScanTaskResponse]
+	getArtifactDownloadURL *connect.Client[v1.GetArtifactDownloadURLRequest, v1.GetArtifactDownloadURLResponse]
 }
 
 // CreateScanTask calls redmatrix.scan.v1.ScanService.CreateScanTask.
@@ -210,6 +224,11 @@ func (c *scanServiceClient) RetryScanTask(ctx context.Context, req *connect.Requ
 	return c.retryScanTask.CallUnary(ctx, req)
 }
 
+// GetArtifactDownloadURL calls redmatrix.scan.v1.ScanService.GetArtifactDownloadURL.
+func (c *scanServiceClient) GetArtifactDownloadURL(ctx context.Context, req *connect.Request[v1.GetArtifactDownloadURLRequest]) (*connect.Response[v1.GetArtifactDownloadURLResponse], error) {
+	return c.getArtifactDownloadURL.CallUnary(ctx, req)
+}
+
 // ScanServiceHandler is an implementation of the redmatrix.scan.v1.ScanService service.
 type ScanServiceHandler interface {
 	CreateScanTask(context.Context, *connect.Request[v1.CreateScanTaskRequest]) (*connect.Response[v1.CreateScanTaskResponse], error)
@@ -227,6 +246,10 @@ type ScanServiceHandler interface {
 	// RetryScanTask（PR-S14）—— 把 failed/canceled task 复制成 immediate
 	// 实例触发 dispatch；返新实例 task。pending/running 拒。
 	RetryScanTask(context.Context, *connect.Request[v1.RetryScanTaskRequest]) (*connect.Response[v1.RetryScanTaskResponse], error)
+	// GetArtifactDownloadURL（PR-S16）—— 前端拿大文件 result 的下载链接。
+	// server 签预签名 GET URL（TTL 10min）；前端浏览器跳转该 URL 直接拉 MinIO。
+	// RBAC: SA / TA / PA 同 ListResultsByTask。
+	GetArtifactDownloadURL(context.Context, *connect.Request[v1.GetArtifactDownloadURLRequest]) (*connect.Response[v1.GetArtifactDownloadURLResponse], error)
 }
 
 // NewScanServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -290,6 +313,12 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(scanServiceMethods.ByName("RetryScanTask")),
 		connect.WithHandlerOptions(opts...),
 	)
+	scanServiceGetArtifactDownloadURLHandler := connect.NewUnaryHandler(
+		ScanServiceGetArtifactDownloadURLProcedure,
+		svc.GetArtifactDownloadURL,
+		connect.WithSchema(scanServiceMethods.ByName("GetArtifactDownloadURL")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.scan.v1.ScanService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ScanServiceCreateScanTaskProcedure:
@@ -310,6 +339,8 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 			scanServiceSearchResultsHandler.ServeHTTP(w, r)
 		case ScanServiceRetryScanTaskProcedure:
 			scanServiceRetryScanTaskHandler.ServeHTTP(w, r)
+		case ScanServiceGetArtifactDownloadURLProcedure:
+			scanServiceGetArtifactDownloadURLHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -353,4 +384,8 @@ func (UnimplementedScanServiceHandler) SearchResults(context.Context, *connect.R
 
 func (UnimplementedScanServiceHandler) RetryScanTask(context.Context, *connect.Request[v1.RetryScanTaskRequest]) (*connect.Response[v1.RetryScanTaskResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.RetryScanTask is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) GetArtifactDownloadURL(context.Context, *connect.Request[v1.GetArtifactDownloadURLRequest]) (*connect.Response[v1.GetArtifactDownloadURLResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.GetArtifactDownloadURL is not implemented"))
 }

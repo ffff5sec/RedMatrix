@@ -357,6 +357,12 @@ service NodeAgentService {
   // ReportTaskResults 上报任务结果（PR-S5）。
   // 一次可携带多条结果（每条对应 1 个发现，如开放端口 / URL / 指纹）。
   rpc ReportTaskResults(ReportTaskResultsRequest) returns (ReportTaskResultsResponse);
+
+  // CreateArtifactUploadURL（PR-S16）—— agent 申请 presigned PUT URL，
+  // 直接 HTTP PUT 大文件 (截图 / pcap / raw HTML) 到 MinIO。返
+  // (key, url, expires_at)。tenant_id 由 server 从 mTLS ctx 推导。
+  // 之后 agent 在 ReportTaskResults 的 data.artifact_key 字段中带 key。
+  rpc CreateArtifactUploadURL(CreateArtifactUploadURLRequest) returns (CreateArtifactUploadURLResponse);
 }
 
 message HeartbeatRequest {
@@ -423,6 +429,17 @@ message ReportTaskResultsRequest {
 }
 message ReportTaskResultsResponse {
   int32 inserted = 1;
+}
+
+// PR-S16
+message CreateArtifactUploadURLRequest {
+  // 可选文件扩展名（".png" / ".pcap" / ".html"）；生成 key 时拼到尾巴；空 = 无扩展
+  string ext = 1;
+}
+message CreateArtifactUploadURLResponse {
+  string key = 1; // scan_results 入库时 data.artifact_key 字段值
+  string url = 2; // agent 直接 HTTP PUT 这个 URL
+  google.protobuf.Timestamp expires_at = 3;
 }
 
 // ===== NodeCertificate（PR-W6 节点详情页）=====

@@ -8,7 +8,7 @@
 // MVP 范围：仅任务管理；不含 dispatch / Agent 拉任务 / 结果上报。
 // 路径：/redmatrix.scan.v1.ScanService
 
-import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse, RetryScanTaskRequest, RetryScanTaskResponse, SearchResultsRequest, SearchResultsResponse } from "./scan_pb.js";
+import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetArtifactDownloadURLRequest, GetArtifactDownloadURLResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse, RetryScanTaskRequest, RetryScanTaskResponse, SearchResultsRequest, SearchResultsResponse } from "./scan_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -106,6 +106,19 @@ export const ScanService = {
       name: "RetryScanTask",
       I: RetryScanTaskRequest,
       O: RetryScanTaskResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * GetArtifactDownloadURL（PR-S16）—— 前端拿大文件 result 的下载链接。
+     * server 签预签名 GET URL（TTL 10min）；前端浏览器跳转该 URL 直接拉 MinIO。
+     * RBAC: SA / TA / PA 同 ListResultsByTask。
+     *
+     * @generated from rpc redmatrix.scan.v1.ScanService.GetArtifactDownloadURL
+     */
+    getArtifactDownloadURL: {
+      name: "GetArtifactDownloadURL",
+      I: GetArtifactDownloadURLRequest,
+      O: GetArtifactDownloadURLResponse,
       kind: MethodKind.Unary,
     },
   }

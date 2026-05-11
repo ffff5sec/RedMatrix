@@ -680,6 +680,92 @@ export class RetryScanTaskResponse extends Message<RetryScanTaskResponse> {
 }
 
 /**
+ * PR-S16
+ *
+ * @generated from message redmatrix.scan.v1.GetArtifactDownloadURLRequest
+ */
+export class GetArtifactDownloadURLRequest extends Message<GetArtifactDownloadURLRequest> {
+  /**
+   * artifact key（scan_results.data.artifact_key 字段值）
+   *
+   * @generated from field: string key = 1;
+   */
+  key = "";
+
+  constructor(data?: PartialMessage<GetArtifactDownloadURLRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.GetArtifactDownloadURLRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetArtifactDownloadURLRequest {
+    return new GetArtifactDownloadURLRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetArtifactDownloadURLRequest {
+    return new GetArtifactDownloadURLRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetArtifactDownloadURLRequest {
+    return new GetArtifactDownloadURLRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetArtifactDownloadURLRequest | PlainMessage<GetArtifactDownloadURLRequest> | undefined, b: GetArtifactDownloadURLRequest | PlainMessage<GetArtifactDownloadURLRequest> | undefined): boolean {
+    return proto3.util.equals(GetArtifactDownloadURLRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.GetArtifactDownloadURLResponse
+ */
+export class GetArtifactDownloadURLResponse extends Message<GetArtifactDownloadURLResponse> {
+  /**
+   * presigned GET URL（含 query 签名）
+   *
+   * @generated from field: string url = 1;
+   */
+  url = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 2;
+   */
+  expiresAt?: Timestamp;
+
+  constructor(data?: PartialMessage<GetArtifactDownloadURLResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.GetArtifactDownloadURLResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "expires_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetArtifactDownloadURLResponse {
+    return new GetArtifactDownloadURLResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetArtifactDownloadURLResponse {
+    return new GetArtifactDownloadURLResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetArtifactDownloadURLResponse {
+    return new GetArtifactDownloadURLResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetArtifactDownloadURLResponse | PlainMessage<GetArtifactDownloadURLResponse> | undefined, b: GetArtifactDownloadURLResponse | PlainMessage<GetArtifactDownloadURLResponse> | undefined): boolean {
+    return proto3.util.equals(GetArtifactDownloadURLResponse, a, b);
+  }
+}
+
+/**
  * @generated from message redmatrix.scan.v1.TaskAssignment
  */
 export class TaskAssignment extends Message<TaskAssignment> {

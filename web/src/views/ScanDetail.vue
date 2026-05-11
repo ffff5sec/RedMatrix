@@ -175,6 +175,32 @@ async function retry() {
     toast.error(errorMessage(e));
   }
 }
+
+// PR-S16：从 scan_result.data 取 artifact_key（可能是 Struct 或 plain map）
+function artifactKeyOf(s: unknown): string | null {
+  if (!s) return null;
+  let obj: Record<string, unknown>;
+  if (typeof (s as { toJson?: () => unknown }).toJson === 'function') {
+    obj = (s as { toJson: () => Record<string, unknown> }).toJson();
+  } else {
+    obj = s as Record<string, unknown>;
+  }
+  const k = obj['artifact_key'];
+  return typeof k === 'string' && k !== '' ? k : null;
+}
+
+async function downloadArtifact(key: string) {
+  try {
+    const r = await scanClient.getArtifactDownloadURL({ key });
+    if (r.url) {
+      window.open(r.url, '_blank');
+    } else {
+      toast.error('未拿到下载链接');
+    }
+  } catch (e) {
+    toast.error(errorMessage(e));
+  }
+}
 </script>
 
 <template>
@@ -325,6 +351,12 @@ async function retry() {
               <td><span class="chip">{{ r.kind }}</span></td>
               <td>
                 <code class="result-data">{{ formatData(r.data) }}</code>
+                <button
+                  v-if="artifactKeyOf(r.data)"
+                  class="link-btn"
+                  style="margin-left: 8px"
+                  @click="downloadArtifact(artifactKeyOf(r.data)!)"
+                >下载</button>
               </td>
               <td>
                 <router-link :to="`/nodes/${r.nodeId}`" class="link">{{ nodeName(r.nodeId) }}</router-link>

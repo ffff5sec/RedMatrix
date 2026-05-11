@@ -39,6 +39,7 @@ func buildScanMount(
 	esClient *es.Client,
 	authSvc auth.Service,
 	assetDeriver scan.AssetDeriver,
+	artifactStore scan.ArtifactStore,
 	logger *log.Logger,
 ) (*scanMount, scan.Service, *scheduler.Scheduler, error) {
 	if pool == nil || pool.App == nil {
@@ -84,7 +85,7 @@ func buildScanMount(
 		return nil, nil, nil, err
 	}
 
-	svc, err = scan.NewService(tasks, assignments, results, projects, nodes, allowed, idx, assetDeriver, sched, logger)
+	svc, err = scan.NewService(tasks, assignments, results, projects, nodes, allowed, idx, assetDeriver, sched, artifactStore, logger)
 	if err != nil {
 		return nil, nil, nil, err
 	}

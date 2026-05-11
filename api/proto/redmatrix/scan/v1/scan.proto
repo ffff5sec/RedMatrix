@@ -29,6 +29,11 @@ service ScanService {
   // RetryScanTask（PR-S14）—— 把 failed/canceled task 复制成 immediate
   // 实例触发 dispatch；返新实例 task。pending/running 拒。
   rpc RetryScanTask(RetryScanTaskRequest) returns (RetryScanTaskResponse);
+
+  // GetArtifactDownloadURL（PR-S16）—— 前端拿大文件 result 的下载链接。
+  // server 签预签名 GET URL（TTL 10min）；前端浏览器跳转该 URL 直接拉 MinIO。
+  // RBAC: SA / TA / PA 同 ListResultsByTask。
+  rpc GetArtifactDownloadURL(GetArtifactDownloadURLRequest) returns (GetArtifactDownloadURLResponse);
 }
 
 // ScanTask 任务实体（与 schema 一一对应）。
@@ -105,6 +110,16 @@ message RetryScanTaskRequest {
 }
 message RetryScanTaskResponse {
   ScanTask task = 1; // 新 immediate 实例 task
+}
+
+// PR-S16
+message GetArtifactDownloadURLRequest {
+  // artifact key（scan_results.data.artifact_key 字段值）
+  string key = 1;
+}
+message GetArtifactDownloadURLResponse {
+  string url = 1; // presigned GET URL（含 query 签名）
+  google.protobuf.Timestamp expires_at = 2;
 }
 
 // ===== TaskAssignment（PR-S2）=====

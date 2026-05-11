@@ -828,6 +828,104 @@ func (x *RetryScanTaskResponse) GetTask() *ScanTask {
 	return nil
 }
 
+// PR-S16
+type GetArtifactDownloadURLRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// artifact key（scan_results.data.artifact_key 字段值）
+	Key           string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArtifactDownloadURLRequest) Reset() {
+	*x = GetArtifactDownloadURLRequest{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArtifactDownloadURLRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArtifactDownloadURLRequest) ProtoMessage() {}
+
+func (x *GetArtifactDownloadURLRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArtifactDownloadURLRequest.ProtoReflect.Descriptor instead.
+func (*GetArtifactDownloadURLRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetArtifactDownloadURLRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+type GetArtifactDownloadURLResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"` // presigned GET URL（含 query 签名）
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArtifactDownloadURLResponse) Reset() {
+	*x = GetArtifactDownloadURLResponse{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArtifactDownloadURLResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArtifactDownloadURLResponse) ProtoMessage() {}
+
+func (x *GetArtifactDownloadURLResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArtifactDownloadURLResponse.ProtoReflect.Descriptor instead.
+func (*GetArtifactDownloadURLResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetArtifactDownloadURLResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *GetArtifactDownloadURLResponse) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
 type TaskAssignment struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -845,7 +943,7 @@ type TaskAssignment struct {
 
 func (x *TaskAssignment) Reset() {
 	*x = TaskAssignment{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[13]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -857,7 +955,7 @@ func (x *TaskAssignment) String() string {
 func (*TaskAssignment) ProtoMessage() {}
 
 func (x *TaskAssignment) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[13]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -870,7 +968,7 @@ func (x *TaskAssignment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskAssignment.ProtoReflect.Descriptor instead.
 func (*TaskAssignment) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{13}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TaskAssignment) GetId() string {
@@ -945,7 +1043,7 @@ type ListTaskAssignmentsRequest struct {
 
 func (x *ListTaskAssignmentsRequest) Reset() {
 	*x = ListTaskAssignmentsRequest{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[14]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -957,7 +1055,7 @@ func (x *ListTaskAssignmentsRequest) String() string {
 func (*ListTaskAssignmentsRequest) ProtoMessage() {}
 
 func (x *ListTaskAssignmentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[14]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -970,7 +1068,7 @@ func (x *ListTaskAssignmentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTaskAssignmentsRequest.ProtoReflect.Descriptor instead.
 func (*ListTaskAssignmentsRequest) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{14}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListTaskAssignmentsRequest) GetTaskId() string {
@@ -991,7 +1089,7 @@ type ListTaskAssignmentsResponse struct {
 
 func (x *ListTaskAssignmentsResponse) Reset() {
 	*x = ListTaskAssignmentsResponse{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[15]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1003,7 +1101,7 @@ func (x *ListTaskAssignmentsResponse) String() string {
 func (*ListTaskAssignmentsResponse) ProtoMessage() {}
 
 func (x *ListTaskAssignmentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[15]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1016,7 +1114,7 @@ func (x *ListTaskAssignmentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTaskAssignmentsResponse.ProtoReflect.Descriptor instead.
 func (*ListTaskAssignmentsResponse) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{15}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListTaskAssignmentsResponse) GetAssignments() []*TaskAssignment {
@@ -1050,7 +1148,7 @@ type ScanResult struct {
 
 func (x *ScanResult) Reset() {
 	*x = ScanResult{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[16]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1062,7 +1160,7 @@ func (x *ScanResult) String() string {
 func (*ScanResult) ProtoMessage() {}
 
 func (x *ScanResult) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[16]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1075,7 +1173,7 @@ func (x *ScanResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanResult.ProtoReflect.Descriptor instead.
 func (*ScanResult) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{16}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ScanResult) GetId() string {
@@ -1150,7 +1248,7 @@ type ListTaskResultsRequest struct {
 
 func (x *ListTaskResultsRequest) Reset() {
 	*x = ListTaskResultsRequest{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[17]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1162,7 +1260,7 @@ func (x *ListTaskResultsRequest) String() string {
 func (*ListTaskResultsRequest) ProtoMessage() {}
 
 func (x *ListTaskResultsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[17]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1175,7 +1273,7 @@ func (x *ListTaskResultsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTaskResultsRequest.ProtoReflect.Descriptor instead.
 func (*ListTaskResultsRequest) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{17}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListTaskResultsRequest) GetTaskId() string {
@@ -1195,7 +1293,7 @@ type ListTaskResultsResponse struct {
 
 func (x *ListTaskResultsResponse) Reset() {
 	*x = ListTaskResultsResponse{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[18]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1207,7 +1305,7 @@ func (x *ListTaskResultsResponse) String() string {
 func (*ListTaskResultsResponse) ProtoMessage() {}
 
 func (x *ListTaskResultsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[18]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1220,7 +1318,7 @@ func (x *ListTaskResultsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTaskResultsResponse.ProtoReflect.Descriptor instead.
 func (*ListTaskResultsResponse) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{18}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListTaskResultsResponse) GetResults() []*ScanResult {
@@ -1256,7 +1354,7 @@ type SearchResultsRequest struct {
 
 func (x *SearchResultsRequest) Reset() {
 	*x = SearchResultsRequest{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[19]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1268,7 +1366,7 @@ func (x *SearchResultsRequest) String() string {
 func (*SearchResultsRequest) ProtoMessage() {}
 
 func (x *SearchResultsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[19]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1281,7 +1379,7 @@ func (x *SearchResultsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchResultsRequest.ProtoReflect.Descriptor instead.
 func (*SearchResultsRequest) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{19}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *SearchResultsRequest) GetKeyword() string {
@@ -1357,7 +1455,7 @@ type FacetBucket struct {
 
 func (x *FacetBucket) Reset() {
 	*x = FacetBucket{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[20]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1369,7 +1467,7 @@ func (x *FacetBucket) String() string {
 func (*FacetBucket) ProtoMessage() {}
 
 func (x *FacetBucket) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[20]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1382,7 +1480,7 @@ func (x *FacetBucket) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FacetBucket.ProtoReflect.Descriptor instead.
 func (*FacetBucket) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{20}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *FacetBucket) GetKey() string {
@@ -1409,7 +1507,7 @@ type Facet struct {
 
 func (x *Facet) Reset() {
 	*x = Facet{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[21]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1421,7 +1519,7 @@ func (x *Facet) String() string {
 func (*Facet) ProtoMessage() {}
 
 func (x *Facet) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[21]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1434,7 +1532,7 @@ func (x *Facet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Facet.ProtoReflect.Descriptor instead.
 func (*Facet) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{21}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Facet) GetField() string {
@@ -1464,7 +1562,7 @@ type SearchResultsResponse struct {
 
 func (x *SearchResultsResponse) Reset() {
 	*x = SearchResultsResponse{}
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[22]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1476,7 +1574,7 @@ func (x *SearchResultsResponse) String() string {
 func (*SearchResultsResponse) ProtoMessage() {}
 
 func (x *SearchResultsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[22]
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1489,7 +1587,7 @@ func (x *SearchResultsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchResultsResponse.ProtoReflect.Descriptor instead.
 func (*SearchResultsResponse) Descriptor() ([]byte, []int) {
-	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{22}
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *SearchResultsResponse) GetResults() []*ScanResult {
@@ -1601,7 +1699,13 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\x14RetryScanTaskRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"H\n" +
 	"\x15RetryScanTaskResponse\x12/\n" +
-	"\x04task\x18\x01 \x01(\v2\x1b.redmatrix.scan.v1.ScanTaskR\x04task\"\xaa\x03\n" +
+	"\x04task\x18\x01 \x01(\v2\x1b.redmatrix.scan.v1.ScanTaskR\x04task\"1\n" +
+	"\x1dGetArtifactDownloadURLRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\"m\n" +
+	"\x1eGetArtifactDownloadURLResponse\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x129\n" +
+	"\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xaa\x03\n" +
 	"\x0eTaskAssignment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x17\n" +
@@ -1676,7 +1780,7 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x120\n" +
-	"\x06facets\x18\x05 \x03(\v2\x18.redmatrix.scan.v1.FacetR\x06facets2\xac\a\n" +
+	"\x06facets\x18\x05 \x03(\v2\x18.redmatrix.scan.v1.FacetR\x06facets2\xab\b\n" +
 	"\vScanService\x12e\n" +
 	"\x0eCreateScanTask\x12(.redmatrix.scan.v1.CreateScanTaskRequest\x1a).redmatrix.scan.v1.CreateScanTaskResponse\x12b\n" +
 	"\rListScanTasks\x12'.redmatrix.scan.v1.ListScanTasksRequest\x1a(.redmatrix.scan.v1.ListScanTasksResponse\x12\\\n" +
@@ -1686,7 +1790,8 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\x13ListTaskAssignments\x12-.redmatrix.scan.v1.ListTaskAssignmentsRequest\x1a..redmatrix.scan.v1.ListTaskAssignmentsResponse\x12h\n" +
 	"\x0fListTaskResults\x12).redmatrix.scan.v1.ListTaskResultsRequest\x1a*.redmatrix.scan.v1.ListTaskResultsResponse\x12b\n" +
 	"\rSearchResults\x12'.redmatrix.scan.v1.SearchResultsRequest\x1a(.redmatrix.scan.v1.SearchResultsResponse\x12b\n" +
-	"\rRetryScanTask\x12'.redmatrix.scan.v1.RetryScanTaskRequest\x1a(.redmatrix.scan.v1.RetryScanTaskResponseB\xca\x01\n" +
+	"\rRetryScanTask\x12'.redmatrix.scan.v1.RetryScanTaskRequest\x1a(.redmatrix.scan.v1.RetryScanTaskResponse\x12}\n" +
+	"\x16GetArtifactDownloadURL\x120.redmatrix.scan.v1.GetArtifactDownloadURLRequest\x1a1.redmatrix.scan.v1.GetArtifactDownloadURLResponseB\xca\x01\n" +
 	"\x15com.redmatrix.scan.v1B\tScanProtoP\x01Z@github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1;scanv1\xa2\x02\x03RSX\xaa\x02\x11Redmatrix.Scan.V1\xca\x02\x11Redmatrix\\Scan\\V1\xe2\x02\x1dRedmatrix\\Scan\\V1\\GPBMetadata\xea\x02\x13Redmatrix::Scan::V1b\x06proto3"
 
 var (
@@ -1701,81 +1806,86 @@ func file_redmatrix_scan_v1_scan_proto_rawDescGZIP() []byte {
 	return file_redmatrix_scan_v1_scan_proto_rawDescData
 }
 
-var file_redmatrix_scan_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_redmatrix_scan_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_redmatrix_scan_v1_scan_proto_goTypes = []any{
-	(*ScanTask)(nil),                    // 0: redmatrix.scan.v1.ScanTask
-	(*CreateScanTaskRequest)(nil),       // 1: redmatrix.scan.v1.CreateScanTaskRequest
-	(*CreateScanTaskResponse)(nil),      // 2: redmatrix.scan.v1.CreateScanTaskResponse
-	(*ListScanTasksRequest)(nil),        // 3: redmatrix.scan.v1.ListScanTasksRequest
-	(*ListScanTasksResponse)(nil),       // 4: redmatrix.scan.v1.ListScanTasksResponse
-	(*GetScanTaskRequest)(nil),          // 5: redmatrix.scan.v1.GetScanTaskRequest
-	(*GetScanTaskResponse)(nil),         // 6: redmatrix.scan.v1.GetScanTaskResponse
-	(*CancelScanTaskRequest)(nil),       // 7: redmatrix.scan.v1.CancelScanTaskRequest
-	(*CancelScanTaskResponse)(nil),      // 8: redmatrix.scan.v1.CancelScanTaskResponse
-	(*DeleteScanTaskRequest)(nil),       // 9: redmatrix.scan.v1.DeleteScanTaskRequest
-	(*DeleteScanTaskResponse)(nil),      // 10: redmatrix.scan.v1.DeleteScanTaskResponse
-	(*RetryScanTaskRequest)(nil),        // 11: redmatrix.scan.v1.RetryScanTaskRequest
-	(*RetryScanTaskResponse)(nil),       // 12: redmatrix.scan.v1.RetryScanTaskResponse
-	(*TaskAssignment)(nil),              // 13: redmatrix.scan.v1.TaskAssignment
-	(*ListTaskAssignmentsRequest)(nil),  // 14: redmatrix.scan.v1.ListTaskAssignmentsRequest
-	(*ListTaskAssignmentsResponse)(nil), // 15: redmatrix.scan.v1.ListTaskAssignmentsResponse
-	(*ScanResult)(nil),                  // 16: redmatrix.scan.v1.ScanResult
-	(*ListTaskResultsRequest)(nil),      // 17: redmatrix.scan.v1.ListTaskResultsRequest
-	(*ListTaskResultsResponse)(nil),     // 18: redmatrix.scan.v1.ListTaskResultsResponse
-	(*SearchResultsRequest)(nil),        // 19: redmatrix.scan.v1.SearchResultsRequest
-	(*FacetBucket)(nil),                 // 20: redmatrix.scan.v1.FacetBucket
-	(*Facet)(nil),                       // 21: redmatrix.scan.v1.Facet
-	(*SearchResultsResponse)(nil),       // 22: redmatrix.scan.v1.SearchResultsResponse
-	(*structpb.Struct)(nil),             // 23: google.protobuf.Struct
-	(*timestamppb.Timestamp)(nil),       // 24: google.protobuf.Timestamp
+	(*ScanTask)(nil),                       // 0: redmatrix.scan.v1.ScanTask
+	(*CreateScanTaskRequest)(nil),          // 1: redmatrix.scan.v1.CreateScanTaskRequest
+	(*CreateScanTaskResponse)(nil),         // 2: redmatrix.scan.v1.CreateScanTaskResponse
+	(*ListScanTasksRequest)(nil),           // 3: redmatrix.scan.v1.ListScanTasksRequest
+	(*ListScanTasksResponse)(nil),          // 4: redmatrix.scan.v1.ListScanTasksResponse
+	(*GetScanTaskRequest)(nil),             // 5: redmatrix.scan.v1.GetScanTaskRequest
+	(*GetScanTaskResponse)(nil),            // 6: redmatrix.scan.v1.GetScanTaskResponse
+	(*CancelScanTaskRequest)(nil),          // 7: redmatrix.scan.v1.CancelScanTaskRequest
+	(*CancelScanTaskResponse)(nil),         // 8: redmatrix.scan.v1.CancelScanTaskResponse
+	(*DeleteScanTaskRequest)(nil),          // 9: redmatrix.scan.v1.DeleteScanTaskRequest
+	(*DeleteScanTaskResponse)(nil),         // 10: redmatrix.scan.v1.DeleteScanTaskResponse
+	(*RetryScanTaskRequest)(nil),           // 11: redmatrix.scan.v1.RetryScanTaskRequest
+	(*RetryScanTaskResponse)(nil),          // 12: redmatrix.scan.v1.RetryScanTaskResponse
+	(*GetArtifactDownloadURLRequest)(nil),  // 13: redmatrix.scan.v1.GetArtifactDownloadURLRequest
+	(*GetArtifactDownloadURLResponse)(nil), // 14: redmatrix.scan.v1.GetArtifactDownloadURLResponse
+	(*TaskAssignment)(nil),                 // 15: redmatrix.scan.v1.TaskAssignment
+	(*ListTaskAssignmentsRequest)(nil),     // 16: redmatrix.scan.v1.ListTaskAssignmentsRequest
+	(*ListTaskAssignmentsResponse)(nil),    // 17: redmatrix.scan.v1.ListTaskAssignmentsResponse
+	(*ScanResult)(nil),                     // 18: redmatrix.scan.v1.ScanResult
+	(*ListTaskResultsRequest)(nil),         // 19: redmatrix.scan.v1.ListTaskResultsRequest
+	(*ListTaskResultsResponse)(nil),        // 20: redmatrix.scan.v1.ListTaskResultsResponse
+	(*SearchResultsRequest)(nil),           // 21: redmatrix.scan.v1.SearchResultsRequest
+	(*FacetBucket)(nil),                    // 22: redmatrix.scan.v1.FacetBucket
+	(*Facet)(nil),                          // 23: redmatrix.scan.v1.Facet
+	(*SearchResultsResponse)(nil),          // 24: redmatrix.scan.v1.SearchResultsResponse
+	(*structpb.Struct)(nil),                // 25: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil),          // 26: google.protobuf.Timestamp
 }
 var file_redmatrix_scan_v1_scan_proto_depIdxs = []int32{
-	23, // 0: redmatrix.scan.v1.ScanTask.settings:type_name -> google.protobuf.Struct
-	24, // 1: redmatrix.scan.v1.ScanTask.created_at:type_name -> google.protobuf.Timestamp
-	24, // 2: redmatrix.scan.v1.ScanTask.updated_at:type_name -> google.protobuf.Timestamp
-	24, // 3: redmatrix.scan.v1.ScanTask.started_at:type_name -> google.protobuf.Timestamp
-	24, // 4: redmatrix.scan.v1.ScanTask.finished_at:type_name -> google.protobuf.Timestamp
-	23, // 5: redmatrix.scan.v1.CreateScanTaskRequest.settings:type_name -> google.protobuf.Struct
+	25, // 0: redmatrix.scan.v1.ScanTask.settings:type_name -> google.protobuf.Struct
+	26, // 1: redmatrix.scan.v1.ScanTask.created_at:type_name -> google.protobuf.Timestamp
+	26, // 2: redmatrix.scan.v1.ScanTask.updated_at:type_name -> google.protobuf.Timestamp
+	26, // 3: redmatrix.scan.v1.ScanTask.started_at:type_name -> google.protobuf.Timestamp
+	26, // 4: redmatrix.scan.v1.ScanTask.finished_at:type_name -> google.protobuf.Timestamp
+	25, // 5: redmatrix.scan.v1.CreateScanTaskRequest.settings:type_name -> google.protobuf.Struct
 	0,  // 6: redmatrix.scan.v1.CreateScanTaskResponse.task:type_name -> redmatrix.scan.v1.ScanTask
 	0,  // 7: redmatrix.scan.v1.ListScanTasksResponse.tasks:type_name -> redmatrix.scan.v1.ScanTask
 	0,  // 8: redmatrix.scan.v1.GetScanTaskResponse.task:type_name -> redmatrix.scan.v1.ScanTask
 	0,  // 9: redmatrix.scan.v1.RetryScanTaskResponse.task:type_name -> redmatrix.scan.v1.ScanTask
-	24, // 10: redmatrix.scan.v1.TaskAssignment.assigned_at:type_name -> google.protobuf.Timestamp
-	24, // 11: redmatrix.scan.v1.TaskAssignment.pulled_at:type_name -> google.protobuf.Timestamp
-	24, // 12: redmatrix.scan.v1.TaskAssignment.started_at:type_name -> google.protobuf.Timestamp
-	24, // 13: redmatrix.scan.v1.TaskAssignment.finished_at:type_name -> google.protobuf.Timestamp
-	13, // 14: redmatrix.scan.v1.ListTaskAssignmentsResponse.assignments:type_name -> redmatrix.scan.v1.TaskAssignment
-	23, // 15: redmatrix.scan.v1.ScanResult.data:type_name -> google.protobuf.Struct
-	24, // 16: redmatrix.scan.v1.ScanResult.created_at:type_name -> google.protobuf.Timestamp
-	16, // 17: redmatrix.scan.v1.ListTaskResultsResponse.results:type_name -> redmatrix.scan.v1.ScanResult
-	24, // 18: redmatrix.scan.v1.SearchResultsRequest.time_from:type_name -> google.protobuf.Timestamp
-	24, // 19: redmatrix.scan.v1.SearchResultsRequest.time_to:type_name -> google.protobuf.Timestamp
-	20, // 20: redmatrix.scan.v1.Facet.buckets:type_name -> redmatrix.scan.v1.FacetBucket
-	16, // 21: redmatrix.scan.v1.SearchResultsResponse.results:type_name -> redmatrix.scan.v1.ScanResult
-	21, // 22: redmatrix.scan.v1.SearchResultsResponse.facets:type_name -> redmatrix.scan.v1.Facet
-	1,  // 23: redmatrix.scan.v1.ScanService.CreateScanTask:input_type -> redmatrix.scan.v1.CreateScanTaskRequest
-	3,  // 24: redmatrix.scan.v1.ScanService.ListScanTasks:input_type -> redmatrix.scan.v1.ListScanTasksRequest
-	5,  // 25: redmatrix.scan.v1.ScanService.GetScanTask:input_type -> redmatrix.scan.v1.GetScanTaskRequest
-	7,  // 26: redmatrix.scan.v1.ScanService.CancelScanTask:input_type -> redmatrix.scan.v1.CancelScanTaskRequest
-	9,  // 27: redmatrix.scan.v1.ScanService.DeleteScanTask:input_type -> redmatrix.scan.v1.DeleteScanTaskRequest
-	14, // 28: redmatrix.scan.v1.ScanService.ListTaskAssignments:input_type -> redmatrix.scan.v1.ListTaskAssignmentsRequest
-	17, // 29: redmatrix.scan.v1.ScanService.ListTaskResults:input_type -> redmatrix.scan.v1.ListTaskResultsRequest
-	19, // 30: redmatrix.scan.v1.ScanService.SearchResults:input_type -> redmatrix.scan.v1.SearchResultsRequest
-	11, // 31: redmatrix.scan.v1.ScanService.RetryScanTask:input_type -> redmatrix.scan.v1.RetryScanTaskRequest
-	2,  // 32: redmatrix.scan.v1.ScanService.CreateScanTask:output_type -> redmatrix.scan.v1.CreateScanTaskResponse
-	4,  // 33: redmatrix.scan.v1.ScanService.ListScanTasks:output_type -> redmatrix.scan.v1.ListScanTasksResponse
-	6,  // 34: redmatrix.scan.v1.ScanService.GetScanTask:output_type -> redmatrix.scan.v1.GetScanTaskResponse
-	8,  // 35: redmatrix.scan.v1.ScanService.CancelScanTask:output_type -> redmatrix.scan.v1.CancelScanTaskResponse
-	10, // 36: redmatrix.scan.v1.ScanService.DeleteScanTask:output_type -> redmatrix.scan.v1.DeleteScanTaskResponse
-	15, // 37: redmatrix.scan.v1.ScanService.ListTaskAssignments:output_type -> redmatrix.scan.v1.ListTaskAssignmentsResponse
-	18, // 38: redmatrix.scan.v1.ScanService.ListTaskResults:output_type -> redmatrix.scan.v1.ListTaskResultsResponse
-	22, // 39: redmatrix.scan.v1.ScanService.SearchResults:output_type -> redmatrix.scan.v1.SearchResultsResponse
-	12, // 40: redmatrix.scan.v1.ScanService.RetryScanTask:output_type -> redmatrix.scan.v1.RetryScanTaskResponse
-	32, // [32:41] is the sub-list for method output_type
-	23, // [23:32] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	26, // 10: redmatrix.scan.v1.GetArtifactDownloadURLResponse.expires_at:type_name -> google.protobuf.Timestamp
+	26, // 11: redmatrix.scan.v1.TaskAssignment.assigned_at:type_name -> google.protobuf.Timestamp
+	26, // 12: redmatrix.scan.v1.TaskAssignment.pulled_at:type_name -> google.protobuf.Timestamp
+	26, // 13: redmatrix.scan.v1.TaskAssignment.started_at:type_name -> google.protobuf.Timestamp
+	26, // 14: redmatrix.scan.v1.TaskAssignment.finished_at:type_name -> google.protobuf.Timestamp
+	15, // 15: redmatrix.scan.v1.ListTaskAssignmentsResponse.assignments:type_name -> redmatrix.scan.v1.TaskAssignment
+	25, // 16: redmatrix.scan.v1.ScanResult.data:type_name -> google.protobuf.Struct
+	26, // 17: redmatrix.scan.v1.ScanResult.created_at:type_name -> google.protobuf.Timestamp
+	18, // 18: redmatrix.scan.v1.ListTaskResultsResponse.results:type_name -> redmatrix.scan.v1.ScanResult
+	26, // 19: redmatrix.scan.v1.SearchResultsRequest.time_from:type_name -> google.protobuf.Timestamp
+	26, // 20: redmatrix.scan.v1.SearchResultsRequest.time_to:type_name -> google.protobuf.Timestamp
+	22, // 21: redmatrix.scan.v1.Facet.buckets:type_name -> redmatrix.scan.v1.FacetBucket
+	18, // 22: redmatrix.scan.v1.SearchResultsResponse.results:type_name -> redmatrix.scan.v1.ScanResult
+	23, // 23: redmatrix.scan.v1.SearchResultsResponse.facets:type_name -> redmatrix.scan.v1.Facet
+	1,  // 24: redmatrix.scan.v1.ScanService.CreateScanTask:input_type -> redmatrix.scan.v1.CreateScanTaskRequest
+	3,  // 25: redmatrix.scan.v1.ScanService.ListScanTasks:input_type -> redmatrix.scan.v1.ListScanTasksRequest
+	5,  // 26: redmatrix.scan.v1.ScanService.GetScanTask:input_type -> redmatrix.scan.v1.GetScanTaskRequest
+	7,  // 27: redmatrix.scan.v1.ScanService.CancelScanTask:input_type -> redmatrix.scan.v1.CancelScanTaskRequest
+	9,  // 28: redmatrix.scan.v1.ScanService.DeleteScanTask:input_type -> redmatrix.scan.v1.DeleteScanTaskRequest
+	16, // 29: redmatrix.scan.v1.ScanService.ListTaskAssignments:input_type -> redmatrix.scan.v1.ListTaskAssignmentsRequest
+	19, // 30: redmatrix.scan.v1.ScanService.ListTaskResults:input_type -> redmatrix.scan.v1.ListTaskResultsRequest
+	21, // 31: redmatrix.scan.v1.ScanService.SearchResults:input_type -> redmatrix.scan.v1.SearchResultsRequest
+	11, // 32: redmatrix.scan.v1.ScanService.RetryScanTask:input_type -> redmatrix.scan.v1.RetryScanTaskRequest
+	13, // 33: redmatrix.scan.v1.ScanService.GetArtifactDownloadURL:input_type -> redmatrix.scan.v1.GetArtifactDownloadURLRequest
+	2,  // 34: redmatrix.scan.v1.ScanService.CreateScanTask:output_type -> redmatrix.scan.v1.CreateScanTaskResponse
+	4,  // 35: redmatrix.scan.v1.ScanService.ListScanTasks:output_type -> redmatrix.scan.v1.ListScanTasksResponse
+	6,  // 36: redmatrix.scan.v1.ScanService.GetScanTask:output_type -> redmatrix.scan.v1.GetScanTaskResponse
+	8,  // 37: redmatrix.scan.v1.ScanService.CancelScanTask:output_type -> redmatrix.scan.v1.CancelScanTaskResponse
+	10, // 38: redmatrix.scan.v1.ScanService.DeleteScanTask:output_type -> redmatrix.scan.v1.DeleteScanTaskResponse
+	17, // 39: redmatrix.scan.v1.ScanService.ListTaskAssignments:output_type -> redmatrix.scan.v1.ListTaskAssignmentsResponse
+	20, // 40: redmatrix.scan.v1.ScanService.ListTaskResults:output_type -> redmatrix.scan.v1.ListTaskResultsResponse
+	24, // 41: redmatrix.scan.v1.ScanService.SearchResults:output_type -> redmatrix.scan.v1.SearchResultsResponse
+	12, // 42: redmatrix.scan.v1.ScanService.RetryScanTask:output_type -> redmatrix.scan.v1.RetryScanTaskResponse
+	14, // 43: redmatrix.scan.v1.ScanService.GetArtifactDownloadURL:output_type -> redmatrix.scan.v1.GetArtifactDownloadURLResponse
+	34, // [34:44] is the sub-list for method output_type
+	24, // [24:34] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_redmatrix_scan_v1_scan_proto_init() }
@@ -1785,15 +1895,15 @@ func file_redmatrix_scan_v1_scan_proto_init() {
 	}
 	file_redmatrix_scan_v1_scan_proto_msgTypes[0].OneofWrappers = []any{}
 	file_redmatrix_scan_v1_scan_proto_msgTypes[3].OneofWrappers = []any{}
-	file_redmatrix_scan_v1_scan_proto_msgTypes[13].OneofWrappers = []any{}
-	file_redmatrix_scan_v1_scan_proto_msgTypes[19].OneofWrappers = []any{}
+	file_redmatrix_scan_v1_scan_proto_msgTypes[15].OneofWrappers = []any{}
+	file_redmatrix_scan_v1_scan_proto_msgTypes[21].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redmatrix_scan_v1_scan_proto_rawDesc), len(file_redmatrix_scan_v1_scan_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

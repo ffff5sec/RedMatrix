@@ -42,6 +42,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/platform/health"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/platform/metrics"
+	"github.com/ffff5sec/RedMatrix/internal/scan/artifact"
 	"github.com/ffff5sec/RedMatrix/internal/scan/sweeper"
 	"github.com/ffff5sec/RedMatrix/internal/storage/es"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
@@ -369,10 +370,20 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle(asMount.path, asMount.handler)
 		logger.Info("asset service mounted", "path", asMount.path)
 
+		// === 8a₂'. ArtifactStore（PR-S16 MinIO 预签名）===
+		// MinIO 不可达不致命：artifactStore=nil → 相关 RPC 返 Unimplemented。
+		artifactStore, err := artifact.New(mio, artifact.DefaultBucket)
+		if err != nil {
+			logger.LogError(ctx, "artifact store init failed (continuing)", err)
+			artifactStore = nil
+		} else {
+			logger.Info("artifact store ready", "bucket", artifact.DefaultBucket)
+		}
+
 		// === 8a₃. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。同时返回 scheduler 让 main 控生命周期（PR-S12）。
-		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, logger)
+		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, logger)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -400,7 +411,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			"timeout", sweeper.DefaultTimeout.String())
 
 		// === 8a₁'. NodeAgentService（mTLS-only；Agent 心跳 + 拉任务）===
-		nodeAgentSrv, err := startNodeAgentServer(ctx, logger, pool, tenancySvc, scanSvc, ca, cfg.Public.GRPCAddr)
+		nodeAgentSrv, err := startNodeAgentServer(ctx, logger, pool, tenancySvc, scanSvc, artifactStore, ca, cfg.Public.GRPCAddr)
 		if err != nil {
 			logger.LogError(ctx, "node_agent server init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

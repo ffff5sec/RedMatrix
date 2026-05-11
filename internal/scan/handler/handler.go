@@ -177,6 +177,29 @@ func (h *Handler) DeleteScanTask(
 	return connect.NewResponse(&scanv1.DeleteScanTaskResponse{}), nil
 }
 
+// GetArtifactDownloadURL（PR-S16）—— 给前端拿大文件 result 的预签名下载 URL。
+// 同 ListResultsByTask 角色（SA / TA / PA）；service 层签 URL。
+func (h *Handler) GetArtifactDownloadURL(
+	ctx context.Context,
+	req *connect.Request[scanv1.GetArtifactDownloadURLRequest],
+) (*connect.Response[scanv1.GetArtifactDownloadURLResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	url, expires, err := h.svc.GetArtifactDownloadURL(ctx, req.Msg.GetKey())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&scanv1.GetArtifactDownloadURLResponse{
+		Url:       url,
+		ExpiresAt: timestamppb.New(expires),
+	}), nil
+}
+
 // RetryScanTask（PR-S14）—— failed/canceled task 重派。
 // 同 CreateScanTask 角色（SA / TA / PA）；service 层校 status。
 func (h *Handler) RetryScanTask(

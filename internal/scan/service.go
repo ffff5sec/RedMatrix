@@ -75,6 +75,12 @@ type Scheduler interface {
 	Remove(taskID string)
 }
 
+// ArtifactStore 大文件 artifact 持久化（PR-S16）。可空——dev / 测试不挂 MinIO
+// 时 GetArtifactDownloadURL 返 ErrUnavailable。
+type ArtifactStore interface {
+	PresignGetURL(ctx context.Context, key string, ttl time.Duration) (string, error)
+}
+
 // Service scan 模块业务流接口。
 //
 // 所有 RPC 假设 caller 已经过 handler 层 Authz；service 不查 caller role。
@@ -134,6 +140,10 @@ type Service interface {
 	// RetryTask（PR-S14）—— 从 failed/canceled task 复制成 immediate 实例
 	// 触发 dispatch。pending/running 拒。返新实例 task。
 	RetryTask(ctx context.Context, taskID string) (*domain.ScanTask, error)
+
+	// GetArtifactDownloadURL（PR-S16）—— 拿 artifact key 的预签名下载 URL。
+	// 调用方在 handler 层做 RBAC + key 校验；service 只签 URL。
+	GetArtifactDownloadURL(ctx context.Context, key string) (url string, expires time.Time, err error)
 }
 
 // SearchRequest 搜索入参。ScopedTenantID / ScopedProjectIDs 由 handler RBAC 注入：
@@ -237,15 +247,15 @@ type service struct {
 	projects    ProjectLookup
 	nodes       NodeLister
 	allowed     AllowedNodesLookup
-	indexer     Indexer      // 可空
-	assets      AssetDeriver // 可空
-	scheduler   Scheduler    // 可空
+	indexer     Indexer       // 可空
+	assets      AssetDeriver  // 可空
+	scheduler   Scheduler     // 可空
+	artifacts   ArtifactStore // 可空
 	logger      *log.Logger
 	now         func() time.Time
 }
 
-// NewService 构造 scan Service；indexer / assets / scheduler / logger 可空，
-// 其余依赖 nil 时返 ErrInternal。
+// NewService 构造 scan Service；indexer / assets / scheduler / artifacts / logger 可空。
 func NewService(
 	tasks repo.TaskRepository,
 	assignments repo.AssignmentRepository,
@@ -256,6 +266,7 @@ func NewService(
 	idx Indexer,
 	assets AssetDeriver,
 	scheduler Scheduler,
+	artifacts ArtifactStore,
 	logger *log.Logger,
 ) (Service, error) {
 	if tasks == nil || assignments == nil || results == nil || projects == nil || nodes == nil || allowed == nil {
@@ -264,7 +275,7 @@ func NewService(
 	return &service{
 		tasks: tasks, assignments: assignments, results: results,
 		projects: projects, nodes: nodes, allowed: allowed,
-		indexer: idx, assets: assets, scheduler: scheduler,
+		indexer: idx, assets: assets, scheduler: scheduler, artifacts: artifacts,
 		logger: logger, now: time.Now,
 	}, nil
 }
@@ -898,4 +909,50 @@ func (s *service) RetryTask(ctx context.Context, taskID string) (*domain.ScanTas
 		SourceTaskID: &srcID,
 	}
 	return s.CreateTask(ctx, req)
+}
+
+// GetArtifactDownloadURL（PR-S16）—— 签预签名 GET URL。
+//
+// 安全：MVP 不解析 key 中的 tenant 前缀做强校验，依赖 RBAC handler 层
+// + MinIO bucket scope 已隔离 tenant 数据。后续可加 key 前缀 vs principal.TenantID
+// 反查校。
+func (s *service) GetArtifactDownloadURL(
+	ctx context.Context,
+	key string,
+) (string, time.Time, error) {
+	if s.artifacts == nil {
+		return "", time.Time{}, errx.New(errx.ErrUpstreamTimeout,
+			"scan: artifact store 未配置")
+	}
+	// 委托给 artifact 包做 key 校验
+	if err := validateArtifactKey(key); err != nil {
+		return "", time.Time{}, err
+	}
+	const ttl = 10 * time.Minute
+	url, err := s.artifacts.PresignGetURL(ctx, key, ttl)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return url, s.now().Add(ttl), nil
+}
+
+// validateArtifactKey 与 artifact.ValidateKey 同语义；本地复制避免 service
+// import artifact 子包（artifact 包反过来不依赖 service）。
+func validateArtifactKey(key string) error {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return errx.New(errx.ErrInvalidInput, "artifact.key 不能为空")
+	}
+	if len(key) > 1024 {
+		return errx.New(errx.ErrInvalidInput, "artifact.key 超长")
+	}
+	if strings.HasPrefix(key, "/") || strings.Contains(key, "..") {
+		return errx.New(errx.ErrInvalidInput, "artifact.key 含非法字符（路径穿越）")
+	}
+	for _, c := range key {
+		if c < 0x20 || c == 0x7f {
+			return errx.New(errx.ErrInvalidInput, "artifact.key 含控制字符")
+		}
+	}
+	return nil
 }

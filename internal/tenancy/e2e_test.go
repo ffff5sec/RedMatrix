@@ -76,6 +76,13 @@ func (h *inlineNodeAgentHandler) ReportTaskResults(
 	return connect.NewResponse(&tenancyv1.ReportTaskResultsResponse{}), nil
 }
 
+func (h *inlineNodeAgentHandler) CreateArtifactUploadURL(
+	context.Context,
+	*connect.Request[tenancyv1.CreateArtifactUploadURLRequest],
+) (*connect.Response[tenancyv1.CreateArtifactUploadURLResponse], error) {
+	return connect.NewResponse(&tenancyv1.CreateArtifactUploadURLResponse{}), nil
+}
+
 func (h *inlineNodeAgentHandler) ReissueCert(
 	ctx context.Context,
 	_ *connect.Request[tenancyv1.ReissueCertRequest],

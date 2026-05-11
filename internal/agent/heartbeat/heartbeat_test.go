@@ -74,6 +74,10 @@ func (s *stubClient) ReportTaskResults(_ context.Context, _ *connect.Request[ten
 	return connect.NewResponse(&tenancyv1.ReportTaskResultsResponse{}), nil
 }
 
+func (s *stubClient) CreateArtifactUploadURL(_ context.Context, _ *connect.Request[tenancyv1.CreateArtifactUploadURLRequest]) (*connect.Response[tenancyv1.CreateArtifactUploadURLResponse], error) {
+	return connect.NewResponse(&tenancyv1.CreateArtifactUploadURLResponse{}), nil
+}
+
 func (s *stubClient) ReissueCert(_ context.Context, _ *connect.Request[tenancyv1.ReissueCertRequest]) (*connect.Response[tenancyv1.ReissueCertResponse], error) {
 	s.reissueCalls.Add(1)
 	if s.reissueErr != nil {

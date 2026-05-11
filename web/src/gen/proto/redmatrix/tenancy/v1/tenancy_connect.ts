@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, GetStatsRequest, GetStatsResponse, HeartbeatRequest, HeartbeatResponse, ListNodeCertificatesRequest, ListNodeCertificatesResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, PullTasksRequest, PullTasksResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, ReportTaskProgressRequest, ReportTaskProgressResponse, ReportTaskResultsRequest, ReportTaskResultsResponse, RevokeNodeCertificateRequest, RevokeNodeCertificateResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateArtifactUploadURLRequest, CreateArtifactUploadURLResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, GetStatsRequest, GetStatsResponse, HeartbeatRequest, HeartbeatResponse, ListNodeCertificatesRequest, ListNodeCertificatesResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, PullTasksRequest, PullTasksResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, ReportTaskProgressRequest, ReportTaskProgressResponse, ReportTaskResultsRequest, ReportTaskResultsResponse, RevokeNodeCertificateRequest, RevokeNodeCertificateResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -367,6 +367,20 @@ export const NodeAgentService = {
       name: "ReportTaskResults",
       I: ReportTaskResultsRequest,
       O: ReportTaskResultsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * CreateArtifactUploadURL（PR-S16）—— agent 申请 presigned PUT URL，
+     * 直接 HTTP PUT 大文件 (截图 / pcap / raw HTML) 到 MinIO。返
+     * (key, url, expires_at)。tenant_id 由 server 从 mTLS ctx 推导。
+     * 之后 agent 在 ReportTaskResults 的 data.artifact_key 字段中带 key。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.NodeAgentService.CreateArtifactUploadURL
+     */
+    createArtifactUploadURL: {
+      name: "CreateArtifactUploadURL",
+      I: CreateArtifactUploadURLRequest,
+      O: CreateArtifactUploadURLResponse,
       kind: MethodKind.Unary,
     },
   }

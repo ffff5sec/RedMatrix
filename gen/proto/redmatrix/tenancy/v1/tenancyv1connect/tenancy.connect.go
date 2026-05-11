@@ -122,6 +122,9 @@ const (
 	// NodeAgentServiceReportTaskResultsProcedure is the fully-qualified name of the NodeAgentService's
 	// ReportTaskResults RPC.
 	NodeAgentServiceReportTaskResultsProcedure = "/redmatrix.tenancy.v1.NodeAgentService/ReportTaskResults"
+	// NodeAgentServiceCreateArtifactUploadURLProcedure is the fully-qualified name of the
+	// NodeAgentService's CreateArtifactUploadURL RPC.
+	NodeAgentServiceCreateArtifactUploadURLProcedure = "/redmatrix.tenancy.v1.NodeAgentService/CreateArtifactUploadURL"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -875,6 +878,11 @@ type NodeAgentServiceClient interface {
 	// ReportTaskResults 上报任务结果（PR-S5）。
 	// 一次可携带多条结果（每条对应 1 个发现，如开放端口 / URL / 指纹）。
 	ReportTaskResults(context.Context, *connect.Request[v1.ReportTaskResultsRequest]) (*connect.Response[v1.ReportTaskResultsResponse], error)
+	// CreateArtifactUploadURL（PR-S16）—— agent 申请 presigned PUT URL，
+	// 直接 HTTP PUT 大文件 (截图 / pcap / raw HTML) 到 MinIO。返
+	// (key, url, expires_at)。tenant_id 由 server 从 mTLS ctx 推导。
+	// 之后 agent 在 ReportTaskResults 的 data.artifact_key 字段中带 key。
+	CreateArtifactUploadURL(context.Context, *connect.Request[v1.CreateArtifactUploadURLRequest]) (*connect.Response[v1.CreateArtifactUploadURLResponse], error)
 }
 
 // NewNodeAgentServiceClient constructs a client for the redmatrix.tenancy.v1.NodeAgentService
@@ -918,16 +926,23 @@ func NewNodeAgentServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(nodeAgentServiceMethods.ByName("ReportTaskResults")),
 			connect.WithClientOptions(opts...),
 		),
+		createArtifactUploadURL: connect.NewClient[v1.CreateArtifactUploadURLRequest, v1.CreateArtifactUploadURLResponse](
+			httpClient,
+			baseURL+NodeAgentServiceCreateArtifactUploadURLProcedure,
+			connect.WithSchema(nodeAgentServiceMethods.ByName("CreateArtifactUploadURL")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // nodeAgentServiceClient implements NodeAgentServiceClient.
 type nodeAgentServiceClient struct {
-	heartbeat          *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
-	reissueCert        *connect.Client[v1.ReissueCertRequest, v1.ReissueCertResponse]
-	pullTasks          *connect.Client[v1.PullTasksRequest, v1.PullTasksResponse]
-	reportTaskProgress *connect.Client[v1.ReportTaskProgressRequest, v1.ReportTaskProgressResponse]
-	reportTaskResults  *connect.Client[v1.ReportTaskResultsRequest, v1.ReportTaskResultsResponse]
+	heartbeat               *connect.Client[v1.HeartbeatRequest, v1.HeartbeatResponse]
+	reissueCert             *connect.Client[v1.ReissueCertRequest, v1.ReissueCertResponse]
+	pullTasks               *connect.Client[v1.PullTasksRequest, v1.PullTasksResponse]
+	reportTaskProgress      *connect.Client[v1.ReportTaskProgressRequest, v1.ReportTaskProgressResponse]
+	reportTaskResults       *connect.Client[v1.ReportTaskResultsRequest, v1.ReportTaskResultsResponse]
+	createArtifactUploadURL *connect.Client[v1.CreateArtifactUploadURLRequest, v1.CreateArtifactUploadURLResponse]
 }
 
 // Heartbeat calls redmatrix.tenancy.v1.NodeAgentService.Heartbeat.
@@ -955,6 +970,11 @@ func (c *nodeAgentServiceClient) ReportTaskResults(ctx context.Context, req *con
 	return c.reportTaskResults.CallUnary(ctx, req)
 }
 
+// CreateArtifactUploadURL calls redmatrix.tenancy.v1.NodeAgentService.CreateArtifactUploadURL.
+func (c *nodeAgentServiceClient) CreateArtifactUploadURL(ctx context.Context, req *connect.Request[v1.CreateArtifactUploadURLRequest]) (*connect.Response[v1.CreateArtifactUploadURLResponse], error) {
+	return c.createArtifactUploadURL.CallUnary(ctx, req)
+}
+
 // NodeAgentServiceHandler is an implementation of the redmatrix.tenancy.v1.NodeAgentService
 // service.
 type NodeAgentServiceHandler interface {
@@ -975,6 +995,11 @@ type NodeAgentServiceHandler interface {
 	// ReportTaskResults 上报任务结果（PR-S5）。
 	// 一次可携带多条结果（每条对应 1 个发现，如开放端口 / URL / 指纹）。
 	ReportTaskResults(context.Context, *connect.Request[v1.ReportTaskResultsRequest]) (*connect.Response[v1.ReportTaskResultsResponse], error)
+	// CreateArtifactUploadURL（PR-S16）—— agent 申请 presigned PUT URL，
+	// 直接 HTTP PUT 大文件 (截图 / pcap / raw HTML) 到 MinIO。返
+	// (key, url, expires_at)。tenant_id 由 server 从 mTLS ctx 推导。
+	// 之后 agent 在 ReportTaskResults 的 data.artifact_key 字段中带 key。
+	CreateArtifactUploadURL(context.Context, *connect.Request[v1.CreateArtifactUploadURLRequest]) (*connect.Response[v1.CreateArtifactUploadURLResponse], error)
 }
 
 // NewNodeAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1014,6 +1039,12 @@ func NewNodeAgentServiceHandler(svc NodeAgentServiceHandler, opts ...connect.Han
 		connect.WithSchema(nodeAgentServiceMethods.ByName("ReportTaskResults")),
 		connect.WithHandlerOptions(opts...),
 	)
+	nodeAgentServiceCreateArtifactUploadURLHandler := connect.NewUnaryHandler(
+		NodeAgentServiceCreateArtifactUploadURLProcedure,
+		svc.CreateArtifactUploadURL,
+		connect.WithSchema(nodeAgentServiceMethods.ByName("CreateArtifactUploadURL")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.NodeAgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case NodeAgentServiceHeartbeatProcedure:
@@ -1026,6 +1057,8 @@ func NewNodeAgentServiceHandler(svc NodeAgentServiceHandler, opts ...connect.Han
 			nodeAgentServiceReportTaskProgressHandler.ServeHTTP(w, r)
 		case NodeAgentServiceReportTaskResultsProcedure:
 			nodeAgentServiceReportTaskResultsHandler.ServeHTTP(w, r)
+		case NodeAgentServiceCreateArtifactUploadURLProcedure:
+			nodeAgentServiceCreateArtifactUploadURLHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1053,4 +1086,8 @@ func (UnimplementedNodeAgentServiceHandler) ReportTaskProgress(context.Context, 
 
 func (UnimplementedNodeAgentServiceHandler) ReportTaskResults(context.Context, *connect.Request[v1.ReportTaskResultsRequest]) (*connect.Response[v1.ReportTaskResultsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.ReportTaskResults is not implemented"))
+}
+
+func (UnimplementedNodeAgentServiceHandler) CreateArtifactUploadURL(context.Context, *connect.Request[v1.CreateArtifactUploadURLRequest]) (*connect.Response[v1.CreateArtifactUploadURLResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.CreateArtifactUploadURL is not implemented"))
 }

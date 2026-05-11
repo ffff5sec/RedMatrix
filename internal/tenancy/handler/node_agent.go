@@ -7,32 +7,36 @@ package handler
 
 import (
 	"context"
+	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	tenancyv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1"
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/platform/ctxmeta"
 	"github.com/ffff5sec/RedMatrix/internal/scan"
+	"github.com/ffff5sec/RedMatrix/internal/scan/artifact"
 	scandomain "github.com/ffff5sec/RedMatrix/internal/scan/domain"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy"
 )
 
 // NodeAgentHandler 实现 NodeAgentServiceHandler。
 type NodeAgentHandler struct {
-	svc     tenancy.Service
-	scanSvc scan.Service // 可空：scan 模块禁用时降级，PullTasks/ReportTaskProgress 返 NotImplemented
+	svc       tenancy.Service
+	scanSvc   scan.Service   // 可空：scan 模块禁用时降级，PullTasks/ReportTaskProgress 返 NotImplemented
+	artifacts artifact.Store // 可空：PR-S16 MinIO artifact；为 nil 时 CreateArtifactUploadURL 返 Unimplemented
 }
 
 var _ tenancyv1connect.NodeAgentServiceHandler = (*NodeAgentHandler)(nil)
 
-// NewNodeAgent 构造 NodeAgentService handler。scanSvc 可空（不影响 Heartbeat / ReissueCert）。
-func NewNodeAgent(svc tenancy.Service, scanSvc scan.Service) (*NodeAgentHandler, error) {
+// NewNodeAgent 构造 NodeAgentService handler。scanSvc / artifacts 可空。
+func NewNodeAgent(svc tenancy.Service, scanSvc scan.Service, artifacts artifact.Store) (*NodeAgentHandler, error) {
 	if svc == nil {
 		return nil, errx.New(errx.ErrInternal, "tenancy.handler.NewNodeAgent: svc 不能为 nil")
 	}
-	return &NodeAgentHandler{svc: svc, scanSvc: scanSvc}, nil
+	return &NodeAgentHandler{svc: svc, scanSvc: scanSvc, artifacts: artifacts}, nil
 }
 
 // Heartbeat 上报；node_id 从 ctx 取（mTLS middleware 已注入）。
@@ -165,5 +169,37 @@ func (h *NodeAgentHandler) ReportTaskResults(
 	//nolint:gosec // items 数量由 agent 控制；MVP 单条上报 < 100
 	return connect.NewResponse(&tenancyv1.ReportTaskResultsResponse{
 		Inserted: int32(len(items)),
+	}), nil
+}
+
+// CreateArtifactUploadURL（PR-S16）—— agent 申请预签名 PUT URL。
+// tenant_id 从 mTLS node 反查（每个 node 绑 tenant）。
+func (h *NodeAgentHandler) CreateArtifactUploadURL(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.CreateArtifactUploadURLRequest],
+) (*connect.Response[tenancyv1.CreateArtifactUploadURLResponse], error) {
+	nodeID := ctxmeta.NodeIDFromContext(ctx)
+	if nodeID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated,
+			errx.New(errx.ErrAuthFailed, "mTLS 中间件未注入 node_id"))
+	}
+	if h.artifacts == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented,
+			errx.New(errx.ErrNotImplemented, "artifact store 未配置"))
+	}
+	node, err := h.svc.GetNode(ctx, nodeID)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	key := h.artifacts.MakeKey(node.TenantID, req.Msg.GetExt())
+	expires := time.Now().Add(artifact.DefaultURLTTL)
+	url, err := h.artifacts.PresignPutURL(ctx, key, artifact.DefaultURLTTL)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.CreateArtifactUploadURLResponse{
+		Key:       key,
+		Url:       url,
+		ExpiresAt: timestamppb.New(expires),
 	}), nil
 }

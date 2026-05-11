@@ -2549,6 +2549,100 @@ export class ReportTaskResultsResponse extends Message<ReportTaskResultsResponse
 }
 
 /**
+ * PR-S16
+ *
+ * @generated from message redmatrix.tenancy.v1.CreateArtifactUploadURLRequest
+ */
+export class CreateArtifactUploadURLRequest extends Message<CreateArtifactUploadURLRequest> {
+  /**
+   * 可选文件扩展名（".png" / ".pcap" / ".html"）；生成 key 时拼到尾巴；空 = 无扩展
+   *
+   * @generated from field: string ext = 1;
+   */
+  ext = "";
+
+  constructor(data?: PartialMessage<CreateArtifactUploadURLRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.CreateArtifactUploadURLRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "ext", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateArtifactUploadURLRequest {
+    return new CreateArtifactUploadURLRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateArtifactUploadURLRequest {
+    return new CreateArtifactUploadURLRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateArtifactUploadURLRequest {
+    return new CreateArtifactUploadURLRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateArtifactUploadURLRequest | PlainMessage<CreateArtifactUploadURLRequest> | undefined, b: CreateArtifactUploadURLRequest | PlainMessage<CreateArtifactUploadURLRequest> | undefined): boolean {
+    return proto3.util.equals(CreateArtifactUploadURLRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.CreateArtifactUploadURLResponse
+ */
+export class CreateArtifactUploadURLResponse extends Message<CreateArtifactUploadURLResponse> {
+  /**
+   * scan_results 入库时 data.artifact_key 字段值
+   *
+   * @generated from field: string key = 1;
+   */
+  key = "";
+
+  /**
+   * agent 直接 HTTP PUT 这个 URL
+   *
+   * @generated from field: string url = 2;
+   */
+  url = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 3;
+   */
+  expiresAt?: Timestamp;
+
+  constructor(data?: PartialMessage<CreateArtifactUploadURLResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.CreateArtifactUploadURLResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "expires_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateArtifactUploadURLResponse {
+    return new CreateArtifactUploadURLResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateArtifactUploadURLResponse {
+    return new CreateArtifactUploadURLResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateArtifactUploadURLResponse {
+    return new CreateArtifactUploadURLResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateArtifactUploadURLResponse | PlainMessage<CreateArtifactUploadURLResponse> | undefined, b: CreateArtifactUploadURLResponse | PlainMessage<CreateArtifactUploadURLResponse> | undefined): boolean {
+    return proto3.util.equals(CreateArtifactUploadURLResponse, a, b);
+  }
+}
+
+/**
  * NodeCertificate 为审计 / 详情页展示而暴露的 cert 元数据；不含 PEM / private key。
  *
  * @generated from message redmatrix.tenancy.v1.NodeCertificate

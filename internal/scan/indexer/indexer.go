@@ -54,6 +54,9 @@ func (i *Indexer) EnsureTemplate(ctx context.Context) error {
 			"settings": map[string]any{
 				"number_of_shards":   1,
 				"number_of_replicas": 0,
+				// PR-S18-B：限 mapping 总字段数，防恶意 / bug agent 上报无限
+				// 不同 data.* 键导致 cluster mapping 爆炸（默认 1000 即拒写）
+				"index.mapping.total_fields.limit": 1000,
 			},
 			"mappings": map[string]any{
 				"properties": map[string]any{

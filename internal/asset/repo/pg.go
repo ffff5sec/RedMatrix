@@ -60,10 +60,12 @@ func (r *pgRepo) UpsertBulk(ctx context.Context, items []*domain.Asset) error {
 		}
 		args = append(args, it.TenantID, it.ProjectID, string(it.Kind), it.Value, delta)
 	}
-	// 冲突列 (tenant_id, project_id, kind, value)：last_seen=now()，result_count 累加。
+	// PR-S18-B：冲突列改为 (tenant_id, project_id, kind, value_sha256) —— 索引
+	// idx_assets_unique_hash；value_sha256 由 BEFORE INSERT trigger 自动从 value 算。
+	// 这样长 URL（接近 VARCHAR(2048)）不会触发 btree 行 size 上限。
 	q := `INSERT INTO assets (tenant_id, project_id, kind, value, result_count) VALUES ` +
 		values + `
-		ON CONFLICT (tenant_id, project_id, kind, value)
+		ON CONFLICT (tenant_id, project_id, kind, value_sha256)
 		DO UPDATE SET
 			last_seen = now(),
 			result_count = assets.result_count + EXCLUDED.result_count`

@@ -43,6 +43,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/platform/metrics"
 	"github.com/ffff5sec/RedMatrix/internal/scan/artifact"
+	"github.com/ffff5sec/RedMatrix/internal/scan/metricsscan"
 	"github.com/ffff5sec/RedMatrix/internal/scan/sweeper"
 	"github.com/ffff5sec/RedMatrix/internal/storage/es"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
@@ -326,6 +327,8 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		aggregator.Register("minio", mio.Ping)
 
 		metricsReg := metrics.New(version.Version, version.Commit, version.BuildDate)
+		// PR-S17-OBSV: scan 业务指标（5 个核心 counter）
+		scanMetrics := metricsscan.New(metricsReg)
 
 		mux := http.NewServeMux()
 		mux.Handle("/health", health.LivenessHandler())
@@ -383,7 +386,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		// === 8a₃. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。同时返回 scheduler 让 main 控生命周期（PR-S12）。
-		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, logger)
+		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, scanMetrics, logger)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

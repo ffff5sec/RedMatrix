@@ -14,6 +14,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/scan"
 	scanhandler "github.com/ffff5sec/RedMatrix/internal/scan/handler"
 	"github.com/ffff5sec/RedMatrix/internal/scan/indexer"
+	"github.com/ffff5sec/RedMatrix/internal/scan/metricsscan"
 	scanrepo "github.com/ffff5sec/RedMatrix/internal/scan/repo"
 	"github.com/ffff5sec/RedMatrix/internal/scan/scheduler"
 	"github.com/ffff5sec/RedMatrix/internal/storage/es"
@@ -40,6 +41,7 @@ func buildScanMount(
 	authSvc auth.Service,
 	assetDeriver scan.AssetDeriver,
 	artifactStore scan.ArtifactStore,
+	scanMetrics *metricsscan.Collectors,
 	logger *log.Logger,
 ) (*scanMount, scan.Service, *scheduler.Scheduler, error) {
 	if pool == nil || pool.App == nil {
@@ -85,7 +87,7 @@ func buildScanMount(
 		return nil, nil, nil, err
 	}
 
-	svc, err = scan.NewService(tasks, assignments, results, projects, nodes, allowed, idx, assetDeriver, sched, artifactStore, logger)
+	svc, err = scan.NewService(tasks, assignments, results, projects, nodes, allowed, idx, assetDeriver, sched, artifactStore, scanMetrics, logger)
 	if err != nil {
 		return nil, nil, nil, err
 	}

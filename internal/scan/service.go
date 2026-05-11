@@ -16,6 +16,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/scan/domain"
 	"github.com/ffff5sec/RedMatrix/internal/scan/indexer"
+	"github.com/ffff5sec/RedMatrix/internal/scan/metricsscan"
 	"github.com/ffff5sec/RedMatrix/internal/scan/repo"
 	tenancydomain "github.com/ffff5sec/RedMatrix/internal/tenancy/domain"
 	tenancyrepo "github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
@@ -251,11 +252,13 @@ type service struct {
 	assets      AssetDeriver  // 可空
 	scheduler   Scheduler     // 可空
 	artifacts   ArtifactStore // 可空
+	metrics     *metricsscan.Collectors
 	logger      *log.Logger
 	now         func() time.Time
 }
 
 // NewService 构造 scan Service；indexer / assets / scheduler / artifacts / logger 可空。
+// metrics 可空 — 测试 / scaffold 不挂 Prometheus 时用 metricsscan.Noop()。
 func NewService(
 	tasks repo.TaskRepository,
 	assignments repo.AssignmentRepository,
@@ -267,16 +270,21 @@ func NewService(
 	assets AssetDeriver,
 	scheduler Scheduler,
 	artifacts ArtifactStore,
+	met *metricsscan.Collectors,
 	logger *log.Logger,
 ) (Service, error) {
 	if tasks == nil || assignments == nil || results == nil || projects == nil || nodes == nil || allowed == nil {
 		return nil, errx.New(errx.ErrInternal, "scan.NewService: 依赖不能为 nil")
 	}
+	if met == nil {
+		met = metricsscan.Noop()
+	}
 	return &service{
 		tasks: tasks, assignments: assignments, results: results,
 		projects: projects, nodes: nodes, allowed: allowed,
 		indexer: idx, assets: assets, scheduler: scheduler, artifacts: artifacts,
-		logger: logger, now: time.Now,
+		metrics: met,
+		logger:  logger, now: time.Now,
 	}, nil
 }
 
@@ -317,6 +325,7 @@ func (s *service) CreateTask(ctx context.Context, req CreateTaskRequest) (*domai
 	if err := s.tasks.Insert(ctx, t); err != nil {
 		return nil, err
 	}
+	s.metrics.TasksCreated.WithLabelValues(string(t.Kind)).Inc() // PR-S17-OBSV
 
 	// PR-S12：cron 模板注册到 scheduler。失败仅日志，不阻断 task 创建
 	// （重启后 LoadAll 会兜底重新装载）。
@@ -422,6 +431,7 @@ func (s *service) CancelTask(ctx context.Context, id string) error {
 	if err := s.tasks.UpdateStatus(ctx, id, domain.TaskCanceled, &now); err != nil {
 		return err
 	}
+	s.metrics.TasksTerminal.WithLabelValues(string(domain.TaskCanceled)).Inc() // PR-S17-OBSV
 	// PR-S12：cron 模板取消后停止后续触发；幂等，未注册时 no-op。
 	if s.scheduler != nil && t.ScheduleKind == domain.ScheduleCron {
 		s.scheduler.Remove(id)
@@ -613,7 +623,15 @@ func (s *service) aggregateTaskStatus(ctx context.Context, taskID string) error 
 		ts := s.now().UTC().Format(time.RFC3339)
 		finishedAt = &ts
 	}
-	return s.tasks.UpdateStatus(ctx, taskID, next, finishedAt)
+	if err := s.tasks.UpdateStatus(ctx, taskID, next, finishedAt); err != nil {
+		return err
+	}
+	// PR-S17-OBSV: 进入终态记 metric（CancelTask 直走 UpdateStatus 不经此处，
+	// 在 CancelTask 路径单独 inc）
+	if next.IsTerminal() {
+		s.metrics.TasksTerminal.WithLabelValues(string(next)).Inc()
+	}
+	return nil
 }
 
 // ReportResults（PR-S5）—— 防伪造校验 + bulk insert。
@@ -661,6 +679,7 @@ func (s *service) ReportResults(
 	if err := s.results.InsertBulk(ctx, rows); err != nil {
 		return err
 	}
+	s.metrics.ResultsInserted.Add(float64(len(rows))) // PR-S17-OBSV
 
 	// PR-S6 ES 双写：PG 是 source-of-truth，ES 失败仅日志，不回滚 PG。
 	// rows 经过 InsertBulk 后已带 ID / CreatedAt（repo 用 RETURNING 回填）。
@@ -769,6 +788,7 @@ func (s *service) SearchResults(ctx context.Context, req SearchRequest) (*Search
 // 实例 task 的 name 加 [yyyy-MM-dd HH:mm] 后缀以便 UI 区分；
 // 走 service.CreateTask 自然触发 dispatch。
 func (s *service) TriggerCronTask(ctx context.Context, taskID string) error {
+	s.metrics.SchedulerTriggers.Inc() // PR-S17-OBSV：每次回调即计一次
 	t, err := s.tasks.GetByID(ctx, taskID)
 	if err != nil {
 		// 模板已不在（软删 / 不存在）→ 注销 scheduler 防再触发
@@ -852,6 +872,7 @@ func (s *service) SweepStaleAssignments(ctx context.Context, timeout time.Durati
 			continue
 		}
 		swept++
+		s.metrics.SweeperSwept.Inc() // PR-S17-OBSV：每标 failed 一条 +1
 		touchedTasks[a.TaskID] = struct{}{}
 	}
 	for tID := range touchedTasks {

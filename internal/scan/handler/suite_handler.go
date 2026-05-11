@@ -254,7 +254,7 @@ func (h *Handler) ListScanSuiteRuns(
 	for _, r := range out.Runs {
 		pb = append(pb, suiteRunToProto(r))
 	}
-	//nolint:gosec
+	//nolint:gosec // total/page/pageSize ≤ 200 经分页钳制；溢出 int32 不可能
 	return connect.NewResponse(&scanv1.ListScanSuiteRunsResponse{
 		Runs: pb, Total: int32(out.Total), Page: int32(out.Page), PageSize: int32(out.PageSize),
 	}), nil

@@ -44,7 +44,8 @@ SELECT id::text,
        finished_at,
        deleted_at,
        source_task_id::text,
-       targets
+       targets,
+       suite_run_id::text
 FROM scan_tasks
 `
 
@@ -67,8 +68,8 @@ func (r *pgTaskRepo) Insert(ctx context.Context, t *domain.ScanTask) error {
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO scan_tasks (
 			tenant_id, project_id, name, kind, target, target_kind, status,
-			schedule_kind, cron_expr, settings, created_by, source_task_id, targets
-		) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::text[])
+			schedule_kind, cron_expr, settings, created_by, source_task_id, targets, suite_run_id
+		) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::text[], $14)
 		RETURNING id::text, created_at, updated_at
 	`,
 		t.TenantID, t.ProjectID, t.Name, string(t.Kind), t.Target, string(t.TargetKind),
@@ -76,6 +77,7 @@ func (r *pgTaskRepo) Insert(ctx context.Context, t *domain.ScanTask) error {
 		nullableString(t.CronExpr), settingsJSON, nullableUUID(t.CreatedBy),
 		nullableUUIDPtr(t.SourceTaskID),
 		targets,
+		nullableUUIDPtr(t.SuiteRunID), // PR-S23
 	)
 	if err := row.Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt); err != nil {
 		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: insert task").
@@ -127,6 +129,10 @@ func (r *pgTaskRepo) List(ctx context.Context, f TaskFilter, p Page) ([]*domain.
 	if kw := strings.TrimSpace(f.Keyword); kw != "" {
 		args = append(args, "%"+kw+"%")
 		clauses = append(clauses, "name ILIKE $"+itoa(len(args)))
+	}
+	if strings.TrimSpace(f.SuiteRunID) != "" {
+		args = append(args, f.SuiteRunID)
+		clauses = append(clauses, "suite_run_id = $"+itoa(len(args))+"::uuid")
 	}
 	where := "WHERE " + strings.Join(clauses, " AND ")
 
@@ -235,6 +241,7 @@ func scanTask(s interface {
 	t := &domain.ScanTask{}
 	var settingsBytes []byte
 	var sourceTaskID *string
+	var suiteRunID *string
 	if err := s.Scan(
 		&t.ID, &t.TenantID, &t.ProjectID, &t.Name,
 		(*string)(&t.Kind), &t.Target, (*string)(&t.TargetKind),
@@ -243,6 +250,7 @@ func scanTask(s interface {
 		&t.CreatedAt, &t.UpdatedAt, &t.StartedAt, &t.FinishedAt, &t.DeletedAt,
 		&sourceTaskID,
 		&t.Targets,
+		&suiteRunID,
 	); err != nil {
 		return nil, err
 	}
@@ -252,6 +260,9 @@ func scanTask(s interface {
 	}
 	if sourceTaskID != nil && *sourceTaskID != "" {
 		t.SourceTaskID = sourceTaskID
+	}
+	if suiteRunID != nil && *suiteRunID != "" {
+		t.SuiteRunID = suiteRunID
 	}
 	return t, nil
 }

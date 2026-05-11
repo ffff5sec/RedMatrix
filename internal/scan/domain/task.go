@@ -133,6 +133,10 @@ type ScanTask struct {
 	// nil = 用户手动创建。FK ON DELETE SET NULL，所以源被删后自动断链。
 	SourceTaskID *string
 
+	// SuiteRunID（PR-S23）：套件展开生成的子 task 指回 suite_run。
+	// nil = 独立 task（非套件路径）。FK ON DELETE SET NULL。
+	SuiteRunID *string
+
 	CreatedBy  string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time

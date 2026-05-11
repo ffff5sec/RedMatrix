@@ -100,6 +100,29 @@ func (s *stubScanSvc) GetArtifactDownloadURL(_ context.Context, _ string) (strin
 	panic("unexpected: GetArtifactDownloadURL")
 }
 
+// PR-S23 stubs — handler rbac 测试不覆盖套件 RPC，全 panic（未被调）
+func (s *stubScanSvc) CreateSuite(_ context.Context, _ scan.CreateSuiteRequest) (*scandomain.ScanSuite, error) {
+	panic("unexpected: CreateSuite")
+}
+func (s *stubScanSvc) ListSuites(_ context.Context, _ scan.ListSuitesRequest) (*scan.ListSuitesResult, error) {
+	panic("unexpected: ListSuites")
+}
+func (s *stubScanSvc) GetSuite(_ context.Context, _ string) (*scandomain.ScanSuite, error) {
+	panic("unexpected: GetSuite")
+}
+func (s *stubScanSvc) DeleteSuite(_ context.Context, _ string) error {
+	panic("unexpected: DeleteSuite")
+}
+func (s *stubScanSvc) RunSuite(_ context.Context, _ scan.RunSuiteRequest) (*scandomain.ScanSuiteRun, error) {
+	panic("unexpected: RunSuite")
+}
+func (s *stubScanSvc) GetSuiteRun(_ context.Context, _ string) (*scan.SuiteRunDetail, error) {
+	panic("unexpected: GetSuiteRun")
+}
+func (s *stubScanSvc) ListSuiteRuns(_ context.Context, _ scan.ListSuiteRunsRequest) (*scan.ListSuiteRunsResult, error) {
+	panic("unexpected: ListSuiteRuns")
+}
+
 var _ scan.Service = (*stubScanSvc)(nil)
 
 // stubAuthSvc 是 auth.Service 的最小实现：仅 AuthenticateBearer 行为可控；

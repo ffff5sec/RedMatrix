@@ -56,6 +56,8 @@ func buildScanMount(
 	tasks := scanrepo.NewTaskPG(pool.App)
 	assignments := scanrepo.NewAssignmentPG(pool.App)
 	results := scanrepo.NewResultPG(pool.App)
+	suites := scanrepo.NewSuitePG(pool.App)       // PR-S23
+	suiteRuns := scanrepo.NewSuiteRunPG(pool.App) // PR-S23
 	projects := tenancyrepo.NewProjectPG(pool.App)
 	nodes := tenancyrepo.NewNodePG(pool.App)
 	allowed := tenancyrepo.NewAllowedNodesPG(pool.App)
@@ -94,6 +96,8 @@ func buildScanMount(
 		Tasks:       tasks,
 		Assignments: assignments,
 		Results:     results,
+		Suites:      suites,    // PR-S23
+		SuiteRuns:   suiteRuns, // PR-S23
 		Projects:    projects,
 		Nodes:       nodes,
 		Allowed:     allowed,

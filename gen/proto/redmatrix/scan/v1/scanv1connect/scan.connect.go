@@ -66,6 +66,27 @@ const (
 	// ScanServiceGetArtifactDownloadURLProcedure is the fully-qualified name of the ScanService's
 	// GetArtifactDownloadURL RPC.
 	ScanServiceGetArtifactDownloadURLProcedure = "/redmatrix.scan.v1.ScanService/GetArtifactDownloadURL"
+	// ScanServiceCreateScanSuiteProcedure is the fully-qualified name of the ScanService's
+	// CreateScanSuite RPC.
+	ScanServiceCreateScanSuiteProcedure = "/redmatrix.scan.v1.ScanService/CreateScanSuite"
+	// ScanServiceListScanSuitesProcedure is the fully-qualified name of the ScanService's
+	// ListScanSuites RPC.
+	ScanServiceListScanSuitesProcedure = "/redmatrix.scan.v1.ScanService/ListScanSuites"
+	// ScanServiceGetScanSuiteProcedure is the fully-qualified name of the ScanService's GetScanSuite
+	// RPC.
+	ScanServiceGetScanSuiteProcedure = "/redmatrix.scan.v1.ScanService/GetScanSuite"
+	// ScanServiceDeleteScanSuiteProcedure is the fully-qualified name of the ScanService's
+	// DeleteScanSuite RPC.
+	ScanServiceDeleteScanSuiteProcedure = "/redmatrix.scan.v1.ScanService/DeleteScanSuite"
+	// ScanServiceRunScanSuiteProcedure is the fully-qualified name of the ScanService's RunScanSuite
+	// RPC.
+	ScanServiceRunScanSuiteProcedure = "/redmatrix.scan.v1.ScanService/RunScanSuite"
+	// ScanServiceGetScanSuiteRunProcedure is the fully-qualified name of the ScanService's
+	// GetScanSuiteRun RPC.
+	ScanServiceGetScanSuiteRunProcedure = "/redmatrix.scan.v1.ScanService/GetScanSuiteRun"
+	// ScanServiceListScanSuiteRunsProcedure is the fully-qualified name of the ScanService's
+	// ListScanSuiteRuns RPC.
+	ScanServiceListScanSuiteRunsProcedure = "/redmatrix.scan.v1.ScanService/ListScanSuiteRuns"
 )
 
 // ScanServiceClient is a client for the redmatrix.scan.v1.ScanService service.
@@ -89,6 +110,14 @@ type ScanServiceClient interface {
 	// server 签预签名 GET URL（TTL 10min）；前端浏览器跳转该 URL 直接拉 MinIO。
 	// RBAC: SA / TA / PA 同 ListResultsByTask。
 	GetArtifactDownloadURL(context.Context, *connect.Request[v1.GetArtifactDownloadURLRequest]) (*connect.Response[v1.GetArtifactDownloadURLResponse], error)
+	CreateScanSuite(context.Context, *connect.Request[v1.CreateScanSuiteRequest]) (*connect.Response[v1.CreateScanSuiteResponse], error)
+	ListScanSuites(context.Context, *connect.Request[v1.ListScanSuitesRequest]) (*connect.Response[v1.ListScanSuitesResponse], error)
+	GetScanSuite(context.Context, *connect.Request[v1.GetScanSuiteRequest]) (*connect.Response[v1.GetScanSuiteResponse], error)
+	DeleteScanSuite(context.Context, *connect.Request[v1.DeleteScanSuiteRequest]) (*connect.Response[v1.DeleteScanSuiteResponse], error)
+	// RunScanSuite 触发一次：套件 × targets → N immediate task。
+	RunScanSuite(context.Context, *connect.Request[v1.RunScanSuiteRequest]) (*connect.Response[v1.RunScanSuiteResponse], error)
+	GetScanSuiteRun(context.Context, *connect.Request[v1.GetScanSuiteRunRequest]) (*connect.Response[v1.GetScanSuiteRunResponse], error)
+	ListScanSuiteRuns(context.Context, *connect.Request[v1.ListScanSuiteRunsRequest]) (*connect.Response[v1.ListScanSuiteRunsResponse], error)
 }
 
 // NewScanServiceClient constructs a client for the redmatrix.scan.v1.ScanService service. By
@@ -162,6 +191,48 @@ func NewScanServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(scanServiceMethods.ByName("GetArtifactDownloadURL")),
 			connect.WithClientOptions(opts...),
 		),
+		createScanSuite: connect.NewClient[v1.CreateScanSuiteRequest, v1.CreateScanSuiteResponse](
+			httpClient,
+			baseURL+ScanServiceCreateScanSuiteProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("CreateScanSuite")),
+			connect.WithClientOptions(opts...),
+		),
+		listScanSuites: connect.NewClient[v1.ListScanSuitesRequest, v1.ListScanSuitesResponse](
+			httpClient,
+			baseURL+ScanServiceListScanSuitesProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("ListScanSuites")),
+			connect.WithClientOptions(opts...),
+		),
+		getScanSuite: connect.NewClient[v1.GetScanSuiteRequest, v1.GetScanSuiteResponse](
+			httpClient,
+			baseURL+ScanServiceGetScanSuiteProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("GetScanSuite")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteScanSuite: connect.NewClient[v1.DeleteScanSuiteRequest, v1.DeleteScanSuiteResponse](
+			httpClient,
+			baseURL+ScanServiceDeleteScanSuiteProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("DeleteScanSuite")),
+			connect.WithClientOptions(opts...),
+		),
+		runScanSuite: connect.NewClient[v1.RunScanSuiteRequest, v1.RunScanSuiteResponse](
+			httpClient,
+			baseURL+ScanServiceRunScanSuiteProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("RunScanSuite")),
+			connect.WithClientOptions(opts...),
+		),
+		getScanSuiteRun: connect.NewClient[v1.GetScanSuiteRunRequest, v1.GetScanSuiteRunResponse](
+			httpClient,
+			baseURL+ScanServiceGetScanSuiteRunProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("GetScanSuiteRun")),
+			connect.WithClientOptions(opts...),
+		),
+		listScanSuiteRuns: connect.NewClient[v1.ListScanSuiteRunsRequest, v1.ListScanSuiteRunsResponse](
+			httpClient,
+			baseURL+ScanServiceListScanSuiteRunsProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("ListScanSuiteRuns")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -177,6 +248,13 @@ type scanServiceClient struct {
 	searchResults          *connect.Client[v1.SearchResultsRequest, v1.SearchResultsResponse]
 	retryScanTask          *connect.Client[v1.RetryScanTaskRequest, v1.RetryScanTaskResponse]
 	getArtifactDownloadURL *connect.Client[v1.GetArtifactDownloadURLRequest, v1.GetArtifactDownloadURLResponse]
+	createScanSuite        *connect.Client[v1.CreateScanSuiteRequest, v1.CreateScanSuiteResponse]
+	listScanSuites         *connect.Client[v1.ListScanSuitesRequest, v1.ListScanSuitesResponse]
+	getScanSuite           *connect.Client[v1.GetScanSuiteRequest, v1.GetScanSuiteResponse]
+	deleteScanSuite        *connect.Client[v1.DeleteScanSuiteRequest, v1.DeleteScanSuiteResponse]
+	runScanSuite           *connect.Client[v1.RunScanSuiteRequest, v1.RunScanSuiteResponse]
+	getScanSuiteRun        *connect.Client[v1.GetScanSuiteRunRequest, v1.GetScanSuiteRunResponse]
+	listScanSuiteRuns      *connect.Client[v1.ListScanSuiteRunsRequest, v1.ListScanSuiteRunsResponse]
 }
 
 // CreateScanTask calls redmatrix.scan.v1.ScanService.CreateScanTask.
@@ -229,6 +307,41 @@ func (c *scanServiceClient) GetArtifactDownloadURL(ctx context.Context, req *con
 	return c.getArtifactDownloadURL.CallUnary(ctx, req)
 }
 
+// CreateScanSuite calls redmatrix.scan.v1.ScanService.CreateScanSuite.
+func (c *scanServiceClient) CreateScanSuite(ctx context.Context, req *connect.Request[v1.CreateScanSuiteRequest]) (*connect.Response[v1.CreateScanSuiteResponse], error) {
+	return c.createScanSuite.CallUnary(ctx, req)
+}
+
+// ListScanSuites calls redmatrix.scan.v1.ScanService.ListScanSuites.
+func (c *scanServiceClient) ListScanSuites(ctx context.Context, req *connect.Request[v1.ListScanSuitesRequest]) (*connect.Response[v1.ListScanSuitesResponse], error) {
+	return c.listScanSuites.CallUnary(ctx, req)
+}
+
+// GetScanSuite calls redmatrix.scan.v1.ScanService.GetScanSuite.
+func (c *scanServiceClient) GetScanSuite(ctx context.Context, req *connect.Request[v1.GetScanSuiteRequest]) (*connect.Response[v1.GetScanSuiteResponse], error) {
+	return c.getScanSuite.CallUnary(ctx, req)
+}
+
+// DeleteScanSuite calls redmatrix.scan.v1.ScanService.DeleteScanSuite.
+func (c *scanServiceClient) DeleteScanSuite(ctx context.Context, req *connect.Request[v1.DeleteScanSuiteRequest]) (*connect.Response[v1.DeleteScanSuiteResponse], error) {
+	return c.deleteScanSuite.CallUnary(ctx, req)
+}
+
+// RunScanSuite calls redmatrix.scan.v1.ScanService.RunScanSuite.
+func (c *scanServiceClient) RunScanSuite(ctx context.Context, req *connect.Request[v1.RunScanSuiteRequest]) (*connect.Response[v1.RunScanSuiteResponse], error) {
+	return c.runScanSuite.CallUnary(ctx, req)
+}
+
+// GetScanSuiteRun calls redmatrix.scan.v1.ScanService.GetScanSuiteRun.
+func (c *scanServiceClient) GetScanSuiteRun(ctx context.Context, req *connect.Request[v1.GetScanSuiteRunRequest]) (*connect.Response[v1.GetScanSuiteRunResponse], error) {
+	return c.getScanSuiteRun.CallUnary(ctx, req)
+}
+
+// ListScanSuiteRuns calls redmatrix.scan.v1.ScanService.ListScanSuiteRuns.
+func (c *scanServiceClient) ListScanSuiteRuns(ctx context.Context, req *connect.Request[v1.ListScanSuiteRunsRequest]) (*connect.Response[v1.ListScanSuiteRunsResponse], error) {
+	return c.listScanSuiteRuns.CallUnary(ctx, req)
+}
+
 // ScanServiceHandler is an implementation of the redmatrix.scan.v1.ScanService service.
 type ScanServiceHandler interface {
 	CreateScanTask(context.Context, *connect.Request[v1.CreateScanTaskRequest]) (*connect.Response[v1.CreateScanTaskResponse], error)
@@ -250,6 +363,14 @@ type ScanServiceHandler interface {
 	// server 签预签名 GET URL（TTL 10min）；前端浏览器跳转该 URL 直接拉 MinIO。
 	// RBAC: SA / TA / PA 同 ListResultsByTask。
 	GetArtifactDownloadURL(context.Context, *connect.Request[v1.GetArtifactDownloadURLRequest]) (*connect.Response[v1.GetArtifactDownloadURLResponse], error)
+	CreateScanSuite(context.Context, *connect.Request[v1.CreateScanSuiteRequest]) (*connect.Response[v1.CreateScanSuiteResponse], error)
+	ListScanSuites(context.Context, *connect.Request[v1.ListScanSuitesRequest]) (*connect.Response[v1.ListScanSuitesResponse], error)
+	GetScanSuite(context.Context, *connect.Request[v1.GetScanSuiteRequest]) (*connect.Response[v1.GetScanSuiteResponse], error)
+	DeleteScanSuite(context.Context, *connect.Request[v1.DeleteScanSuiteRequest]) (*connect.Response[v1.DeleteScanSuiteResponse], error)
+	// RunScanSuite 触发一次：套件 × targets → N immediate task。
+	RunScanSuite(context.Context, *connect.Request[v1.RunScanSuiteRequest]) (*connect.Response[v1.RunScanSuiteResponse], error)
+	GetScanSuiteRun(context.Context, *connect.Request[v1.GetScanSuiteRunRequest]) (*connect.Response[v1.GetScanSuiteRunResponse], error)
+	ListScanSuiteRuns(context.Context, *connect.Request[v1.ListScanSuiteRunsRequest]) (*connect.Response[v1.ListScanSuiteRunsResponse], error)
 }
 
 // NewScanServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -319,6 +440,48 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(scanServiceMethods.ByName("GetArtifactDownloadURL")),
 		connect.WithHandlerOptions(opts...),
 	)
+	scanServiceCreateScanSuiteHandler := connect.NewUnaryHandler(
+		ScanServiceCreateScanSuiteProcedure,
+		svc.CreateScanSuite,
+		connect.WithSchema(scanServiceMethods.ByName("CreateScanSuite")),
+		connect.WithHandlerOptions(opts...),
+	)
+	scanServiceListScanSuitesHandler := connect.NewUnaryHandler(
+		ScanServiceListScanSuitesProcedure,
+		svc.ListScanSuites,
+		connect.WithSchema(scanServiceMethods.ByName("ListScanSuites")),
+		connect.WithHandlerOptions(opts...),
+	)
+	scanServiceGetScanSuiteHandler := connect.NewUnaryHandler(
+		ScanServiceGetScanSuiteProcedure,
+		svc.GetScanSuite,
+		connect.WithSchema(scanServiceMethods.ByName("GetScanSuite")),
+		connect.WithHandlerOptions(opts...),
+	)
+	scanServiceDeleteScanSuiteHandler := connect.NewUnaryHandler(
+		ScanServiceDeleteScanSuiteProcedure,
+		svc.DeleteScanSuite,
+		connect.WithSchema(scanServiceMethods.ByName("DeleteScanSuite")),
+		connect.WithHandlerOptions(opts...),
+	)
+	scanServiceRunScanSuiteHandler := connect.NewUnaryHandler(
+		ScanServiceRunScanSuiteProcedure,
+		svc.RunScanSuite,
+		connect.WithSchema(scanServiceMethods.ByName("RunScanSuite")),
+		connect.WithHandlerOptions(opts...),
+	)
+	scanServiceGetScanSuiteRunHandler := connect.NewUnaryHandler(
+		ScanServiceGetScanSuiteRunProcedure,
+		svc.GetScanSuiteRun,
+		connect.WithSchema(scanServiceMethods.ByName("GetScanSuiteRun")),
+		connect.WithHandlerOptions(opts...),
+	)
+	scanServiceListScanSuiteRunsHandler := connect.NewUnaryHandler(
+		ScanServiceListScanSuiteRunsProcedure,
+		svc.ListScanSuiteRuns,
+		connect.WithSchema(scanServiceMethods.ByName("ListScanSuiteRuns")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.scan.v1.ScanService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ScanServiceCreateScanTaskProcedure:
@@ -341,6 +504,20 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 			scanServiceRetryScanTaskHandler.ServeHTTP(w, r)
 		case ScanServiceGetArtifactDownloadURLProcedure:
 			scanServiceGetArtifactDownloadURLHandler.ServeHTTP(w, r)
+		case ScanServiceCreateScanSuiteProcedure:
+			scanServiceCreateScanSuiteHandler.ServeHTTP(w, r)
+		case ScanServiceListScanSuitesProcedure:
+			scanServiceListScanSuitesHandler.ServeHTTP(w, r)
+		case ScanServiceGetScanSuiteProcedure:
+			scanServiceGetScanSuiteHandler.ServeHTTP(w, r)
+		case ScanServiceDeleteScanSuiteProcedure:
+			scanServiceDeleteScanSuiteHandler.ServeHTTP(w, r)
+		case ScanServiceRunScanSuiteProcedure:
+			scanServiceRunScanSuiteHandler.ServeHTTP(w, r)
+		case ScanServiceGetScanSuiteRunProcedure:
+			scanServiceGetScanSuiteRunHandler.ServeHTTP(w, r)
+		case ScanServiceListScanSuiteRunsProcedure:
+			scanServiceListScanSuiteRunsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -388,4 +565,32 @@ func (UnimplementedScanServiceHandler) RetryScanTask(context.Context, *connect.R
 
 func (UnimplementedScanServiceHandler) GetArtifactDownloadURL(context.Context, *connect.Request[v1.GetArtifactDownloadURLRequest]) (*connect.Response[v1.GetArtifactDownloadURLResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.GetArtifactDownloadURL is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) CreateScanSuite(context.Context, *connect.Request[v1.CreateScanSuiteRequest]) (*connect.Response[v1.CreateScanSuiteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.CreateScanSuite is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) ListScanSuites(context.Context, *connect.Request[v1.ListScanSuitesRequest]) (*connect.Response[v1.ListScanSuitesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.ListScanSuites is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) GetScanSuite(context.Context, *connect.Request[v1.GetScanSuiteRequest]) (*connect.Response[v1.GetScanSuiteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.GetScanSuite is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) DeleteScanSuite(context.Context, *connect.Request[v1.DeleteScanSuiteRequest]) (*connect.Response[v1.DeleteScanSuiteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.DeleteScanSuite is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) RunScanSuite(context.Context, *connect.Request[v1.RunScanSuiteRequest]) (*connect.Response[v1.RunScanSuiteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.RunScanSuite is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) GetScanSuiteRun(context.Context, *connect.Request[v1.GetScanSuiteRunRequest]) (*connect.Response[v1.GetScanSuiteRunResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.GetScanSuiteRun is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) ListScanSuiteRuns(context.Context, *connect.Request[v1.ListScanSuiteRunsRequest]) (*connect.Response[v1.ListScanSuiteRunsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.ListScanSuiteRuns is not implemented"))
 }

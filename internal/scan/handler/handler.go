@@ -483,6 +483,9 @@ func taskToProto(t *scandomain.ScanTask) *scanv1.ScanTask {
 	if t.SourceTaskID != nil {
 		out.SourceTaskId = *t.SourceTaskID
 	}
+	if t.SuiteRunID != nil {
+		out.SuiteRunId = *t.SuiteRunID
+	}
 	return out
 }
 

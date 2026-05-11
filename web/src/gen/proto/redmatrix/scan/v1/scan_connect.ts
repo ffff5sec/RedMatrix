@@ -8,7 +8,7 @@
 // MVP 范围：仅任务管理；不含 dispatch / Agent 拉任务 / 结果上报。
 // 路径：/redmatrix.scan.v1.ScanService
 
-import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetArtifactDownloadURLRequest, GetArtifactDownloadURLResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse, RetryScanTaskRequest, RetryScanTaskResponse, SearchResultsRequest, SearchResultsResponse } from "./scan_pb.js";
+import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanSuiteRequest, CreateScanSuiteResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanSuiteRequest, DeleteScanSuiteResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetArtifactDownloadURLRequest, GetArtifactDownloadURLResponse, GetScanSuiteRequest, GetScanSuiteResponse, GetScanSuiteRunRequest, GetScanSuiteRunResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanSuiteRunsRequest, ListScanSuiteRunsResponse, ListScanSuitesRequest, ListScanSuitesResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse, RetryScanTaskRequest, RetryScanTaskResponse, RunScanSuiteRequest, RunScanSuiteResponse, SearchResultsRequest, SearchResultsResponse } from "./scan_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -119,6 +119,71 @@ export const ScanService = {
       name: "GetArtifactDownloadURL",
       I: GetArtifactDownloadURLRequest,
       O: GetArtifactDownloadURLResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc redmatrix.scan.v1.ScanService.CreateScanSuite
+     */
+    createScanSuite: {
+      name: "CreateScanSuite",
+      I: CreateScanSuiteRequest,
+      O: CreateScanSuiteResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc redmatrix.scan.v1.ScanService.ListScanSuites
+     */
+    listScanSuites: {
+      name: "ListScanSuites",
+      I: ListScanSuitesRequest,
+      O: ListScanSuitesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc redmatrix.scan.v1.ScanService.GetScanSuite
+     */
+    getScanSuite: {
+      name: "GetScanSuite",
+      I: GetScanSuiteRequest,
+      O: GetScanSuiteResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc redmatrix.scan.v1.ScanService.DeleteScanSuite
+     */
+    deleteScanSuite: {
+      name: "DeleteScanSuite",
+      I: DeleteScanSuiteRequest,
+      O: DeleteScanSuiteResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * RunScanSuite 触发一次：套件 × targets → N immediate task。
+     *
+     * @generated from rpc redmatrix.scan.v1.ScanService.RunScanSuite
+     */
+    runScanSuite: {
+      name: "RunScanSuite",
+      I: RunScanSuiteRequest,
+      O: RunScanSuiteResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc redmatrix.scan.v1.ScanService.GetScanSuiteRun
+     */
+    getScanSuiteRun: {
+      name: "GetScanSuiteRun",
+      I: GetScanSuiteRunRequest,
+      O: GetScanSuiteRunResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc redmatrix.scan.v1.ScanService.ListScanSuiteRuns
+     */
+    listScanSuiteRuns: {
+      name: "ListScanSuiteRuns",
+      I: ListScanSuiteRunsRequest,
+      O: ListScanSuiteRunsResponse,
       kind: MethodKind.Unary,
     },
   }

@@ -944,3 +944,201 @@ func TestDedupTargets_AllEmpty_ReturnsNil(t *testing.T) {
 	got := dedupTargets([]string{"", "  ", "\t"})
 	assert.Nil(t, got)
 }
+
+// ============================================================================
+// PR-S23 套件 aggregator 单测
+// ============================================================================
+
+type stubSuiteRepo struct {
+	suites map[string]*domain.ScanSuite
+}
+
+func newStubSuiteRepo() *stubSuiteRepo {
+	return &stubSuiteRepo{suites: map[string]*domain.ScanSuite{}}
+}
+func (r *stubSuiteRepo) Insert(_ context.Context, s *domain.ScanSuite) error {
+	if s.ID == "" {
+		s.ID = "su-" + s.Name
+	}
+	r.suites[s.ID] = s
+	return nil
+}
+func (r *stubSuiteRepo) GetByID(_ context.Context, id string) (*domain.ScanSuite, error) {
+	if s, ok := r.suites[id]; ok {
+		return s, nil
+	}
+	return nil, errx.New(errx.ErrTaskNotFound, "suite not found")
+}
+func (r *stubSuiteRepo) List(_ context.Context, _ repo.SuiteFilter, _ repo.Page) ([]*domain.ScanSuite, int, error) {
+	return nil, 0, nil
+}
+func (r *stubSuiteRepo) SoftDelete(_ context.Context, _ string) error { return nil }
+
+type stubSuiteRunRepo struct {
+	runs      map[string]*domain.ScanSuiteRun
+	statusLog []struct {
+		ID       string
+		Status   domain.SuiteRunStatus
+		Finished bool
+	}
+}
+
+func newStubSuiteRunRepo() *stubSuiteRunRepo {
+	return &stubSuiteRunRepo{runs: map[string]*domain.ScanSuiteRun{}}
+}
+func (r *stubSuiteRunRepo) Insert(_ context.Context, run *domain.ScanSuiteRun) error {
+	if run.ID == "" {
+		run.ID = "run-" + run.SuiteID
+	}
+	r.runs[run.ID] = run
+	return nil
+}
+func (r *stubSuiteRunRepo) GetByID(_ context.Context, id string) (*domain.ScanSuiteRun, error) {
+	if v, ok := r.runs[id]; ok {
+		return v, nil
+	}
+	return nil, errx.New(errx.ErrTaskNotFound, "run not found")
+}
+func (r *stubSuiteRunRepo) List(_ context.Context, _ repo.SuiteRunFilter, _ repo.Page) ([]*domain.ScanSuiteRun, int, error) {
+	return nil, 0, nil
+}
+func (r *stubSuiteRunRepo) UpdateStatus(_ context.Context, id string, status domain.SuiteRunStatus, finished bool) error {
+	r.statusLog = append(r.statusLog, struct {
+		ID       string
+		Status   domain.SuiteRunStatus
+		Finished bool
+	}{id, status, finished})
+	if v, ok := r.runs[id]; ok {
+		v.Status = status
+	}
+	return nil
+}
+
+// suiteHarness 套件 aggregator 单测复用 testHarness + 装 suite repos。
+func newSuiteHarness(t *testing.T) (*testHarness, *stubSuiteRepo, *stubSuiteRunRepo) {
+	t.Helper()
+	h := &testHarness{
+		tasks:       newStubTaskRepo(),
+		assignments: newStubAssignmentRepo(),
+		results:     newStubResultRepo(),
+		projects:    newStubProjectLookup(),
+		nodes:       &stubNodeLister{},
+		allowed:     newStubAllowedNodesLookup(),
+		scheduler:   &stubScheduler{},
+		metrics:     metricsscan.Noop(),
+	}
+	sr := newStubSuiteRepo()
+	srr := newStubSuiteRunRepo()
+	svc, err := NewService(Deps{
+		Tasks:       h.tasks,
+		Assignments: h.assignments,
+		Results:     h.results,
+		Projects:    h.projects,
+		Nodes:       h.nodes,
+		Allowed:     h.allowed,
+		Scheduler:   h.scheduler,
+		Metrics:     h.metrics,
+		Suites:      sr,
+		SuiteRuns:   srr,
+	})
+	require.NoError(t, err)
+	s := svc.(*service)
+	s.now = fixedTime
+	h.svc = s
+	return h, sr, srr
+}
+
+func makeChildTask(id, runID string, status domain.TaskStatus) *domain.ScanTask {
+	rid := runID
+	return &domain.ScanTask{
+		ID: id, TenantID: "ten-1", ProjectID: "p-1", Name: id,
+		Kind: domain.KindPortScan, Target: "x", TargetKind: domain.TargetIP,
+		Status: status, ScheduleKind: domain.ScheduleImmediate,
+		SuiteRunID: &rid,
+	}
+}
+
+func TestAggregateSuiteRunStatus_AllCompleted(t *testing.T) {
+	h, _, srr := newSuiteHarness(t)
+	run := &domain.ScanSuiteRun{
+		SuiteID: "su-1", TenantID: "ten-1", ProjectID: "p-1",
+		Targets: []string{"x"}, Status: domain.SuiteRunRunning,
+	}
+	require.NoError(t, srr.Insert(context.Background(), run))
+	h.tasks.put(makeChildTask("t-1", run.ID, domain.TaskCompleted))
+	h.tasks.put(makeChildTask("t-2", run.ID, domain.TaskCompleted))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	require.Len(t, srr.statusLog, 1)
+	assert.Equal(t, domain.SuiteRunCompleted, srr.statusLog[0].Status)
+	assert.True(t, srr.statusLog[0].Finished)
+}
+
+func TestAggregateSuiteRunStatus_AnyRunning(t *testing.T) {
+	h, _, srr := newSuiteHarness(t)
+	run := &domain.ScanSuiteRun{
+		SuiteID: "su-1", TenantID: "ten-1", ProjectID: "p-1",
+		Targets: []string{"x"}, Status: domain.SuiteRunPending,
+	}
+	require.NoError(t, srr.Insert(context.Background(), run))
+	h.tasks.put(makeChildTask("t-1", run.ID, domain.TaskCompleted))
+	h.tasks.put(makeChildTask("t-2", run.ID, domain.TaskRunning))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	require.Len(t, srr.statusLog, 1)
+	assert.Equal(t, domain.SuiteRunRunning, srr.statusLog[0].Status)
+	assert.False(t, srr.statusLog[0].Finished)
+}
+
+func TestAggregateSuiteRunStatus_PartialFailed(t *testing.T) {
+	h, _, srr := newSuiteHarness(t)
+	run := &domain.ScanSuiteRun{
+		SuiteID: "su-1", TenantID: "ten-1", ProjectID: "p-1",
+		Targets: []string{"x"}, Status: domain.SuiteRunRunning,
+	}
+	require.NoError(t, srr.Insert(context.Background(), run))
+	h.tasks.put(makeChildTask("t-1", run.ID, domain.TaskCompleted))
+	h.tasks.put(makeChildTask("t-2", run.ID, domain.TaskFailed))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	require.Len(t, srr.statusLog, 1)
+	assert.Equal(t, domain.SuiteRunPartialFailed, srr.statusLog[0].Status)
+	assert.True(t, srr.statusLog[0].Finished)
+}
+
+func TestAggregateSuiteRunStatus_AllFailed(t *testing.T) {
+	h, _, srr := newSuiteHarness(t)
+	run := &domain.ScanSuiteRun{
+		SuiteID: "su-1", TenantID: "ten-1", ProjectID: "p-1",
+		Targets: []string{"x"}, Status: domain.SuiteRunRunning,
+	}
+	require.NoError(t, srr.Insert(context.Background(), run))
+	h.tasks.put(makeChildTask("t-1", run.ID, domain.TaskFailed))
+	h.tasks.put(makeChildTask("t-2", run.ID, domain.TaskFailed))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	require.Len(t, srr.statusLog, 1)
+	assert.Equal(t, domain.SuiteRunFailed, srr.statusLog[0].Status)
+}
+
+func TestAggregateSuiteRunStatus_AllCanceled(t *testing.T) {
+	h, _, srr := newSuiteHarness(t)
+	run := &domain.ScanSuiteRun{
+		SuiteID: "su-1", TenantID: "ten-1", ProjectID: "p-1",
+		Targets: []string{"x"}, Status: domain.SuiteRunRunning,
+	}
+	require.NoError(t, srr.Insert(context.Background(), run))
+	h.tasks.put(makeChildTask("t-1", run.ID, domain.TaskCanceled))
+	h.tasks.put(makeChildTask("t-2", run.ID, domain.TaskCanceled))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	require.Len(t, srr.statusLog, 1)
+	assert.Equal(t, domain.SuiteRunCanceled, srr.statusLog[0].Status)
+}
+
+func TestAggregateSuiteRunStatus_RunAlreadyTerminal_NoOp(t *testing.T) {
+	h, _, srr := newSuiteHarness(t)
+	run := &domain.ScanSuiteRun{
+		SuiteID: "su-1", TenantID: "ten-1", ProjectID: "p-1",
+		Targets: []string{"x"}, Status: domain.SuiteRunCompleted,
+	}
+	require.NoError(t, srr.Insert(context.Background(), run))
+	h.tasks.put(makeChildTask("t-1", run.ID, domain.TaskRunning))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	assert.Empty(t, srr.statusLog, "终态后不再写")
+}

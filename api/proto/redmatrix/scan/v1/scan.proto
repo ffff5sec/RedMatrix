@@ -34,6 +34,17 @@ service ScanService {
   // server 签预签名 GET URL（TTL 10min）；前端浏览器跳转该 URL 直接拉 MinIO。
   // RBAC: SA / TA / PA 同 ListResultsByTask。
   rpc GetArtifactDownloadURL(GetArtifactDownloadURLRequest) returns (GetArtifactDownloadURLResponse);
+
+  // === PR-S23 扫描套件 ===
+
+  rpc CreateScanSuite(CreateScanSuiteRequest) returns (CreateScanSuiteResponse);
+  rpc ListScanSuites(ListScanSuitesRequest) returns (ListScanSuitesResponse);
+  rpc GetScanSuite(GetScanSuiteRequest) returns (GetScanSuiteResponse);
+  rpc DeleteScanSuite(DeleteScanSuiteRequest) returns (DeleteScanSuiteResponse);
+  // RunScanSuite 触发一次：套件 × targets → N immediate task。
+  rpc RunScanSuite(RunScanSuiteRequest) returns (RunScanSuiteResponse);
+  rpc GetScanSuiteRun(GetScanSuiteRunRequest) returns (GetScanSuiteRunResponse);
+  rpc ListScanSuiteRuns(ListScanSuiteRunsRequest) returns (ListScanSuiteRunsResponse);
 }
 
 // ScanTask 任务实体（与 schema 一一对应）。
@@ -60,6 +71,8 @@ message ScanTask {
   // targets（PR-S22）：批量目标。非空时 target 显示用 targets[0]，
   // dispatch 按 online node 数把 targets 切片到每个 assignment。
   repeated string targets = 18;
+  // suite_run_id（PR-S23）：套件展开生成的子 task 反查 run。空 = 独立 task。
+  string suite_run_id = 19;
 }
 
 message CreateScanTaskRequest {
@@ -211,4 +224,105 @@ message SearchResultsResponse {
   int32 page = 3;
   int32 page_size = 4;
   repeated Facet facets = 5;
+}
+
+// ===== PR-S23 扫描套件 =====
+
+message ScanSuite {
+  string id = 1;
+  string tenant_id = 2;
+  // project_id 空字串 = 跨项目（同租户内任何项目可用）
+  string project_id = 3;
+  string name = 4;
+  repeated string kinds = 5; // port_scan / subdomain / fingerprint / vuln_scan ...
+  string target_kind = 6; // host / ip / cidr / url
+  // 每 kind 默认 settings：{"port_scan": {...}, "vuln_scan": {...}}
+  google.protobuf.Struct default_settings = 7;
+  string created_by = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message ScanSuiteRun {
+  string id = 1;
+  string suite_id = 2;
+  string tenant_id = 3;
+  string project_id = 4;
+  repeated string targets = 5;
+  // pending / running / completed / partial_failed / failed / canceled
+  string status = 6;
+  string created_by = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  optional google.protobuf.Timestamp finished_at = 10;
+}
+
+message CreateScanSuiteRequest {
+  // project_id 空 = 跨项目套件（仅 TA/SA 可创建）；非空 = 限本项目
+  string project_id = 1;
+  string name = 2;
+  repeated string kinds = 3;
+  string target_kind = 4;
+  google.protobuf.Struct default_settings = 5;
+}
+message CreateScanSuiteResponse {
+  ScanSuite suite = 1;
+}
+
+message ListScanSuitesRequest {
+  // project_id 非空时返该项目套件 + 跨项目套件；空 = 仅租户所有套件
+  string project_id = 1;
+  string keyword = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+message ListScanSuitesResponse {
+  repeated ScanSuite suites = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetScanSuiteRequest {
+  string id = 1;
+}
+message GetScanSuiteResponse {
+  ScanSuite suite = 1;
+}
+
+message DeleteScanSuiteRequest {
+  string id = 1;
+}
+message DeleteScanSuiteResponse {}
+
+message RunScanSuiteRequest {
+  string suite_id = 1;
+  string project_id = 2; // 必填（套件可跨项目，run 必落具体项目）
+  repeated string targets = 3;
+}
+message RunScanSuiteResponse {
+  ScanSuiteRun run = 1;
+}
+
+message GetScanSuiteRunRequest {
+  string id = 1;
+}
+message GetScanSuiteRunResponse {
+  ScanSuiteRun run = 1;
+  // suite 可能 nil（套件被删后）
+  ScanSuite suite = 2;
+  repeated ScanTask tasks = 3;
+}
+
+message ListScanSuiteRunsRequest {
+  string project_id = 1;
+  string suite_id = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+message ListScanSuiteRunsResponse {
+  repeated ScanSuiteRun runs = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
 }

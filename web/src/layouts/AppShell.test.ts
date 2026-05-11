@@ -38,14 +38,15 @@ function navLabels(wrapper: ReturnType<typeof mountAppShell>): string[] {
 }
 
 describe('AppShell 导航 role gating', () => {
-  it('SA 看到所有 9 个 nav（含 节点 + 用户管理）', () => {
+  it('SA 看到所有 10 个 nav（含 节点 + 用户管理 + 套件）', () => {
     authStore.set({ token: 't', username: 'admin', role: 'SUPER_ADMIN', userId: 'u' });
     const w = mountAppShell();
     const labels = navLabels(w);
     expect(labels).toContain('概览');
     expect(labels).toContain('节点');
     expect(labels).toContain('用户管理');
-    expect(labels.length).toBe(9);
+    expect(labels).toContain('套件');
+    expect(labels.length).toBe(10);
   });
 
   it('TenantAuditor 看到 节点 + 用户管理', () => {
@@ -64,16 +65,17 @@ describe('AppShell 导航 role gating', () => {
     expect(labels).toContain('用户管理');
   });
 
-  it('PA 看不到 节点 + 用户管理（仅 7 项）', () => {
+  it('PA 看不到 节点 + 用户管理（仅 8 项，含套件）', () => {
     authStore.set({ token: 't', username: 'pa', role: 'PROJECT_ADMIN', userId: 'u' });
     const w = mountAppShell();
     const labels = navLabels(w);
     expect(labels).not.toContain('节点');
     expect(labels).not.toContain('用户管理');
     expect(labels).toContain('扫描'); // 业务必备
+    expect(labels).toContain('套件');
     expect(labels).toContain('资产');
     expect(labels).toContain('结果搜索');
-    expect(labels.length).toBe(7);
+    expect(labels.length).toBe(8);
   });
 });
 

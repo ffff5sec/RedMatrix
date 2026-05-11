@@ -43,10 +43,11 @@ type CronTemplateRow struct {
 
 // TaskFilter List 查询的可选过滤条件。
 type TaskFilter struct {
-	TenantID  string            // 必填
-	ProjectID string            // 空 = 不过滤（跨项目）
-	Status    domain.TaskStatus // 空 = 不过滤
-	Keyword   string            // 空 = 不过滤；name ILIKE 子串
+	TenantID   string            // 必填
+	ProjectID  string            // 空 = 不过滤（跨项目）
+	Status     domain.TaskStatus // 空 = 不过滤
+	Keyword    string            // 空 = 不过滤；name ILIKE 子串
+	SuiteRunID string            // 空 = 不过滤；非空 = 只列该 suite_run 子 tasks（PR-S23）
 }
 
 // Page 分页参数（与 tenancy/repo 一致；本地复制避免跨包依赖）。

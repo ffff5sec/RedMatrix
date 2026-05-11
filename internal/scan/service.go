@@ -150,6 +150,30 @@ type Service interface {
 	// GetArtifactDownloadURL（PR-S16）—— 拿 artifact key 的预签名下载 URL。
 	// 调用方在 handler 层做 RBAC + key 校验；service 只签 URL。
 	GetArtifactDownloadURL(ctx context.Context, key string) (url string, expires time.Time, err error)
+
+	// === PR-S23 扫描套件 ===
+
+	// CreateSuite 创建套件模板。project_id nil = 跨项目。
+	CreateSuite(ctx context.Context, req CreateSuiteRequest) (*domain.ScanSuite, error)
+
+	// ListSuites 列套件；包含跨项目套件 + 指定项目套件。
+	ListSuites(ctx context.Context, req ListSuitesRequest) (*ListSuitesResult, error)
+
+	// GetSuite 取单个套件（已软删返 NotFound）。
+	GetSuite(ctx context.Context, id string) (*domain.ScanSuite, error)
+
+	// DeleteSuite 软删套件；不影响已 RunSuite 生成的 task/run。
+	DeleteSuite(ctx context.Context, id string) error
+
+	// RunSuite 用套件 + targets[] 触发一次扫描：每 kind 1 个 immediate task。
+	// 子 task 全部挂同一 suite_run_id。返新 run。
+	RunSuite(ctx context.Context, req RunSuiteRequest) (*domain.ScanSuiteRun, error)
+
+	// GetSuiteRun 取单个 run + 关联子 tasks（详情页）。
+	GetSuiteRun(ctx context.Context, id string) (*SuiteRunDetail, error)
+
+	// ListSuiteRuns 列 run（按 suite / project / tenant 过滤）。
+	ListSuiteRuns(ctx context.Context, req ListSuiteRunsRequest) (*ListSuiteRunsResult, error)
 }
 
 // SearchRequest 搜索入参。ScopedTenantID / ScopedProjectIDs 由 handler RBAC 注入：
@@ -232,6 +256,8 @@ type CreateTaskRequest struct {
 	// SourceTaskID（PR-S15）：service 内部触发路径用，cron trigger / RetryTask
 	// 设为模板 / 失败 task 的 ID。handler 不暴露给用户（外部 RPC 不传）。
 	SourceTaskID *string
+	// SuiteRunID（PR-S23）：套件展开生成的子 task 内部传；handler 不暴露。
+	SuiteRunID *string
 }
 
 // ListTasksRequest 入参。
@@ -257,6 +283,8 @@ type service struct {
 	tasks       repo.TaskRepository
 	assignments repo.AssignmentRepository
 	results     repo.ResultRepository
+	suites      repo.SuiteRepository    // PR-S23 可空
+	suiteRuns   repo.SuiteRunRepository // PR-S23 可空
 	projects    ProjectLookup
 	nodes       NodeLister
 	allowed     AllowedNodesLookup
@@ -293,6 +321,9 @@ type Deps struct {
 	Artifacts ArtifactStore           // nil → 大文件下载禁用
 	Metrics   *metricsscan.Collectors // nil → Noop 兜底
 	Logger    *log.Logger
+	// Suites / SuiteRuns（PR-S23）可空：nil → 套件 RPC 返 Unimplemented。
+	Suites    repo.SuiteRepository
+	SuiteRuns repo.SuiteRunRepository
 }
 
 // NewService 构造 scan Service（PR-S18-A：options pattern）。
@@ -307,6 +338,7 @@ func NewService(d Deps) (Service, error) {
 	}
 	return &service{
 		tasks: d.Tasks, assignments: d.Assignments, results: d.Results,
+		suites: d.Suites, suiteRuns: d.SuiteRuns,
 		projects: d.Projects, nodes: d.Nodes, allowed: d.Allowed,
 		pool:    d.Pool,
 		indexer: d.Indexer, assets: d.Assets, scheduler: d.Scheduler, artifacts: d.Artifacts,
@@ -357,6 +389,7 @@ func (s *service) CreateTask(ctx context.Context, req CreateTaskRequest) (*domai
 		Settings:     req.Settings,
 		CreatedBy:    req.CreatedBy,
 		SourceTaskID: req.SourceTaskID, // PR-S15
+		SuiteRunID:   req.SuiteRunID,   // PR-S23
 	}
 	if err := s.tasks.Insert(ctx, t); err != nil {
 		return nil, err
@@ -758,6 +791,13 @@ func (s *service) aggregateTaskStatus(ctx context.Context, taskID string) error 
 	// 在 CancelTask 路径单独 inc）
 	if next.IsTerminal() {
 		s.metrics.TasksTerminal.WithLabelValues(string(next)).Inc()
+	}
+	// PR-S23: task 是套件子 task → 反推 run 聚合
+	if t.SuiteRunID != nil && *t.SuiteRunID != "" && s.suiteRuns != nil {
+		if err := s.aggregateSuiteRunStatus(ctx, *t.SuiteRunID); err != nil && s.logger != nil {
+			s.logger.LogError(ctx, "scan: aggregate suite_run failed", err,
+				"suite_run_id", *t.SuiteRunID, "task_id", taskID)
+		}
 	}
 	return nil
 }

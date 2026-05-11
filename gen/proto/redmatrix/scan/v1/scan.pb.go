@@ -52,7 +52,9 @@ type ScanTask struct {
 	SourceTaskId string `protobuf:"bytes,17,opt,name=source_task_id,json=sourceTaskId,proto3" json:"source_task_id,omitempty"`
 	// targets（PR-S22）：批量目标。非空时 target 显示用 targets[0]，
 	// dispatch 按 online node 数把 targets 切片到每个 assignment。
-	Targets       []string `protobuf:"bytes,18,rep,name=targets,proto3" json:"targets,omitempty"`
+	Targets []string `protobuf:"bytes,18,rep,name=targets,proto3" json:"targets,omitempty"`
+	// suite_run_id（PR-S23）：套件展开生成的子 task 反查 run。空 = 独立 task。
+	SuiteRunId    string `protobuf:"bytes,19,opt,name=suite_run_id,json=suiteRunId,proto3" json:"suite_run_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -211,6 +213,13 @@ func (x *ScanTask) GetTargets() []string {
 		return x.Targets
 	}
 	return nil
+}
+
+func (x *ScanTask) GetSuiteRunId() string {
+	if x != nil {
+		return x.SuiteRunId
+	}
+	return ""
 }
 
 type CreateScanTaskRequest struct {
@@ -1655,11 +1664,1017 @@ func (x *SearchResultsResponse) GetFacets() []*Facet {
 	return nil
 }
 
+type ScanSuite struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Id       string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TenantId string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	// project_id 空字串 = 跨项目（同租户内任何项目可用）
+	ProjectId  string   `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Name       string   `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	Kinds      []string `protobuf:"bytes,5,rep,name=kinds,proto3" json:"kinds,omitempty"`                             // port_scan / subdomain / fingerprint / vuln_scan ...
+	TargetKind string   `protobuf:"bytes,6,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"` // host / ip / cidr / url
+	// 每 kind 默认 settings：{"port_scan": {...}, "vuln_scan": {...}}
+	DefaultSettings *structpb.Struct       `protobuf:"bytes,7,opt,name=default_settings,json=defaultSettings,proto3" json:"default_settings,omitempty"`
+	CreatedBy       string                 `protobuf:"bytes,8,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ScanSuite) Reset() {
+	*x = ScanSuite{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScanSuite) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScanSuite) ProtoMessage() {}
+
+func (x *ScanSuite) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScanSuite.ProtoReflect.Descriptor instead.
+func (*ScanSuite) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ScanSuite) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ScanSuite) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *ScanSuite) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ScanSuite) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ScanSuite) GetKinds() []string {
+	if x != nil {
+		return x.Kinds
+	}
+	return nil
+}
+
+func (x *ScanSuite) GetTargetKind() string {
+	if x != nil {
+		return x.TargetKind
+	}
+	return ""
+}
+
+func (x *ScanSuite) GetDefaultSettings() *structpb.Struct {
+	if x != nil {
+		return x.DefaultSettings
+	}
+	return nil
+}
+
+func (x *ScanSuite) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *ScanSuite) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *ScanSuite) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type ScanSuiteRun struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	SuiteId   string                 `protobuf:"bytes,2,opt,name=suite_id,json=suiteId,proto3" json:"suite_id,omitempty"`
+	TenantId  string                 `protobuf:"bytes,3,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	ProjectId string                 `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Targets   []string               `protobuf:"bytes,5,rep,name=targets,proto3" json:"targets,omitempty"`
+	// pending / running / completed / partial_failed / failed / canceled
+	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	CreatedBy     string                 `protobuf:"bytes,7,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=finished_at,json=finishedAt,proto3,oneof" json:"finished_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScanSuiteRun) Reset() {
+	*x = ScanSuiteRun{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScanSuiteRun) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScanSuiteRun) ProtoMessage() {}
+
+func (x *ScanSuiteRun) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScanSuiteRun.ProtoReflect.Descriptor instead.
+func (*ScanSuiteRun) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ScanSuiteRun) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ScanSuiteRun) GetSuiteId() string {
+	if x != nil {
+		return x.SuiteId
+	}
+	return ""
+}
+
+func (x *ScanSuiteRun) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *ScanSuiteRun) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ScanSuiteRun) GetTargets() []string {
+	if x != nil {
+		return x.Targets
+	}
+	return nil
+}
+
+func (x *ScanSuiteRun) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ScanSuiteRun) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *ScanSuiteRun) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *ScanSuiteRun) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *ScanSuiteRun) GetFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return nil
+}
+
+type CreateScanSuiteRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// project_id 空 = 跨项目套件（仅 TA/SA 可创建）；非空 = 限本项目
+	ProjectId       string           `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Name            string           `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Kinds           []string         `protobuf:"bytes,3,rep,name=kinds,proto3" json:"kinds,omitempty"`
+	TargetKind      string           `protobuf:"bytes,4,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"`
+	DefaultSettings *structpb.Struct `protobuf:"bytes,5,opt,name=default_settings,json=defaultSettings,proto3" json:"default_settings,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CreateScanSuiteRequest) Reset() {
+	*x = CreateScanSuiteRequest{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScanSuiteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScanSuiteRequest) ProtoMessage() {}
+
+func (x *CreateScanSuiteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScanSuiteRequest.ProtoReflect.Descriptor instead.
+func (*CreateScanSuiteRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *CreateScanSuiteRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *CreateScanSuiteRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateScanSuiteRequest) GetKinds() []string {
+	if x != nil {
+		return x.Kinds
+	}
+	return nil
+}
+
+func (x *CreateScanSuiteRequest) GetTargetKind() string {
+	if x != nil {
+		return x.TargetKind
+	}
+	return ""
+}
+
+func (x *CreateScanSuiteRequest) GetDefaultSettings() *structpb.Struct {
+	if x != nil {
+		return x.DefaultSettings
+	}
+	return nil
+}
+
+type CreateScanSuiteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Suite         *ScanSuite             `protobuf:"bytes,1,opt,name=suite,proto3" json:"suite,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateScanSuiteResponse) Reset() {
+	*x = CreateScanSuiteResponse{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScanSuiteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScanSuiteResponse) ProtoMessage() {}
+
+func (x *CreateScanSuiteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScanSuiteResponse.ProtoReflect.Descriptor instead.
+func (*CreateScanSuiteResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *CreateScanSuiteResponse) GetSuite() *ScanSuite {
+	if x != nil {
+		return x.Suite
+	}
+	return nil
+}
+
+type ListScanSuitesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// project_id 非空时返该项目套件 + 跨项目套件；空 = 仅租户所有套件
+	ProjectId     string `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Keyword       string `protobuf:"bytes,2,opt,name=keyword,proto3" json:"keyword,omitempty"`
+	Page          int32  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScanSuitesRequest) Reset() {
+	*x = ListScanSuitesRequest{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScanSuitesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScanSuitesRequest) ProtoMessage() {}
+
+func (x *ListScanSuitesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScanSuitesRequest.ProtoReflect.Descriptor instead.
+func (*ListScanSuitesRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ListScanSuitesRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ListScanSuitesRequest) GetKeyword() string {
+	if x != nil {
+		return x.Keyword
+	}
+	return ""
+}
+
+func (x *ListScanSuitesRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListScanSuitesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListScanSuitesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Suites        []*ScanSuite           `protobuf:"bytes,1,rep,name=suites,proto3" json:"suites,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScanSuitesResponse) Reset() {
+	*x = ListScanSuitesResponse{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScanSuitesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScanSuitesResponse) ProtoMessage() {}
+
+func (x *ListScanSuitesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScanSuitesResponse.ProtoReflect.Descriptor instead.
+func (*ListScanSuitesResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ListScanSuitesResponse) GetSuites() []*ScanSuite {
+	if x != nil {
+		return x.Suites
+	}
+	return nil
+}
+
+func (x *ListScanSuitesResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListScanSuitesResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListScanSuitesResponse) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type GetScanSuiteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScanSuiteRequest) Reset() {
+	*x = GetScanSuiteRequest{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScanSuiteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScanSuiteRequest) ProtoMessage() {}
+
+func (x *GetScanSuiteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScanSuiteRequest.ProtoReflect.Descriptor instead.
+func (*GetScanSuiteRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *GetScanSuiteRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetScanSuiteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Suite         *ScanSuite             `protobuf:"bytes,1,opt,name=suite,proto3" json:"suite,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScanSuiteResponse) Reset() {
+	*x = GetScanSuiteResponse{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScanSuiteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScanSuiteResponse) ProtoMessage() {}
+
+func (x *GetScanSuiteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScanSuiteResponse.ProtoReflect.Descriptor instead.
+func (*GetScanSuiteResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *GetScanSuiteResponse) GetSuite() *ScanSuite {
+	if x != nil {
+		return x.Suite
+	}
+	return nil
+}
+
+type DeleteScanSuiteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScanSuiteRequest) Reset() {
+	*x = DeleteScanSuiteRequest{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScanSuiteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScanSuiteRequest) ProtoMessage() {}
+
+func (x *DeleteScanSuiteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScanSuiteRequest.ProtoReflect.Descriptor instead.
+func (*DeleteScanSuiteRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *DeleteScanSuiteRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type DeleteScanSuiteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScanSuiteResponse) Reset() {
+	*x = DeleteScanSuiteResponse{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScanSuiteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScanSuiteResponse) ProtoMessage() {}
+
+func (x *DeleteScanSuiteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScanSuiteResponse.ProtoReflect.Descriptor instead.
+func (*DeleteScanSuiteResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{34}
+}
+
+type RunScanSuiteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SuiteId       string                 `protobuf:"bytes,1,opt,name=suite_id,json=suiteId,proto3" json:"suite_id,omitempty"`
+	ProjectId     string                 `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"` // 必填（套件可跨项目，run 必落具体项目）
+	Targets       []string               `protobuf:"bytes,3,rep,name=targets,proto3" json:"targets,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunScanSuiteRequest) Reset() {
+	*x = RunScanSuiteRequest{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunScanSuiteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunScanSuiteRequest) ProtoMessage() {}
+
+func (x *RunScanSuiteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunScanSuiteRequest.ProtoReflect.Descriptor instead.
+func (*RunScanSuiteRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *RunScanSuiteRequest) GetSuiteId() string {
+	if x != nil {
+		return x.SuiteId
+	}
+	return ""
+}
+
+func (x *RunScanSuiteRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *RunScanSuiteRequest) GetTargets() []string {
+	if x != nil {
+		return x.Targets
+	}
+	return nil
+}
+
+type RunScanSuiteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Run           *ScanSuiteRun          `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunScanSuiteResponse) Reset() {
+	*x = RunScanSuiteResponse{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunScanSuiteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunScanSuiteResponse) ProtoMessage() {}
+
+func (x *RunScanSuiteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunScanSuiteResponse.ProtoReflect.Descriptor instead.
+func (*RunScanSuiteResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *RunScanSuiteResponse) GetRun() *ScanSuiteRun {
+	if x != nil {
+		return x.Run
+	}
+	return nil
+}
+
+type GetScanSuiteRunRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScanSuiteRunRequest) Reset() {
+	*x = GetScanSuiteRunRequest{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScanSuiteRunRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScanSuiteRunRequest) ProtoMessage() {}
+
+func (x *GetScanSuiteRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScanSuiteRunRequest.ProtoReflect.Descriptor instead.
+func (*GetScanSuiteRunRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *GetScanSuiteRunRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetScanSuiteRunResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Run   *ScanSuiteRun          `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
+	// suite 可能 nil（套件被删后）
+	Suite         *ScanSuite  `protobuf:"bytes,2,opt,name=suite,proto3" json:"suite,omitempty"`
+	Tasks         []*ScanTask `protobuf:"bytes,3,rep,name=tasks,proto3" json:"tasks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScanSuiteRunResponse) Reset() {
+	*x = GetScanSuiteRunResponse{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScanSuiteRunResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScanSuiteRunResponse) ProtoMessage() {}
+
+func (x *GetScanSuiteRunResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScanSuiteRunResponse.ProtoReflect.Descriptor instead.
+func (*GetScanSuiteRunResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *GetScanSuiteRunResponse) GetRun() *ScanSuiteRun {
+	if x != nil {
+		return x.Run
+	}
+	return nil
+}
+
+func (x *GetScanSuiteRunResponse) GetSuite() *ScanSuite {
+	if x != nil {
+		return x.Suite
+	}
+	return nil
+}
+
+func (x *GetScanSuiteRunResponse) GetTasks() []*ScanTask {
+	if x != nil {
+		return x.Tasks
+	}
+	return nil
+}
+
+type ListScanSuiteRunsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	SuiteId       string                 `protobuf:"bytes,2,opt,name=suite_id,json=suiteId,proto3" json:"suite_id,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScanSuiteRunsRequest) Reset() {
+	*x = ListScanSuiteRunsRequest{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScanSuiteRunsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScanSuiteRunsRequest) ProtoMessage() {}
+
+func (x *ListScanSuiteRunsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScanSuiteRunsRequest.ProtoReflect.Descriptor instead.
+func (*ListScanSuiteRunsRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *ListScanSuiteRunsRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ListScanSuiteRunsRequest) GetSuiteId() string {
+	if x != nil {
+		return x.SuiteId
+	}
+	return ""
+}
+
+func (x *ListScanSuiteRunsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListScanSuiteRunsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListScanSuiteRunsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Runs          []*ScanSuiteRun        `protobuf:"bytes,1,rep,name=runs,proto3" json:"runs,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScanSuiteRunsResponse) Reset() {
+	*x = ListScanSuiteRunsResponse{}
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScanSuiteRunsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScanSuiteRunsResponse) ProtoMessage() {}
+
+func (x *ListScanSuiteRunsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_scan_v1_scan_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScanSuiteRunsResponse.ProtoReflect.Descriptor instead.
+func (*ListScanSuiteRunsResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_scan_v1_scan_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *ListScanSuiteRunsResponse) GetRuns() []*ScanSuiteRun {
+	if x != nil {
+		return x.Runs
+	}
+	return nil
+}
+
+func (x *ListScanSuiteRunsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListScanSuiteRunsResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListScanSuiteRunsResponse) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
 var File_redmatrix_scan_v1_scan_proto protoreflect.FileDescriptor
 
 const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\n" +
-	"\x1credmatrix/scan/v1/scan.proto\x12\x11redmatrix.scan.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xbc\x05\n" +
+	"\x1credmatrix/scan/v1/scan.proto\x12\x11redmatrix.scan.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xde\x05\n" +
 	"\bScanTask\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1d\n" +
@@ -1686,7 +2701,9 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\vfinished_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampH\x01R\n" +
 	"finishedAt\x88\x01\x01\x12$\n" +
 	"\x0esource_task_id\x18\x11 \x01(\tR\fsourceTaskId\x12\x18\n" +
-	"\atargets\x18\x12 \x03(\tR\atargetsB\r\n" +
+	"\atargets\x18\x12 \x03(\tR\atargets\x12 \n" +
+	"\fsuite_run_id\x18\x13 \x01(\tR\n" +
+	"suiteRunIdB\r\n" +
 	"\v_started_atB\x0e\n" +
 	"\f_finished_at\"\xa8\x02\n" +
 	"\x15CreateScanTaskRequest\x12\x1d\n" +
@@ -1814,7 +2831,94 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x120\n" +
-	"\x06facets\x18\x05 \x03(\v2\x18.redmatrix.scan.v1.FacetR\x06facets2\xab\b\n" +
+	"\x06facets\x18\x05 \x03(\v2\x18.redmatrix.scan.v1.FacetR\x06facets\"\xfb\x02\n" +
+	"\tScanSuite\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x03 \x01(\tR\tprojectId\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\x12\x14\n" +
+	"\x05kinds\x18\x05 \x03(\tR\x05kinds\x12\x1f\n" +
+	"\vtarget_kind\x18\x06 \x01(\tR\n" +
+	"targetKind\x12B\n" +
+	"\x10default_settings\x18\a \x01(\v2\x17.google.protobuf.StructR\x0fdefaultSettings\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\b \x01(\tR\tcreatedBy\x129\n" +
+	"\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x8e\x03\n" +
+	"\fScanSuiteRun\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
+	"\bsuite_id\x18\x02 \x01(\tR\asuiteId\x12\x1b\n" +
+	"\ttenant_id\x18\x03 \x01(\tR\btenantId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x04 \x01(\tR\tprojectId\x12\x18\n" +
+	"\atargets\x18\x05 \x03(\tR\atargets\x12\x16\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\a \x01(\tR\tcreatedBy\x129\n" +
+	"\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12@\n" +
+	"\vfinished_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampH\x00R\n" +
+	"finishedAt\x88\x01\x01B\x0e\n" +
+	"\f_finished_at\"\xc6\x01\n" +
+	"\x16CreateScanSuiteRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05kinds\x18\x03 \x03(\tR\x05kinds\x12\x1f\n" +
+	"\vtarget_kind\x18\x04 \x01(\tR\n" +
+	"targetKind\x12B\n" +
+	"\x10default_settings\x18\x05 \x01(\v2\x17.google.protobuf.StructR\x0fdefaultSettings\"M\n" +
+	"\x17CreateScanSuiteResponse\x122\n" +
+	"\x05suite\x18\x01 \x01(\v2\x1c.redmatrix.scan.v1.ScanSuiteR\x05suite\"\x81\x01\n" +
+	"\x15ListScanSuitesRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x18\n" +
+	"\akeyword\x18\x02 \x01(\tR\akeyword\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\"\x95\x01\n" +
+	"\x16ListScanSuitesResponse\x124\n" +
+	"\x06suites\x18\x01 \x03(\v2\x1c.redmatrix.scan.v1.ScanSuiteR\x06suites\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\"%\n" +
+	"\x13GetScanSuiteRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"J\n" +
+	"\x14GetScanSuiteResponse\x122\n" +
+	"\x05suite\x18\x01 \x01(\v2\x1c.redmatrix.scan.v1.ScanSuiteR\x05suite\"(\n" +
+	"\x16DeleteScanSuiteRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x19\n" +
+	"\x17DeleteScanSuiteResponse\"i\n" +
+	"\x13RunScanSuiteRequest\x12\x19\n" +
+	"\bsuite_id\x18\x01 \x01(\tR\asuiteId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x02 \x01(\tR\tprojectId\x12\x18\n" +
+	"\atargets\x18\x03 \x03(\tR\atargets\"I\n" +
+	"\x14RunScanSuiteResponse\x121\n" +
+	"\x03run\x18\x01 \x01(\v2\x1f.redmatrix.scan.v1.ScanSuiteRunR\x03run\"(\n" +
+	"\x16GetScanSuiteRunRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xb3\x01\n" +
+	"\x17GetScanSuiteRunResponse\x121\n" +
+	"\x03run\x18\x01 \x01(\v2\x1f.redmatrix.scan.v1.ScanSuiteRunR\x03run\x122\n" +
+	"\x05suite\x18\x02 \x01(\v2\x1c.redmatrix.scan.v1.ScanSuiteR\x05suite\x121\n" +
+	"\x05tasks\x18\x03 \x03(\v2\x1b.redmatrix.scan.v1.ScanTaskR\x05tasks\"\x85\x01\n" +
+	"\x18ListScanSuiteRunsRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x19\n" +
+	"\bsuite_id\x18\x02 \x01(\tR\asuiteId\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\"\x97\x01\n" +
+	"\x19ListScanSuiteRunsResponse\x123\n" +
+	"\x04runs\x18\x01 \x03(\v2\x1f.redmatrix.scan.v1.ScanSuiteRunR\x04runs\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize2\x82\x0e\n" +
 	"\vScanService\x12e\n" +
 	"\x0eCreateScanTask\x12(.redmatrix.scan.v1.CreateScanTaskRequest\x1a).redmatrix.scan.v1.CreateScanTaskResponse\x12b\n" +
 	"\rListScanTasks\x12'.redmatrix.scan.v1.ListScanTasksRequest\x1a(.redmatrix.scan.v1.ListScanTasksResponse\x12\\\n" +
@@ -1825,7 +2929,14 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\x0fListTaskResults\x12).redmatrix.scan.v1.ListTaskResultsRequest\x1a*.redmatrix.scan.v1.ListTaskResultsResponse\x12b\n" +
 	"\rSearchResults\x12'.redmatrix.scan.v1.SearchResultsRequest\x1a(.redmatrix.scan.v1.SearchResultsResponse\x12b\n" +
 	"\rRetryScanTask\x12'.redmatrix.scan.v1.RetryScanTaskRequest\x1a(.redmatrix.scan.v1.RetryScanTaskResponse\x12}\n" +
-	"\x16GetArtifactDownloadURL\x120.redmatrix.scan.v1.GetArtifactDownloadURLRequest\x1a1.redmatrix.scan.v1.GetArtifactDownloadURLResponseB\xca\x01\n" +
+	"\x16GetArtifactDownloadURL\x120.redmatrix.scan.v1.GetArtifactDownloadURLRequest\x1a1.redmatrix.scan.v1.GetArtifactDownloadURLResponse\x12h\n" +
+	"\x0fCreateScanSuite\x12).redmatrix.scan.v1.CreateScanSuiteRequest\x1a*.redmatrix.scan.v1.CreateScanSuiteResponse\x12e\n" +
+	"\x0eListScanSuites\x12(.redmatrix.scan.v1.ListScanSuitesRequest\x1a).redmatrix.scan.v1.ListScanSuitesResponse\x12_\n" +
+	"\fGetScanSuite\x12&.redmatrix.scan.v1.GetScanSuiteRequest\x1a'.redmatrix.scan.v1.GetScanSuiteResponse\x12h\n" +
+	"\x0fDeleteScanSuite\x12).redmatrix.scan.v1.DeleteScanSuiteRequest\x1a*.redmatrix.scan.v1.DeleteScanSuiteResponse\x12_\n" +
+	"\fRunScanSuite\x12&.redmatrix.scan.v1.RunScanSuiteRequest\x1a'.redmatrix.scan.v1.RunScanSuiteResponse\x12h\n" +
+	"\x0fGetScanSuiteRun\x12).redmatrix.scan.v1.GetScanSuiteRunRequest\x1a*.redmatrix.scan.v1.GetScanSuiteRunResponse\x12n\n" +
+	"\x11ListScanSuiteRuns\x12+.redmatrix.scan.v1.ListScanSuiteRunsRequest\x1a,.redmatrix.scan.v1.ListScanSuiteRunsResponseB\xca\x01\n" +
 	"\x15com.redmatrix.scan.v1B\tScanProtoP\x01Z@github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1;scanv1\xa2\x02\x03RSX\xaa\x02\x11Redmatrix.Scan.V1\xca\x02\x11Redmatrix\\Scan\\V1\xe2\x02\x1dRedmatrix\\Scan\\V1\\GPBMetadata\xea\x02\x13Redmatrix::Scan::V1b\x06proto3"
 
 var (
@@ -1840,7 +2951,7 @@ func file_redmatrix_scan_v1_scan_proto_rawDescGZIP() []byte {
 	return file_redmatrix_scan_v1_scan_proto_rawDescData
 }
 
-var file_redmatrix_scan_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_redmatrix_scan_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_redmatrix_scan_v1_scan_proto_goTypes = []any{
 	(*ScanTask)(nil),                       // 0: redmatrix.scan.v1.ScanTask
 	(*CreateScanTaskRequest)(nil),          // 1: redmatrix.scan.v1.CreateScanTaskRequest
@@ -1867,59 +2978,104 @@ var file_redmatrix_scan_v1_scan_proto_goTypes = []any{
 	(*FacetBucket)(nil),                    // 22: redmatrix.scan.v1.FacetBucket
 	(*Facet)(nil),                          // 23: redmatrix.scan.v1.Facet
 	(*SearchResultsResponse)(nil),          // 24: redmatrix.scan.v1.SearchResultsResponse
-	(*structpb.Struct)(nil),                // 25: google.protobuf.Struct
-	(*timestamppb.Timestamp)(nil),          // 26: google.protobuf.Timestamp
+	(*ScanSuite)(nil),                      // 25: redmatrix.scan.v1.ScanSuite
+	(*ScanSuiteRun)(nil),                   // 26: redmatrix.scan.v1.ScanSuiteRun
+	(*CreateScanSuiteRequest)(nil),         // 27: redmatrix.scan.v1.CreateScanSuiteRequest
+	(*CreateScanSuiteResponse)(nil),        // 28: redmatrix.scan.v1.CreateScanSuiteResponse
+	(*ListScanSuitesRequest)(nil),          // 29: redmatrix.scan.v1.ListScanSuitesRequest
+	(*ListScanSuitesResponse)(nil),         // 30: redmatrix.scan.v1.ListScanSuitesResponse
+	(*GetScanSuiteRequest)(nil),            // 31: redmatrix.scan.v1.GetScanSuiteRequest
+	(*GetScanSuiteResponse)(nil),           // 32: redmatrix.scan.v1.GetScanSuiteResponse
+	(*DeleteScanSuiteRequest)(nil),         // 33: redmatrix.scan.v1.DeleteScanSuiteRequest
+	(*DeleteScanSuiteResponse)(nil),        // 34: redmatrix.scan.v1.DeleteScanSuiteResponse
+	(*RunScanSuiteRequest)(nil),            // 35: redmatrix.scan.v1.RunScanSuiteRequest
+	(*RunScanSuiteResponse)(nil),           // 36: redmatrix.scan.v1.RunScanSuiteResponse
+	(*GetScanSuiteRunRequest)(nil),         // 37: redmatrix.scan.v1.GetScanSuiteRunRequest
+	(*GetScanSuiteRunResponse)(nil),        // 38: redmatrix.scan.v1.GetScanSuiteRunResponse
+	(*ListScanSuiteRunsRequest)(nil),       // 39: redmatrix.scan.v1.ListScanSuiteRunsRequest
+	(*ListScanSuiteRunsResponse)(nil),      // 40: redmatrix.scan.v1.ListScanSuiteRunsResponse
+	(*structpb.Struct)(nil),                // 41: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil),          // 42: google.protobuf.Timestamp
 }
 var file_redmatrix_scan_v1_scan_proto_depIdxs = []int32{
-	25, // 0: redmatrix.scan.v1.ScanTask.settings:type_name -> google.protobuf.Struct
-	26, // 1: redmatrix.scan.v1.ScanTask.created_at:type_name -> google.protobuf.Timestamp
-	26, // 2: redmatrix.scan.v1.ScanTask.updated_at:type_name -> google.protobuf.Timestamp
-	26, // 3: redmatrix.scan.v1.ScanTask.started_at:type_name -> google.protobuf.Timestamp
-	26, // 4: redmatrix.scan.v1.ScanTask.finished_at:type_name -> google.protobuf.Timestamp
-	25, // 5: redmatrix.scan.v1.CreateScanTaskRequest.settings:type_name -> google.protobuf.Struct
+	41, // 0: redmatrix.scan.v1.ScanTask.settings:type_name -> google.protobuf.Struct
+	42, // 1: redmatrix.scan.v1.ScanTask.created_at:type_name -> google.protobuf.Timestamp
+	42, // 2: redmatrix.scan.v1.ScanTask.updated_at:type_name -> google.protobuf.Timestamp
+	42, // 3: redmatrix.scan.v1.ScanTask.started_at:type_name -> google.protobuf.Timestamp
+	42, // 4: redmatrix.scan.v1.ScanTask.finished_at:type_name -> google.protobuf.Timestamp
+	41, // 5: redmatrix.scan.v1.CreateScanTaskRequest.settings:type_name -> google.protobuf.Struct
 	0,  // 6: redmatrix.scan.v1.CreateScanTaskResponse.task:type_name -> redmatrix.scan.v1.ScanTask
 	0,  // 7: redmatrix.scan.v1.ListScanTasksResponse.tasks:type_name -> redmatrix.scan.v1.ScanTask
 	0,  // 8: redmatrix.scan.v1.GetScanTaskResponse.task:type_name -> redmatrix.scan.v1.ScanTask
 	0,  // 9: redmatrix.scan.v1.RetryScanTaskResponse.task:type_name -> redmatrix.scan.v1.ScanTask
-	26, // 10: redmatrix.scan.v1.GetArtifactDownloadURLResponse.expires_at:type_name -> google.protobuf.Timestamp
-	26, // 11: redmatrix.scan.v1.TaskAssignment.assigned_at:type_name -> google.protobuf.Timestamp
-	26, // 12: redmatrix.scan.v1.TaskAssignment.pulled_at:type_name -> google.protobuf.Timestamp
-	26, // 13: redmatrix.scan.v1.TaskAssignment.started_at:type_name -> google.protobuf.Timestamp
-	26, // 14: redmatrix.scan.v1.TaskAssignment.finished_at:type_name -> google.protobuf.Timestamp
+	42, // 10: redmatrix.scan.v1.GetArtifactDownloadURLResponse.expires_at:type_name -> google.protobuf.Timestamp
+	42, // 11: redmatrix.scan.v1.TaskAssignment.assigned_at:type_name -> google.protobuf.Timestamp
+	42, // 12: redmatrix.scan.v1.TaskAssignment.pulled_at:type_name -> google.protobuf.Timestamp
+	42, // 13: redmatrix.scan.v1.TaskAssignment.started_at:type_name -> google.protobuf.Timestamp
+	42, // 14: redmatrix.scan.v1.TaskAssignment.finished_at:type_name -> google.protobuf.Timestamp
 	15, // 15: redmatrix.scan.v1.ListTaskAssignmentsResponse.assignments:type_name -> redmatrix.scan.v1.TaskAssignment
-	25, // 16: redmatrix.scan.v1.ScanResult.data:type_name -> google.protobuf.Struct
-	26, // 17: redmatrix.scan.v1.ScanResult.created_at:type_name -> google.protobuf.Timestamp
+	41, // 16: redmatrix.scan.v1.ScanResult.data:type_name -> google.protobuf.Struct
+	42, // 17: redmatrix.scan.v1.ScanResult.created_at:type_name -> google.protobuf.Timestamp
 	18, // 18: redmatrix.scan.v1.ListTaskResultsResponse.results:type_name -> redmatrix.scan.v1.ScanResult
-	26, // 19: redmatrix.scan.v1.SearchResultsRequest.time_from:type_name -> google.protobuf.Timestamp
-	26, // 20: redmatrix.scan.v1.SearchResultsRequest.time_to:type_name -> google.protobuf.Timestamp
+	42, // 19: redmatrix.scan.v1.SearchResultsRequest.time_from:type_name -> google.protobuf.Timestamp
+	42, // 20: redmatrix.scan.v1.SearchResultsRequest.time_to:type_name -> google.protobuf.Timestamp
 	22, // 21: redmatrix.scan.v1.Facet.buckets:type_name -> redmatrix.scan.v1.FacetBucket
 	18, // 22: redmatrix.scan.v1.SearchResultsResponse.results:type_name -> redmatrix.scan.v1.ScanResult
 	23, // 23: redmatrix.scan.v1.SearchResultsResponse.facets:type_name -> redmatrix.scan.v1.Facet
-	1,  // 24: redmatrix.scan.v1.ScanService.CreateScanTask:input_type -> redmatrix.scan.v1.CreateScanTaskRequest
-	3,  // 25: redmatrix.scan.v1.ScanService.ListScanTasks:input_type -> redmatrix.scan.v1.ListScanTasksRequest
-	5,  // 26: redmatrix.scan.v1.ScanService.GetScanTask:input_type -> redmatrix.scan.v1.GetScanTaskRequest
-	7,  // 27: redmatrix.scan.v1.ScanService.CancelScanTask:input_type -> redmatrix.scan.v1.CancelScanTaskRequest
-	9,  // 28: redmatrix.scan.v1.ScanService.DeleteScanTask:input_type -> redmatrix.scan.v1.DeleteScanTaskRequest
-	16, // 29: redmatrix.scan.v1.ScanService.ListTaskAssignments:input_type -> redmatrix.scan.v1.ListTaskAssignmentsRequest
-	19, // 30: redmatrix.scan.v1.ScanService.ListTaskResults:input_type -> redmatrix.scan.v1.ListTaskResultsRequest
-	21, // 31: redmatrix.scan.v1.ScanService.SearchResults:input_type -> redmatrix.scan.v1.SearchResultsRequest
-	11, // 32: redmatrix.scan.v1.ScanService.RetryScanTask:input_type -> redmatrix.scan.v1.RetryScanTaskRequest
-	13, // 33: redmatrix.scan.v1.ScanService.GetArtifactDownloadURL:input_type -> redmatrix.scan.v1.GetArtifactDownloadURLRequest
-	2,  // 34: redmatrix.scan.v1.ScanService.CreateScanTask:output_type -> redmatrix.scan.v1.CreateScanTaskResponse
-	4,  // 35: redmatrix.scan.v1.ScanService.ListScanTasks:output_type -> redmatrix.scan.v1.ListScanTasksResponse
-	6,  // 36: redmatrix.scan.v1.ScanService.GetScanTask:output_type -> redmatrix.scan.v1.GetScanTaskResponse
-	8,  // 37: redmatrix.scan.v1.ScanService.CancelScanTask:output_type -> redmatrix.scan.v1.CancelScanTaskResponse
-	10, // 38: redmatrix.scan.v1.ScanService.DeleteScanTask:output_type -> redmatrix.scan.v1.DeleteScanTaskResponse
-	17, // 39: redmatrix.scan.v1.ScanService.ListTaskAssignments:output_type -> redmatrix.scan.v1.ListTaskAssignmentsResponse
-	20, // 40: redmatrix.scan.v1.ScanService.ListTaskResults:output_type -> redmatrix.scan.v1.ListTaskResultsResponse
-	24, // 41: redmatrix.scan.v1.ScanService.SearchResults:output_type -> redmatrix.scan.v1.SearchResultsResponse
-	12, // 42: redmatrix.scan.v1.ScanService.RetryScanTask:output_type -> redmatrix.scan.v1.RetryScanTaskResponse
-	14, // 43: redmatrix.scan.v1.ScanService.GetArtifactDownloadURL:output_type -> redmatrix.scan.v1.GetArtifactDownloadURLResponse
-	34, // [34:44] is the sub-list for method output_type
-	24, // [24:34] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	41, // 24: redmatrix.scan.v1.ScanSuite.default_settings:type_name -> google.protobuf.Struct
+	42, // 25: redmatrix.scan.v1.ScanSuite.created_at:type_name -> google.protobuf.Timestamp
+	42, // 26: redmatrix.scan.v1.ScanSuite.updated_at:type_name -> google.protobuf.Timestamp
+	42, // 27: redmatrix.scan.v1.ScanSuiteRun.created_at:type_name -> google.protobuf.Timestamp
+	42, // 28: redmatrix.scan.v1.ScanSuiteRun.updated_at:type_name -> google.protobuf.Timestamp
+	42, // 29: redmatrix.scan.v1.ScanSuiteRun.finished_at:type_name -> google.protobuf.Timestamp
+	41, // 30: redmatrix.scan.v1.CreateScanSuiteRequest.default_settings:type_name -> google.protobuf.Struct
+	25, // 31: redmatrix.scan.v1.CreateScanSuiteResponse.suite:type_name -> redmatrix.scan.v1.ScanSuite
+	25, // 32: redmatrix.scan.v1.ListScanSuitesResponse.suites:type_name -> redmatrix.scan.v1.ScanSuite
+	25, // 33: redmatrix.scan.v1.GetScanSuiteResponse.suite:type_name -> redmatrix.scan.v1.ScanSuite
+	26, // 34: redmatrix.scan.v1.RunScanSuiteResponse.run:type_name -> redmatrix.scan.v1.ScanSuiteRun
+	26, // 35: redmatrix.scan.v1.GetScanSuiteRunResponse.run:type_name -> redmatrix.scan.v1.ScanSuiteRun
+	25, // 36: redmatrix.scan.v1.GetScanSuiteRunResponse.suite:type_name -> redmatrix.scan.v1.ScanSuite
+	0,  // 37: redmatrix.scan.v1.GetScanSuiteRunResponse.tasks:type_name -> redmatrix.scan.v1.ScanTask
+	26, // 38: redmatrix.scan.v1.ListScanSuiteRunsResponse.runs:type_name -> redmatrix.scan.v1.ScanSuiteRun
+	1,  // 39: redmatrix.scan.v1.ScanService.CreateScanTask:input_type -> redmatrix.scan.v1.CreateScanTaskRequest
+	3,  // 40: redmatrix.scan.v1.ScanService.ListScanTasks:input_type -> redmatrix.scan.v1.ListScanTasksRequest
+	5,  // 41: redmatrix.scan.v1.ScanService.GetScanTask:input_type -> redmatrix.scan.v1.GetScanTaskRequest
+	7,  // 42: redmatrix.scan.v1.ScanService.CancelScanTask:input_type -> redmatrix.scan.v1.CancelScanTaskRequest
+	9,  // 43: redmatrix.scan.v1.ScanService.DeleteScanTask:input_type -> redmatrix.scan.v1.DeleteScanTaskRequest
+	16, // 44: redmatrix.scan.v1.ScanService.ListTaskAssignments:input_type -> redmatrix.scan.v1.ListTaskAssignmentsRequest
+	19, // 45: redmatrix.scan.v1.ScanService.ListTaskResults:input_type -> redmatrix.scan.v1.ListTaskResultsRequest
+	21, // 46: redmatrix.scan.v1.ScanService.SearchResults:input_type -> redmatrix.scan.v1.SearchResultsRequest
+	11, // 47: redmatrix.scan.v1.ScanService.RetryScanTask:input_type -> redmatrix.scan.v1.RetryScanTaskRequest
+	13, // 48: redmatrix.scan.v1.ScanService.GetArtifactDownloadURL:input_type -> redmatrix.scan.v1.GetArtifactDownloadURLRequest
+	27, // 49: redmatrix.scan.v1.ScanService.CreateScanSuite:input_type -> redmatrix.scan.v1.CreateScanSuiteRequest
+	29, // 50: redmatrix.scan.v1.ScanService.ListScanSuites:input_type -> redmatrix.scan.v1.ListScanSuitesRequest
+	31, // 51: redmatrix.scan.v1.ScanService.GetScanSuite:input_type -> redmatrix.scan.v1.GetScanSuiteRequest
+	33, // 52: redmatrix.scan.v1.ScanService.DeleteScanSuite:input_type -> redmatrix.scan.v1.DeleteScanSuiteRequest
+	35, // 53: redmatrix.scan.v1.ScanService.RunScanSuite:input_type -> redmatrix.scan.v1.RunScanSuiteRequest
+	37, // 54: redmatrix.scan.v1.ScanService.GetScanSuiteRun:input_type -> redmatrix.scan.v1.GetScanSuiteRunRequest
+	39, // 55: redmatrix.scan.v1.ScanService.ListScanSuiteRuns:input_type -> redmatrix.scan.v1.ListScanSuiteRunsRequest
+	2,  // 56: redmatrix.scan.v1.ScanService.CreateScanTask:output_type -> redmatrix.scan.v1.CreateScanTaskResponse
+	4,  // 57: redmatrix.scan.v1.ScanService.ListScanTasks:output_type -> redmatrix.scan.v1.ListScanTasksResponse
+	6,  // 58: redmatrix.scan.v1.ScanService.GetScanTask:output_type -> redmatrix.scan.v1.GetScanTaskResponse
+	8,  // 59: redmatrix.scan.v1.ScanService.CancelScanTask:output_type -> redmatrix.scan.v1.CancelScanTaskResponse
+	10, // 60: redmatrix.scan.v1.ScanService.DeleteScanTask:output_type -> redmatrix.scan.v1.DeleteScanTaskResponse
+	17, // 61: redmatrix.scan.v1.ScanService.ListTaskAssignments:output_type -> redmatrix.scan.v1.ListTaskAssignmentsResponse
+	20, // 62: redmatrix.scan.v1.ScanService.ListTaskResults:output_type -> redmatrix.scan.v1.ListTaskResultsResponse
+	24, // 63: redmatrix.scan.v1.ScanService.SearchResults:output_type -> redmatrix.scan.v1.SearchResultsResponse
+	12, // 64: redmatrix.scan.v1.ScanService.RetryScanTask:output_type -> redmatrix.scan.v1.RetryScanTaskResponse
+	14, // 65: redmatrix.scan.v1.ScanService.GetArtifactDownloadURL:output_type -> redmatrix.scan.v1.GetArtifactDownloadURLResponse
+	28, // 66: redmatrix.scan.v1.ScanService.CreateScanSuite:output_type -> redmatrix.scan.v1.CreateScanSuiteResponse
+	30, // 67: redmatrix.scan.v1.ScanService.ListScanSuites:output_type -> redmatrix.scan.v1.ListScanSuitesResponse
+	32, // 68: redmatrix.scan.v1.ScanService.GetScanSuite:output_type -> redmatrix.scan.v1.GetScanSuiteResponse
+	34, // 69: redmatrix.scan.v1.ScanService.DeleteScanSuite:output_type -> redmatrix.scan.v1.DeleteScanSuiteResponse
+	36, // 70: redmatrix.scan.v1.ScanService.RunScanSuite:output_type -> redmatrix.scan.v1.RunScanSuiteResponse
+	38, // 71: redmatrix.scan.v1.ScanService.GetScanSuiteRun:output_type -> redmatrix.scan.v1.GetScanSuiteRunResponse
+	40, // 72: redmatrix.scan.v1.ScanService.ListScanSuiteRuns:output_type -> redmatrix.scan.v1.ListScanSuiteRunsResponse
+	56, // [56:73] is the sub-list for method output_type
+	39, // [39:56] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_redmatrix_scan_v1_scan_proto_init() }
@@ -1931,13 +3087,14 @@ func file_redmatrix_scan_v1_scan_proto_init() {
 	file_redmatrix_scan_v1_scan_proto_msgTypes[3].OneofWrappers = []any{}
 	file_redmatrix_scan_v1_scan_proto_msgTypes[15].OneofWrappers = []any{}
 	file_redmatrix_scan_v1_scan_proto_msgTypes[21].OneofWrappers = []any{}
+	file_redmatrix_scan_v1_scan_proto_msgTypes[26].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redmatrix_scan_v1_scan_proto_rawDesc), len(file_redmatrix_scan_v1_scan_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   25,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

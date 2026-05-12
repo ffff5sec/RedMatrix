@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+// NotifyService（PR-S25 通知告警）—— 订阅规则 CRUD + 投递日志查看。
+//
+// 发送链路：scan task terminal / high-severity finding → notify hook →
+// match subscriptions → INSERT deliveries → sweeper 30s 轮询 → adapter 发送。
+//
+// 路径：/redmatrix.notify.v1.NotifyService
+package redmatrix.notify.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service NotifyService {
+  // === 订阅 CRUD ===
+  rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
+  rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
+  rpc GetSubscription(GetSubscriptionRequest) returns (GetSubscriptionResponse);
+  rpc UpdateSubscription(UpdateSubscriptionRequest) returns (UpdateSubscriptionResponse);
+  rpc DeleteSubscription(DeleteSubscriptionRequest) returns (DeleteSubscriptionResponse);
+
+  // === 投递日志 ===
+  rpc ListDeliveries(ListDeliveriesRequest) returns (ListDeliveriesResponse);
+
+  // === Test ===
+  // TestSubscription 立即合成一条测试 payload 触发同步投递。
+  // 不重试；失败直接返错。
+  rpc TestSubscription(TestSubscriptionRequest) returns (TestSubscriptionResponse);
+}
+
+// === 类型 ===
+
+message Subscription {
+  string id = 1;
+  string tenant_id = 2;
+  // 空 = 跨项目（同租户所有项目事件都触发）
+  string project_id = 3;
+  string name = 4;
+  // 监听的事件 kind：task_completed / task_failed / finding_high
+  repeated string event_kinds = 5;
+  string channel = 6; // webhook / email
+  // 通道配置（webhook: {url, secret?}；email: {to: [...]}）
+  google.protobuf.Struct config = 7;
+  // 过滤器（{min_severity: "high"} 等）
+  google.protobuf.Struct filter = 8;
+  bool enabled = 9;
+  string created_by = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message Delivery {
+  string id = 1;
+  string subscription_id = 2;
+  string tenant_id = 3;
+  string project_id = 4;
+  string event_kind = 5;
+  string event_topic = 6;
+  google.protobuf.Struct payload = 7;
+  string status = 8; // pending / sent / failed / dead
+  int32 attempts = 9;
+  string last_error = 10;
+  google.protobuf.Timestamp scheduled_at = 11;
+  google.protobuf.Timestamp created_at = 12;
+  optional google.protobuf.Timestamp sent_at = 13;
+}
+
+// === 订阅 CRUD 消息 ===
+
+message CreateSubscriptionRequest {
+  // 可选 project_id；空 = 跨项目订阅
+  string project_id = 1;
+  string name = 2;
+  repeated string event_kinds = 3;
+  string channel = 4;
+  google.protobuf.Struct config = 5;
+  google.protobuf.Struct filter = 6;
+  bool enabled = 7;
+}
+message CreateSubscriptionResponse {
+  Subscription subscription = 1;
+}
+
+message ListSubscriptionsRequest {
+  string project_id = 1;
+  string channel = 2;
+  string keyword = 3;
+  optional bool enabled = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+message ListSubscriptionsResponse {
+  repeated Subscription subscriptions = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetSubscriptionRequest {
+  string id = 1;
+}
+message GetSubscriptionResponse {
+  Subscription subscription = 1;
+}
+
+message UpdateSubscriptionRequest {
+  string id = 1;
+  string name = 2;
+  repeated string event_kinds = 3;
+  string channel = 4;
+  google.protobuf.Struct config = 5;
+  google.protobuf.Struct filter = 6;
+  bool enabled = 7;
+}
+message UpdateSubscriptionResponse {
+  Subscription subscription = 1;
+}
+
+message DeleteSubscriptionRequest {
+  string id = 1;
+}
+message DeleteSubscriptionResponse {}
+
+// === 投递日志 ===
+
+message ListDeliveriesRequest {
+  string project_id = 1;
+  string subscription_id = 2;
+  string status = 3;
+  string event_kind = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+message ListDeliveriesResponse {
+  repeated Delivery deliveries = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+// === Test ===
+
+message TestSubscriptionRequest {
+  string id = 1;
+}
+message TestSubscriptionResponse {}

@@ -42,6 +42,7 @@ const navItems = computed<NavItem[]>(() => [
   { name: 'scan-suites', label: '套件', visible: true },
   { name: 'scan-results', label: '结果搜索', visible: true },
   { name: 'assets', label: '资产', visible: true },
+  { name: 'notifications', label: '通知', visible: true },
   { name: 'nodes', label: '节点', visible: authStore.isSuperAdmin() || authStore.isAuditor() },
   { name: 'users', label: '用户管理', visible: authStore.isSuperAdmin() || authStore.isAuditor() },
 ]);

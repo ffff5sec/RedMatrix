@@ -297,7 +297,17 @@ type service struct {
 	artifacts ArtifactStore // 可空
 	metrics   *metricsscan.Collectors
 	logger    *log.Logger
+	notifier  TaskNotifier // PR-S25：task terminal / high-severity finding 钩子；可空
 	now       func() time.Time
+}
+
+// TaskNotifier 通知系统钩子（PR-S25），由 cmd/server 装配时注入。
+// 失败不阻塞主流程，仅 log。
+type TaskNotifier interface {
+	// OnTaskTerminal task 聚合状态进入终态（completed/failed）时调用。
+	OnTaskTerminal(ctx context.Context, t *domain.ScanTask)
+	// OnHighSeverityResult ReportResults 时识别到高危 result 调用。
+	OnHighSeverityResult(ctx context.Context, r *domain.ScanResult)
 }
 
 // NewService 构造 scan Service。pool / indexer / assets / scheduler / artifacts /
@@ -324,6 +334,8 @@ type Deps struct {
 	// Suites / SuiteRuns（PR-S23）可空：nil → 套件 RPC 返 Unimplemented。
 	Suites    repo.SuiteRepository
 	SuiteRuns repo.SuiteRunRepository
+	// Notifier（PR-S25）可空：nil → 通知禁用，scan 跑得了。
+	Notifier TaskNotifier
 }
 
 // NewService 构造 scan Service（PR-S18-A：options pattern）。
@@ -343,7 +355,7 @@ func NewService(d Deps) (Service, error) {
 		pool:    d.Pool,
 		indexer: d.Indexer, assets: d.Assets, scheduler: d.Scheduler, artifacts: d.Artifacts,
 		metrics: met,
-		logger:  d.Logger, now: time.Now,
+		logger:  d.Logger, notifier: d.Notifier, now: time.Now,
 	}, nil
 }
 
@@ -597,6 +609,11 @@ func (s *service) CancelTask(ctx context.Context, id string) error {
 	if s.scheduler != nil && t.ScheduleKind == domain.ScheduleCron {
 		s.scheduler.Remove(id)
 	}
+	// PR-S25：通知 task canceled
+	if s.notifier != nil {
+		t.Status = domain.TaskCanceled
+		s.notifier.OnTaskTerminal(ctx, t)
+	}
 	return nil
 }
 
@@ -800,6 +817,11 @@ func (s *service) aggregateTaskStatus(ctx context.Context, taskID string) error 
 	// 在 CancelTask 路径单独 inc）
 	if next.IsTerminal() {
 		s.metrics.TasksTerminal.WithLabelValues(string(next)).Inc()
+		// PR-S25：通知 task terminal（completed/failed/canceled）
+		if s.notifier != nil {
+			t.Status = next // 让 hook 拿到最新状态
+			s.notifier.OnTaskTerminal(ctx, t)
+		}
 	}
 	// PR-S23: task 是套件子 task → 反推 run 聚合
 	if t.SuiteRunID != nil && *t.SuiteRunID != "" && s.suiteRuns != nil {
@@ -875,6 +897,15 @@ func (s *service) ReportResults(
 		return errx.Wrap(errx.ErrDatabase, err, "scan: commit tx")
 	}
 	s.metrics.ResultsInserted.Add(float64(len(rows))) // PR-S17-OBSV
+
+	// PR-S25：扫高危 result（nuclei severity ∈ high/critical）→ 通知
+	if s.notifier != nil {
+		for _, r := range rows {
+			if isHighSeverityFinding(r) {
+				s.notifier.OnHighSeverityResult(ctx, r)
+			}
+		}
+	}
 
 	// PR-S8 资产派生：保持 inline 同步（失败仅日志，下次扫描会再追平）。
 	// 不放进 outbox：派生视图无幂等问题但出错频率低，且 asset 表 UPSERT 可
@@ -1169,4 +1200,22 @@ func (s *service) GetArtifactDownloadURL(
 		return "", time.Time{}, err
 	}
 	return url, s.now().Add(ttl), nil
+}
+
+// isHighSeverityFinding 仅 vuln_scan kind 才看 severity 字段（nuclei 标准）。
+// data.info.severity 是 nuclei JSON 输出的字段（high / critical 视为高危）。
+func isHighSeverityFinding(r *domain.ScanResult) bool {
+	if r.Kind != domain.KindVulnScan {
+		return false
+	}
+	info, _ := r.Data["info"].(map[string]any)
+	if info == nil {
+		return false
+	}
+	sev, _ := info["severity"].(string)
+	switch sev {
+	case "high", "critical":
+		return true
+	}
+	return false
 }

@@ -46,6 +46,7 @@ func buildScanMount(
 	eventBus *eventbus.Bus,
 	eventRegistry *eventbus.Registry,
 	logger *log.Logger,
+	notifier scan.TaskNotifier, // PR-S25 可空
 ) (*scanMount, scan.Service, *scheduler.Scheduler, error) {
 	if pool == nil || pool.App == nil {
 		return nil, nil, nil, errx.New(errx.ErrInternal, "buildScanMount: pg.Pool.App 不能为 nil")
@@ -108,6 +109,7 @@ func buildScanMount(
 		Artifacts:   artifactStore,
 		Metrics:     scanMetrics,
 		Logger:      logger,
+		Notifier:    notifier, // PR-S25
 	})
 	if err != nil {
 		return nil, nil, nil, err

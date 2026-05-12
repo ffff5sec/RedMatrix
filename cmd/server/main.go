@@ -391,16 +391,34 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		outbox := eventbus.NewOutbox(pool.Maintenance)
 		relay := eventbus.NewRelay(outbox, eventBus, eventRegistry, eventbus.RelayConfig{}, logger)
 
+		// === 8a₃-pre. NotifyService（PR-S25 通知）===
+		// 先于 scan 装：scan deps 注入 notify.ScanHook 让 task terminal /
+		// high-severity finding 触发通知投递。
+		notifyMount, notifySvc, notifyScanHook, err := buildNotifyMount(pool, authSvc, logger)
+		if err != nil {
+			logger.LogError(ctx, "notify stack init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(notifyMount.path, notifyMount.handler)
+
 		// === 8a₃. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。同时返回 scheduler 让 main 控生命周期（PR-S12）。
-		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, scanMetrics, eventBus, eventRegistry, logger)
+		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, scanMetrics, eventBus, eventRegistry, logger, notifyScanHook)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
 			return failExitCode(err)
 		}
 		mux.Handle(scMount.path, scMount.handler)
+
+		// PR-S25 retry sweeper：goroutine 每 30s 拉一批 due delivery 发送。
+		notifySweeperDone := make(chan struct{})
+		go func() {
+			defer close(notifySweeperDone)
+			startNotifySweeper(ctx, notifySvc, logger)
+		}()
 
 		// PR-S12 加载已有 cron task → 启动调度器；ctx 取消时 Stop（等 job 完成）。
 		if err := scanSched.LoadAll(ctx); err != nil {

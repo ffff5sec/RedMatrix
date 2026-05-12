@@ -35,6 +35,7 @@ import ScanDetail from '@/views/ScanDetail.vue';
 import ScanResults from '@/views/ScanResults.vue';
 import ScanSuitesPanel from '@/views/ScanSuitesPanel.vue';
 import SuiteRunDetail from '@/views/SuiteRunDetail.vue';
+import NotificationsPanel from '@/views/NotificationsPanel.vue';
 import AssetsPanel from '@/views/AssetsPanel.vue';
 import AssetDetail from '@/views/AssetDetail.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
@@ -131,6 +132,12 @@ const routes: RouteRecordRaw[] = [
         name: 'assets',
         component: AssetsPanel,
         meta: { requiresAuth: true, title: '资产' },
+      },
+      {
+        path: 'notifications',
+        name: 'notifications',
+        component: NotificationsPanel,
+        meta: { requiresAuth: true, title: '通知' },
       },
       {
         path: 'assets/:id',

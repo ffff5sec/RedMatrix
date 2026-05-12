@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+// PluginPackageService（PR-S28 插件包分发 / 升级）——
+// SA 上传 / 维护；agent mTLS 拉最新版本 + 校签下载。
+//
+// 路径：/redmatrix.pluginpkg.v1.PluginPackageService
+package redmatrix.pluginpkg.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service PluginPackageService {
+  // === 包管理（SA only）===
+  rpc UploadPackage(UploadPackageRequest) returns (UploadPackageResponse);
+  rpc ListPackages(ListPackagesRequest) returns (ListPackagesResponse);
+  rpc GetPackage(GetPackageRequest) returns (GetPackageResponse);
+  rpc SetPackageActive(SetPackageActiveRequest) returns (SetPackageActiveResponse);
+  rpc DeprecatePackage(DeprecatePackageRequest) returns (DeprecatePackageResponse);
+
+  // === Agent 拉取 ===
+  // GetLatestVersion（slug, platform）→ 最新可用包元数据。
+  rpc GetLatestVersion(GetLatestVersionRequest) returns (GetLatestVersionResponse);
+  // GetDownloadURL（id）→ presigned GET URL（TTL 15min）。
+  rpc GetDownloadURL(GetDownloadURLRequest) returns (GetDownloadURLResponse);
+
+  // === 签名密钥 ===
+  // ListSigningKeys agent 启动期一次性拉；缓存公钥用于验证。
+  rpc ListSigningKeys(ListSigningKeysRequest) returns (ListSigningKeysResponse);
+  // RevokeSigningKey SA only。
+  rpc RevokeSigningKey(RevokeSigningKeyRequest) returns (RevokeSigningKeyResponse);
+}
+
+// === 类型 ===
+
+message PluginPackage {
+  string id = 1;
+  string slug = 2;
+  string version = 3;
+  string platform = 4; // linux_amd64 / linux_arm64 / etc.
+  string artifact_key = 5; // MinIO key
+  string sha256 = 6; // 64 字符 hex
+  string signature = 7; // base64 ed25519
+  string signing_key_id = 8;
+  int64 size_bytes = 9;
+  string description = 10;
+  bool is_active = 11;
+  string uploaded_by = 12;
+  google.protobuf.Timestamp uploaded_at = 13;
+  optional google.protobuf.Timestamp deprecated_at = 14;
+}
+
+message SigningKey {
+  string id = 1;
+  string key_id = 2;
+  string public_key = 3; // base64 ed25519
+  string description = 4;
+  google.protobuf.Timestamp created_at = 5;
+  optional google.protobuf.Timestamp revoked_at = 6;
+}
+
+// === Upload ===
+
+message UploadPackageRequest {
+  string slug = 1;
+  string version = 2;
+  string platform = 3;
+  string description = 4;
+  // binary 原始字节；MVP 不流式（≤ 200 MiB）
+  bytes binary = 5;
+}
+message UploadPackageResponse {
+  PluginPackage package = 1;
+}
+
+// === List ===
+
+message ListPackagesRequest {
+  string slug = 1;
+  string platform = 2;
+  optional bool active = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+message ListPackagesResponse {
+  repeated PluginPackage packages = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetPackageRequest {
+  string id = 1;
+}
+message GetPackageResponse {
+  PluginPackage package = 1;
+}
+
+message SetPackageActiveRequest {
+  string id = 1;
+  bool active = 2;
+}
+message SetPackageActiveResponse {}
+
+message DeprecatePackageRequest {
+  string id = 1;
+}
+message DeprecatePackageResponse {}
+
+// === Agent 拉取 ===
+
+message GetLatestVersionRequest {
+  string slug = 1;
+  string platform = 2;
+}
+message GetLatestVersionResponse {
+  PluginPackage package = 1;
+}
+
+message GetDownloadURLRequest {
+  string id = 1;
+}
+message GetDownloadURLResponse {
+  string url = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+// === 签名 ===
+
+message ListSigningKeysRequest {}
+message ListSigningKeysResponse {
+  repeated SigningKey keys = 1;
+}
+
+message RevokeSigningKeyRequest {
+  string key_id = 1;
+}
+message RevokeSigningKeyResponse {}

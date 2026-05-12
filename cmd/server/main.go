@@ -411,6 +411,15 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		mux.Handle(findingMnt.path, findingMnt.handler)
 
+		// === 8a₃-pre3. PluginPackageService（PR-S28 插件包分发）===
+		pluginMnt, _, err := buildPluginPkgMount(ctx, pool, mio, authSvc, logger)
+		if err != nil {
+			logger.LogError(ctx, "pluginpkg stack init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(pluginMnt.path, pluginMnt.handler)
+
 		// 组装 composite hook：scan terminal → notify；high-severity result → notify + finding
 		scanHook := &scanCompositeNotifier{
 			notify:  notifyScanHook,

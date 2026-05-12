@@ -38,6 +38,7 @@ import SuiteRunDetail from '@/views/SuiteRunDetail.vue';
 import NotificationsPanel from '@/views/NotificationsPanel.vue';
 import FindingsPanel from '@/views/FindingsPanel.vue';
 import FindingDetail from '@/views/FindingDetail.vue';
+import PluginsPanel from '@/views/PluginsPanel.vue';
 import AssetsPanel from '@/views/AssetsPanel.vue';
 import AssetDetail from '@/views/AssetDetail.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
@@ -152,6 +153,12 @@ const routes: RouteRecordRaw[] = [
         name: 'finding-detail',
         component: FindingDetail,
         meta: { requiresAuth: true, title: '漏洞详情' },
+      },
+      {
+        path: 'plugins',
+        name: 'plugins',
+        component: PluginsPanel,
+        meta: { requiresAuth: true, requiresRoles: [ROLE_SA], title: '插件库' },
       },
       {
         path: 'assets/:id',

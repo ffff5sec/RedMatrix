@@ -44,6 +44,7 @@ const navItems = computed<NavItem[]>(() => [
   { name: 'assets', label: '资产', visible: true },
   { name: 'findings', label: '漏洞', visible: true },
   { name: 'notifications', label: '通知', visible: true },
+  { name: 'plugins', label: '插件库', visible: authStore.isSuperAdmin() },
   { name: 'nodes', label: '节点', visible: authStore.isSuperAdmin() || authStore.isAuditor() },
   { name: 'users', label: '用户管理', visible: authStore.isSuperAdmin() || authStore.isAuditor() },
 ]);

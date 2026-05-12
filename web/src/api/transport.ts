@@ -6,6 +6,7 @@ import { ScanService } from '@/gen/proto/redmatrix/scan/v1/scan_connect';
 import { AssetService } from '@/gen/proto/redmatrix/asset/v1/asset_connect';
 import { NotifyService } from '@/gen/proto/redmatrix/notify/v1/notify_connect';
 import { FindingService } from '@/gen/proto/redmatrix/finding/v1/finding_connect';
+import { PluginPackageService } from '@/gen/proto/redmatrix/pluginpkg/v1/pluginpkg_connect';
 import { authStore } from '@/store/auth';
 
 // 自动附 Authorization: Bearer <jwt>。
@@ -48,3 +49,4 @@ export const scanClient = createPromiseClient(ScanService, transport);
 export const assetClient = createPromiseClient(AssetService, transport);
 export const notifyClient = createPromiseClient(NotifyService, transport);
 export const findingClient = createPromiseClient(FindingService, transport);
+export const pluginPackageClient = createPromiseClient(PluginPackageService, transport);

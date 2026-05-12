@@ -398,6 +398,8 @@ func suiteRunToProto(r *scandomain.ScanSuiteRun) *scanv1.ScanSuiteRun {
 		CreatedBy: r.CreatedBy,
 		CreatedAt: timestamppb.New(r.CreatedAt),
 		UpdatedAt: timestamppb.New(r.UpdatedAt),
+		//nolint:gosec // CurrentStep ≤ len(Kinds) ≤ ~5；溢出 int32 不可能
+		CurrentStep: int32(r.CurrentStep),
 	}
 	if r.FinishedAt != nil {
 		out.FinishedAt = timestamppb.New(*r.FinishedAt)

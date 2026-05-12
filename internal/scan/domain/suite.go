@@ -108,16 +108,21 @@ func (s *ScanSuite) IsDeleted() bool {
 
 // ScanSuiteRun 一次 RunSuite 实例。
 type ScanSuiteRun struct {
-	ID         string
-	SuiteID    string
-	TenantID   string
-	ProjectID  string
-	Targets    []string
-	Status     SuiteRunStatus
-	CreatedBy  string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	FinishedAt *time.Time
+	ID        string
+	SuiteID   string
+	TenantID  string
+	ProjectID string
+	Targets   []string
+	Status    SuiteRunStatus
+	// CurrentStep（PR-S27 chaining）：当前正在执行的 kind 索引。
+	//   0..len(suite.Kinds)-1 = 在跑中；== len = 全部跑完。
+	// run 推进规则：当某 step 的 task 进入终态 → extractor 取下一 step 输入 →
+	// 若有 → 创建下一 step task + current_step++；否则 run.completed。
+	CurrentStep int
+	CreatedBy   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	FinishedAt  *time.Time
 }
 
 // ValidateForCreate INSERT 前校验。

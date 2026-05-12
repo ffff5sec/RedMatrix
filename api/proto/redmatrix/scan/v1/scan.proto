@@ -260,6 +260,8 @@ message ScanSuiteRun {
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
   optional google.protobuf.Timestamp finished_at = 10;
+  // current_step（PR-S27 chaining）：当前正在执行的 kind 索引；0..len(suite.kinds)
+  int32 current_step = 11;
 }
 
 message CreateScanSuiteRequest {

@@ -36,4 +36,6 @@ type SuiteRunRepository interface {
 	List(ctx context.Context, filter SuiteRunFilter, page Page) ([]*domain.ScanSuiteRun, int, error)
 	// UpdateStatus 推进 status；finishedAt 非空时写 finished_at（终态时调用）。
 	UpdateStatus(ctx context.Context, id string, status domain.SuiteRunStatus, finished bool) error
+	// UpdateCurrentStep（PR-S27 chaining）：推进当前 step 索引；不改 status / finished_at。
+	UpdateCurrentStep(ctx context.Context, id string, step int) error
 }

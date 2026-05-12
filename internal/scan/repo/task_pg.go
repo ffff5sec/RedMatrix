@@ -126,6 +126,10 @@ func (r *pgTaskRepo) List(ctx context.Context, f TaskFilter, p Page) ([]*domain.
 		args = append(args, string(f.Status))
 		clauses = append(clauses, "status = $"+itoa(len(args)))
 	}
+	if strings.TrimSpace(string(f.Kind)) != "" {
+		args = append(args, string(f.Kind))
+		clauses = append(clauses, "kind = $"+itoa(len(args)))
+	}
 	if kw := strings.TrimSpace(f.Keyword); kw != "" {
 		args = append(args, "%"+kw+"%")
 		clauses = append(clauses, "name ILIKE $"+itoa(len(args)))

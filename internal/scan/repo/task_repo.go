@@ -46,6 +46,7 @@ type TaskFilter struct {
 	TenantID   string            // 必填
 	ProjectID  string            // 空 = 不过滤（跨项目）
 	Status     domain.TaskStatus // 空 = 不过滤
+	Kind       domain.TaskKind   // 空 = 不过滤（PR-S27 chaining：按 kind 聚合 step）
 	Keyword    string            // 空 = 不过滤；name ILIKE 子串
 	SuiteRunID string            // 空 = 不过滤；非空 = 只列该 suite_run 子 tasks（PR-S23）
 }

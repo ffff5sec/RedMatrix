@@ -1540,6 +1540,13 @@ export class ScanSuiteRun extends Message<ScanSuiteRun> {
    */
   finishedAt?: Timestamp;
 
+  /**
+   * current_step（PR-S27 chaining）：当前正在执行的 kind 索引；0..len(suite.kinds)
+   *
+   * @generated from field: int32 current_step = 11;
+   */
+  currentStep = 0;
+
   constructor(data?: PartialMessage<ScanSuiteRun>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1558,6 +1565,7 @@ export class ScanSuiteRun extends Message<ScanSuiteRun> {
     { no: 8, name: "created_at", kind: "message", T: Timestamp },
     { no: 9, name: "updated_at", kind: "message", T: Timestamp },
     { no: 10, name: "finished_at", kind: "message", T: Timestamp, opt: true },
+    { no: 11, name: "current_step", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ScanSuiteRun {

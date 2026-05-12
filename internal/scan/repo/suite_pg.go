@@ -202,6 +202,7 @@ SELECT id::text,
        project_id::text,
        targets,
        status,
+       current_step,
        COALESCE(created_by::text, '') AS created_by,
        created_at,
        updated_at,
@@ -296,6 +297,29 @@ func (r *pgSuiteRunRepo) List(ctx context.Context, f SuiteRunFilter, p Page) ([]
 	return out, total, rows.Err()
 }
 
+func (r *pgSuiteRunRepo) UpdateCurrentStep(ctx context.Context, id string, step int) error {
+	if r == nil || r.pool == nil {
+		return errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	if step < 0 {
+		return errx.New(errx.ErrInvalidInput, "current_step 不能 < 0").WithFields("step", step)
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE scan_suite_runs
+		   SET current_step = $2,
+		       updated_at = now()
+		 WHERE id = $1::uuid
+	`, id, step)
+	if err != nil {
+		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: update suite_run current_step").
+			WithFields("id", id, "step", step)
+	}
+	if tag.RowsAffected() == 0 {
+		return errx.New(errx.ErrTaskNotFound, "suite_run 不存在").WithFields("id", id)
+	}
+	return nil
+}
+
 func (r *pgSuiteRunRepo) UpdateStatus(ctx context.Context, id string, status domain.SuiteRunStatus, finished bool) error {
 	if r == nil || r.pool == nil {
 		return errx.New(errx.ErrInternal, "scan.repo: nil pool")
@@ -328,7 +352,7 @@ func scanSuiteRun(s interface {
 	var status string
 	if err := s.Scan(
 		&out.ID, &out.SuiteID, &out.TenantID, &out.ProjectID,
-		&out.Targets, &status,
+		&out.Targets, &status, &out.CurrentStep,
 		&out.CreatedBy,
 		&out.CreatedAt, &out.UpdatedAt, &out.FinishedAt,
 	); err != nil {

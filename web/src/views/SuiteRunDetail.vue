@@ -71,6 +71,30 @@ function kindLabel(k: string) {
     default:            return k;
   }
 }
+
+// PR-S27 chaining：根据 run.currentStep 渲染 step 状态
+function stepClass(i: number): string {
+  if (!run.value) return '';
+  const cur = run.value.currentStep;
+  const status = run.value.status;
+  if (status === 'failed' && i === cur) return 'failed';
+  if (status === 'completed' && i <= cur) return 'done';
+  if (i < cur) return 'done';
+  if (i === cur && status === 'running') return 'active';
+  if (i === cur && status === 'pending') return 'pending';
+  return 'todo';
+}
+
+function stepIcon(i: number): string {
+  if (!run.value) return '';
+  const cur = run.value.currentStep;
+  const status = run.value.status;
+  if (status === 'failed' && i === cur) return '✗';
+  if (status === 'completed' && i <= cur) return '✓';
+  if (i < cur) return '✓';
+  if (i === cur && status === 'running') return '◐';
+  return '';
+}
 </script>
 
 <template>
@@ -107,8 +131,27 @@ function kindLabel(k: string) {
         </div>
       </div>
 
+      <!-- PR-S27 chaining pipeline 视图 -->
+      <div class="card" v-if="suite && suite.kinds && suite.kinds.length > 0">
+        <h2>执行步骤 <span class="muted">（chaining）</span></h2>
+        <p class="muted">
+          套件按数组顺序串行执行；前一步的输出（subdomain → host，fingerprint → live URL）
+          自动喂给下一步。
+        </p>
+        <div class="pipeline">
+          <template v-for="(k, i) in suite.kinds" :key="i">
+            <div class="step" :class="stepClass(i)">
+              <span class="step-idx">{{ i + 1 }}</span>
+              <span class="step-kind">{{ kindLabel(k) }}</span>
+              <span class="step-icon">{{ stepIcon(i) }}</span>
+            </div>
+            <span v-if="i < suite.kinds.length - 1" class="step-arrow">→</span>
+          </template>
+        </div>
+      </div>
+
       <div class="card" v-if="run.targets && run.targets.length > 0">
-        <h2>目标列表 <span class="muted">（{{ run.targets.length }}）</span></h2>
+        <h2>初始目标列表 <span class="muted">（{{ run.targets.length }}）</span></h2>
         <ul class="targets-list">
           <li v-for="(t, i) in run.targets" :key="i"><code>{{ t }}</code></li>
         </ul>
@@ -197,4 +240,64 @@ function kindLabel(k: string) {
   text-decoration: none;
 }
 .link:hover { text-decoration: underline; }
+.pipeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  font-size: 13px;
+}
+.step-idx {
+  background: rgba(0, 0, 0, 0.06);
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+}
+.step-kind { font-weight: 500; }
+.step-icon { font-weight: 600; }
+.step-arrow {
+  color: var(--muted, #6b7280);
+  font-size: 16px;
+  font-weight: 600;
+}
+.step.done {
+  background: rgba(22, 163, 74, 0.08);
+  border-color: rgba(22, 163, 74, 0.4);
+  color: #166534;
+}
+.step.done .step-idx { background: rgba(22, 163, 74, 0.2); color: #166534; }
+.step.active {
+  background: rgba(59, 130, 246, 0.10);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #1d4ed8;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.step.active .step-idx { background: rgba(59, 130, 246, 0.25); color: #1d4ed8; }
+.step.failed {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #991b1b;
+}
+.step.failed .step-idx { background: rgba(239, 68, 68, 0.2); color: #991b1b; }
+.step.pending { color: var(--muted, #6b7280); }
+.step.todo { color: var(--muted, #6b7280); opacity: 0.7; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
 </style>

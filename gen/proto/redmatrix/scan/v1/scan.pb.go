@@ -1790,11 +1790,13 @@ type ScanSuiteRun struct {
 	ProjectId string                 `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	Targets   []string               `protobuf:"bytes,5,rep,name=targets,proto3" json:"targets,omitempty"`
 	// pending / running / completed / partial_failed / failed / canceled
-	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
-	CreatedBy     string                 `protobuf:"bytes,7,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=finished_at,json=finishedAt,proto3,oneof" json:"finished_at,omitempty"`
+	Status     string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	CreatedBy  string                 `protobuf:"bytes,7,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	CreatedAt  *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt  *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=finished_at,json=finishedAt,proto3,oneof" json:"finished_at,omitempty"`
+	// current_step（PR-S27 chaining）：当前正在执行的 kind 索引；0..len(suite.kinds)
+	CurrentStep   int32 `protobuf:"varint,11,opt,name=current_step,json=currentStep,proto3" json:"current_step,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1897,6 +1899,13 @@ func (x *ScanSuiteRun) GetFinishedAt() *timestamppb.Timestamp {
 		return x.FinishedAt
 	}
 	return nil
+}
+
+func (x *ScanSuiteRun) GetCurrentStep() int32 {
+	if x != nil {
+		return x.CurrentStep
+	}
+	return 0
 }
 
 type CreateScanSuiteRequest struct {
@@ -2974,7 +2983,7 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x8e\x03\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb1\x03\n" +
 	"\fScanSuiteRun\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bsuite_id\x18\x02 \x01(\tR\asuiteId\x12\x1b\n" +
@@ -2991,7 +3000,8 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12@\n" +
 	"\vfinished_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampH\x00R\n" +
-	"finishedAt\x88\x01\x01B\x0e\n" +
+	"finishedAt\x88\x01\x01\x12!\n" +
+	"\fcurrent_step\x18\v \x01(\x05R\vcurrentStepB\x0e\n" +
 	"\f_finished_at\"\xc6\x01\n" +
 	"\x16CreateScanSuiteRequest\x12\x1d\n" +
 	"\n" +

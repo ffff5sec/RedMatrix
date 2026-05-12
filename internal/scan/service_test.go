@@ -1013,6 +1013,12 @@ func (r *stubSuiteRunRepo) UpdateStatus(_ context.Context, id string, status dom
 	}
 	return nil
 }
+func (r *stubSuiteRunRepo) UpdateCurrentStep(_ context.Context, id string, step int) error {
+	if v, ok := r.runs[id]; ok {
+		v.CurrentStep = step
+	}
+	return nil
+}
 
 // suiteHarness 套件 aggregator 单测复用 testHarness + 装 suite repos。
 func newSuiteHarness(t *testing.T) (*testHarness, *stubSuiteRepo, *stubSuiteRunRepo) {
@@ -1141,4 +1147,132 @@ func TestAggregateSuiteRunStatus_RunAlreadyTerminal_NoOp(t *testing.T) {
 	h.tasks.put(makeChildTask("t-1", run.ID, domain.TaskRunning))
 	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
 	assert.Empty(t, srr.statusLog, "终态后不再写")
+}
+
+// === PR-S27 chaining 集成测试 ===
+
+func makeChildTaskKind(id, runID string, kind domain.TaskKind, status domain.TaskStatus) *domain.ScanTask {
+	rid := runID
+	return &domain.ScanTask{
+		ID: id, TenantID: "ten-1", ProjectID: "p-1", Name: id,
+		Kind: kind, Target: "x", TargetKind: domain.TargetHost,
+		Status: status, ScheduleKind: domain.ScheduleImmediate,
+		SuiteRunID: &rid,
+	}
+}
+
+// setupChainHarness 把 suite + project + 1 node + allowed wire 起来，
+// 让 aggregateSuiteRunStatus 触发 createStepTask 时 CreateTask 校验通过。
+func setupChainHarness(t *testing.T, kinds []domain.TaskKind) (*testHarness, *stubSuiteRepo, *stubSuiteRunRepo, *domain.ScanSuite, *domain.ScanSuiteRun) {
+	t.Helper()
+	h, sr, srr := newSuiteHarness(t)
+	// project + allowed nodes 让 CreateTask 不返错
+	h.projects.put(&tenancydomain.Project{
+		ID: "p-1", TenantID: "ten-1", Name: "p1",
+		Status: tenancydomain.ProjectActive,
+	})
+	// 1 个 online node 满足 dispatch 校验（虽然 dispatch 不在测试路径，但 CreateTask 不需 nodes）
+	suite := &domain.ScanSuite{
+		ID: "su-1", TenantID: "ten-1", ProjectID: nil,
+		Name: "S1", Kinds: kinds, TargetKind: domain.TargetHost,
+		DefaultSettings: map[string]any{},
+	}
+	require.NoError(t, sr.Insert(context.Background(), suite))
+	run := &domain.ScanSuiteRun{
+		SuiteID: "su-1", TenantID: "ten-1", ProjectID: "p-1",
+		Targets:     []string{"seed.example.com"},
+		Status:      domain.SuiteRunRunning,
+		CurrentStep: 0,
+	}
+	require.NoError(t, srr.Insert(context.Background(), run))
+	return h, sr, srr, suite, run
+}
+
+func TestChain_SubdomainToFingerprint_Advances(t *testing.T) {
+	h, _, srr, _, run := setupChainHarness(t, []domain.TaskKind{
+		domain.KindSubdomain, domain.KindFingerprint, domain.KindVulnScan,
+	})
+	// step 0: subdomain task completed
+	step0 := makeChildTaskKind("t-step0", run.ID, domain.KindSubdomain, domain.TaskCompleted)
+	h.tasks.put(step0)
+	// subdomain task 产了 2 个 host 的 result
+	h.results.rows = append(h.results.rows,
+		&domain.ScanResult{ID: "r1", TaskID: "t-step0", TenantID: "ten-1", ProjectID: "p-1",
+			Kind: domain.KindSubdomain, Data: map[string]any{"host": "a.example.com"}},
+		&domain.ScanResult{ID: "r2", TaskID: "t-step0", TenantID: "ten-1", ProjectID: "p-1",
+			Kind: domain.KindSubdomain, Data: map[string]any{"host": "b.example.com"}},
+	)
+
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+
+	// 应该已创建 step 1 (fingerprint) task with extracted targets
+	fpTasks := []*domain.ScanTask{}
+	for _, tt := range h.tasks.tasks {
+		if tt.Kind == domain.KindFingerprint && tt.SuiteRunID != nil && *tt.SuiteRunID == run.ID {
+			fpTasks = append(fpTasks, tt)
+		}
+	}
+	require.Len(t, fpTasks, 1, "应创建 1 个 fingerprint task")
+	assert.ElementsMatch(t, []string{"a.example.com", "b.example.com"}, fpTasks[0].Targets)
+	// current_step 推进
+	assert.Equal(t, 1, srr.runs[run.ID].CurrentStep)
+	// status 保 running（已 running，不写 log）
+	for _, l := range srr.statusLog {
+		assert.NotEqual(t, domain.SuiteRunCompleted, l.Status)
+		assert.NotEqual(t, domain.SuiteRunFailed, l.Status)
+	}
+}
+
+func TestChain_FailedStep_TerminatesRun(t *testing.T) {
+	h, _, srr, _, run := setupChainHarness(t, []domain.TaskKind{
+		domain.KindSubdomain, domain.KindFingerprint,
+	})
+	// step 0 failed
+	h.tasks.put(makeChildTaskKind("t-fail", run.ID, domain.KindSubdomain, domain.TaskFailed))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	require.NotEmpty(t, srr.statusLog)
+	last := srr.statusLog[len(srr.statusLog)-1]
+	assert.Equal(t, domain.SuiteRunFailed, last.Status)
+	assert.True(t, last.Finished)
+	// 不应创建下一 step task
+	for _, tt := range h.tasks.tasks {
+		assert.NotEqual(t, domain.KindFingerprint, tt.Kind, "失败后不应推进")
+	}
+}
+
+func TestChain_EmptyExtraction_EndsCompleted(t *testing.T) {
+	h, _, srr, _, run := setupChainHarness(t, []domain.TaskKind{
+		domain.KindSubdomain, domain.KindFingerprint,
+	})
+	// step 0 completed 但 0 个 result（链断）
+	h.tasks.put(makeChildTaskKind("t-empty", run.ID, domain.KindSubdomain, domain.TaskCompleted))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	require.NotEmpty(t, srr.statusLog)
+	last := srr.statusLog[len(srr.statusLog)-1]
+	assert.Equal(t, domain.SuiteRunCompleted, last.Status, "链断了当前 step 仍成功，run.completed")
+	assert.True(t, last.Finished)
+}
+
+func TestChain_LastStepCompleted_RunCompleted(t *testing.T) {
+	h, _, srr, _, run := setupChainHarness(t, []domain.TaskKind{
+		domain.KindSubdomain,
+	})
+	h.tasks.put(makeChildTaskKind("t-only", run.ID, domain.KindSubdomain, domain.TaskCompleted))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	last := srr.statusLog[len(srr.statusLog)-1]
+	assert.Equal(t, domain.SuiteRunCompleted, last.Status)
+}
+
+func TestChain_CurrentStepRunning_NoAdvance(t *testing.T) {
+	h, _, srr, _, run := setupChainHarness(t, []domain.TaskKind{
+		domain.KindSubdomain, domain.KindFingerprint,
+	})
+	h.tasks.put(makeChildTaskKind("t-run", run.ID, domain.KindSubdomain, domain.TaskRunning))
+	require.NoError(t, h.svc.aggregateSuiteRunStatus(context.Background(), run.ID))
+	// 步骤未完成 → 不应推进
+	assert.Equal(t, 0, srr.runs[run.ID].CurrentStep)
+	// 应只更新 status 为 running 一次（且 finished=false）或无 log（如果已是 running）
+	for _, l := range srr.statusLog {
+		assert.False(t, l.Finished, "still running 不应 finish")
+	}
 }

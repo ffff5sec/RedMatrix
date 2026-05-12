@@ -38,7 +38,7 @@ message Finding {
   string description = 11;
   string reference = 12;
 
-  string status = 13;     // open / triaged / confirmed / false_positive / fixed
+  string status = 13; // open / triaged / confirmed / false_positive / fixed
   string assignee_id = 14;
 
   google.protobuf.Timestamp first_seen_at = 15;
@@ -53,7 +53,7 @@ message FindingEvent {
   string id = 1;
   string finding_id = 2;
   string actor_id = 3; // 空 = system
-  string kind = 4;     // created / status_change / comment / assignee_change / occurrence
+  string kind = 4; // created / status_change / comment / assignee_change / occurrence
 
   // 状态变更
   string from_status = 5;
@@ -70,12 +70,12 @@ message FindingEvent {
 // === 列 ===
 
 message ListFindingsRequest {
-  string project_id = 1;       // 空 = 不限项目（SA/TA 跨项目）
+  string project_id = 1; // 空 = 不限项目（SA/TA 跨项目）
   string status = 2;
   string severity = 3;
   string assignee_id = 4;
   string keyword = 5;
-  string min_severity = 6;     // ≥ minSeverity（含本身）
+  string min_severity = 6; // ≥ minSeverity（含本身）
   int32 page = 7;
   int32 page_size = 8;
 }

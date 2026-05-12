@@ -164,7 +164,12 @@ func (s *service) RunSuite(ctx context.Context, req RunSuiteRequest) (*domain.Sc
 	if strings.TrimSpace(req.ProjectID) == "" {
 		return nil, errx.New(errx.ErrInvalidInput, "project_id 不能为空")
 	}
-	targets := dedupTargets(req.Targets)
+	// PR-S24：先展开 CIDR/范围，再去重。展开上限 4096。
+	expanded, err := domain.ExpandTargets(req.Targets, domain.DefaultMaxExpansion)
+	if err != nil {
+		return nil, err
+	}
+	targets := dedupTargets(expanded)
 	if len(targets) == 0 {
 		return nil, errx.New(errx.ErrTaskNoTargets, "targets 至少 1 个")
 	}

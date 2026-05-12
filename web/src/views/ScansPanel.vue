@@ -2,7 +2,7 @@
 // ScansPanel —— 扫描任务列表 + 创建（PR-S1）。
 //
 // 范围：仅 Task CRUD；不含调度 / Agent 拉任务 / 结果上报（后续 PR）。
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 
 import { scanClient, tenancyClient } from '@/api/transport';
 import { authStore } from '@/store/auth';
@@ -116,8 +116,51 @@ const canSubmit = computed(
   () =>
     !!newT.value.projectId &&
     !!newT.value.name &&
-    newTargetsParsed.value.length > 0,
+    newTargetsParsed.value.length > 0 &&
+    !(expandPreview.value?.truncated) &&
+    !(expandPreview.value?.error),
 );
+
+// === PR-S24 展开预览 ===
+// 服务端实时返回 CIDR/范围展开后的总数；UI 据此提示批量大小。
+const expandPreview = ref<{
+  total: number;
+  truncated: boolean;
+  maxExpansion: number;
+  loading: boolean;
+  error: string;
+} | null>(null);
+let expandPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(newTargetsParsed, (parsed) => {
+  if (expandPreviewTimer) clearTimeout(expandPreviewTimer);
+  if (parsed.length === 0) {
+    expandPreview.value = null;
+    return;
+  }
+  // 用户不停打字：300ms debounce
+  expandPreviewTimer = setTimeout(async () => {
+    expandPreview.value = { total: 0, truncated: false, maxExpansion: 0, loading: true, error: '' };
+    try {
+      const r = await scanClient.previewExpandTargets({ targets: parsed });
+      expandPreview.value = {
+        total: r.total,
+        truncated: r.truncated,
+        maxExpansion: r.maxExpansion,
+        loading: false,
+        error: '',
+      };
+    } catch (e) {
+      expandPreview.value = {
+        total: 0,
+        truncated: false,
+        maxExpansion: 0,
+        loading: false,
+        error: errorMessage(e),
+      };
+    }
+  }, 300);
+}, { deep: false });
 
 async function create() {
   if (submitting.value) return;
@@ -356,7 +399,21 @@ function targetKindLabel(k: string) {
                 style="width: 100%; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px"
               />
               <div class="muted" style="font-size: 12px; margin-top: 4px">
-                {{ newTargetsParsed.length }} 个目标
+                <span>{{ newTargetsParsed.length }} 项输入</span>
+                <template v-if="expandPreview">
+                  <span v-if="expandPreview.loading"> · 解析中…</span>
+                  <template v-else-if="expandPreview.error">
+                    <span class="expand-err"> · 解析失败：{{ expandPreview.error }}</span>
+                  </template>
+                  <template v-else>
+                    <span v-if="expandPreview.total !== newTargetsParsed.length">
+                      → <strong>{{ expandPreview.total }}</strong> 个目标（含 CIDR/范围展开）
+                    </span>
+                    <span v-if="expandPreview.truncated" class="expand-warn">
+                      · 超出上限 {{ expandPreview.maxExpansion }}，请缩小输入
+                    </span>
+                  </template>
+                </template>
                 <span v-if="newTargetsParsed.length > 1">
                   · 创建后按 online 节点数切片到每个 agent 并行执行
                 </span>
@@ -476,4 +533,6 @@ function targetKindLabel(k: string) {
 .form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .form-row { display: flex; align-items: center; gap: 12px; }
 .label { width: 80px; color: var(--muted, #6b7280); font-size: 13px; }
+.expand-err { color: #b91c1c; }
+.expand-warn { color: #b45309; }
 </style>

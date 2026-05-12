@@ -87,6 +87,9 @@ const (
 	// ScanServiceListScanSuiteRunsProcedure is the fully-qualified name of the ScanService's
 	// ListScanSuiteRuns RPC.
 	ScanServiceListScanSuiteRunsProcedure = "/redmatrix.scan.v1.ScanService/ListScanSuiteRuns"
+	// ScanServicePreviewExpandTargetsProcedure is the fully-qualified name of the ScanService's
+	// PreviewExpandTargets RPC.
+	ScanServicePreviewExpandTargetsProcedure = "/redmatrix.scan.v1.ScanService/PreviewExpandTargets"
 )
 
 // ScanServiceClient is a client for the redmatrix.scan.v1.ScanService service.
@@ -118,6 +121,10 @@ type ScanServiceClient interface {
 	RunScanSuite(context.Context, *connect.Request[v1.RunScanSuiteRequest]) (*connect.Response[v1.RunScanSuiteResponse], error)
 	GetScanSuiteRun(context.Context, *connect.Request[v1.GetScanSuiteRunRequest]) (*connect.Response[v1.GetScanSuiteRunResponse], error)
 	ListScanSuiteRuns(context.Context, *connect.Request[v1.ListScanSuiteRunsRequest]) (*connect.Response[v1.ListScanSuiteRunsResponse], error)
+	// === PR-S24 目标展开预览 ===
+	// PreviewExpandTargets 服务端解析 CIDR / IPv4 区间 / host，返回展开后列表。
+	// 客户端在 batch / RunSuite 提交前调用做预览。truncated=true 时 expanded 只含前 maxOut 个。
+	PreviewExpandTargets(context.Context, *connect.Request[v1.PreviewExpandTargetsRequest]) (*connect.Response[v1.PreviewExpandTargetsResponse], error)
 }
 
 // NewScanServiceClient constructs a client for the redmatrix.scan.v1.ScanService service. By
@@ -233,6 +240,12 @@ func NewScanServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(scanServiceMethods.ByName("ListScanSuiteRuns")),
 			connect.WithClientOptions(opts...),
 		),
+		previewExpandTargets: connect.NewClient[v1.PreviewExpandTargetsRequest, v1.PreviewExpandTargetsResponse](
+			httpClient,
+			baseURL+ScanServicePreviewExpandTargetsProcedure,
+			connect.WithSchema(scanServiceMethods.ByName("PreviewExpandTargets")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -255,6 +268,7 @@ type scanServiceClient struct {
 	runScanSuite           *connect.Client[v1.RunScanSuiteRequest, v1.RunScanSuiteResponse]
 	getScanSuiteRun        *connect.Client[v1.GetScanSuiteRunRequest, v1.GetScanSuiteRunResponse]
 	listScanSuiteRuns      *connect.Client[v1.ListScanSuiteRunsRequest, v1.ListScanSuiteRunsResponse]
+	previewExpandTargets   *connect.Client[v1.PreviewExpandTargetsRequest, v1.PreviewExpandTargetsResponse]
 }
 
 // CreateScanTask calls redmatrix.scan.v1.ScanService.CreateScanTask.
@@ -342,6 +356,11 @@ func (c *scanServiceClient) ListScanSuiteRuns(ctx context.Context, req *connect.
 	return c.listScanSuiteRuns.CallUnary(ctx, req)
 }
 
+// PreviewExpandTargets calls redmatrix.scan.v1.ScanService.PreviewExpandTargets.
+func (c *scanServiceClient) PreviewExpandTargets(ctx context.Context, req *connect.Request[v1.PreviewExpandTargetsRequest]) (*connect.Response[v1.PreviewExpandTargetsResponse], error) {
+	return c.previewExpandTargets.CallUnary(ctx, req)
+}
+
 // ScanServiceHandler is an implementation of the redmatrix.scan.v1.ScanService service.
 type ScanServiceHandler interface {
 	CreateScanTask(context.Context, *connect.Request[v1.CreateScanTaskRequest]) (*connect.Response[v1.CreateScanTaskResponse], error)
@@ -371,6 +390,10 @@ type ScanServiceHandler interface {
 	RunScanSuite(context.Context, *connect.Request[v1.RunScanSuiteRequest]) (*connect.Response[v1.RunScanSuiteResponse], error)
 	GetScanSuiteRun(context.Context, *connect.Request[v1.GetScanSuiteRunRequest]) (*connect.Response[v1.GetScanSuiteRunResponse], error)
 	ListScanSuiteRuns(context.Context, *connect.Request[v1.ListScanSuiteRunsRequest]) (*connect.Response[v1.ListScanSuiteRunsResponse], error)
+	// === PR-S24 目标展开预览 ===
+	// PreviewExpandTargets 服务端解析 CIDR / IPv4 区间 / host，返回展开后列表。
+	// 客户端在 batch / RunSuite 提交前调用做预览。truncated=true 时 expanded 只含前 maxOut 个。
+	PreviewExpandTargets(context.Context, *connect.Request[v1.PreviewExpandTargetsRequest]) (*connect.Response[v1.PreviewExpandTargetsResponse], error)
 }
 
 // NewScanServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -482,6 +505,12 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(scanServiceMethods.ByName("ListScanSuiteRuns")),
 		connect.WithHandlerOptions(opts...),
 	)
+	scanServicePreviewExpandTargetsHandler := connect.NewUnaryHandler(
+		ScanServicePreviewExpandTargetsProcedure,
+		svc.PreviewExpandTargets,
+		connect.WithSchema(scanServiceMethods.ByName("PreviewExpandTargets")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.scan.v1.ScanService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ScanServiceCreateScanTaskProcedure:
@@ -518,6 +547,8 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 			scanServiceGetScanSuiteRunHandler.ServeHTTP(w, r)
 		case ScanServiceListScanSuiteRunsProcedure:
 			scanServiceListScanSuiteRunsHandler.ServeHTTP(w, r)
+		case ScanServicePreviewExpandTargetsProcedure:
+			scanServicePreviewExpandTargetsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -593,4 +624,8 @@ func (UnimplementedScanServiceHandler) GetScanSuiteRun(context.Context, *connect
 
 func (UnimplementedScanServiceHandler) ListScanSuiteRuns(context.Context, *connect.Request[v1.ListScanSuiteRunsRequest]) (*connect.Response[v1.ListScanSuiteRunsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.ListScanSuiteRuns is not implemented"))
+}
+
+func (UnimplementedScanServiceHandler) PreviewExpandTargets(context.Context, *connect.Request[v1.PreviewExpandTargetsRequest]) (*connect.Response[v1.PreviewExpandTargetsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.scan.v1.ScanService.PreviewExpandTargets is not implemented"))
 }

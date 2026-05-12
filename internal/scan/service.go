@@ -371,7 +371,16 @@ func (s *service) CreateTask(ctx context.Context, req CreateTaskRequest) (*domai
 	// PR-S22：规范化 Target / Targets 关系。
 	//   - Targets 非空：去重后写 task.Targets；Target 取 Targets[0]（兼容老 column）
 	//   - Targets 空：保持老路径，dispatch 走 [Target] 单值
-	targets := dedupTargets(req.Targets)
+	// PR-S24：Targets 非空时先经 CIDR/范围展开（4096 上限）。
+	rawTargets := req.Targets
+	if len(rawTargets) > 0 {
+		expanded, err := domain.ExpandTargets(rawTargets, domain.DefaultMaxExpansion)
+		if err != nil {
+			return nil, err
+		}
+		rawTargets = expanded
+	}
+	targets := dedupTargets(rawTargets)
 	target := strings.TrimSpace(req.Target)
 	if len(targets) > 0 {
 		target = targets[0]

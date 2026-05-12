@@ -45,6 +45,11 @@ service ScanService {
   rpc RunScanSuite(RunScanSuiteRequest) returns (RunScanSuiteResponse);
   rpc GetScanSuiteRun(GetScanSuiteRunRequest) returns (GetScanSuiteRunResponse);
   rpc ListScanSuiteRuns(ListScanSuiteRunsRequest) returns (ListScanSuiteRunsResponse);
+
+  // === PR-S24 目标展开预览 ===
+  // PreviewExpandTargets 服务端解析 CIDR / IPv4 区间 / host，返回展开后列表。
+  // 客户端在 batch / RunSuite 提交前调用做预览。truncated=true 时 expanded 只含前 maxOut 个。
+  rpc PreviewExpandTargets(PreviewExpandTargetsRequest) returns (PreviewExpandTargetsResponse);
 }
 
 // ScanTask 任务实体（与 schema 一一对应）。
@@ -325,4 +330,23 @@ message ListScanSuiteRunsResponse {
   int32 total = 2;
   int32 page = 3;
   int32 page_size = 4;
+}
+
+// === PR-S24 目标展开预览 ===
+
+message PreviewExpandTargetsRequest {
+  // raw 用户输入，每行一个 target；混合 CIDR / IPv4 区间 / host / URL。
+  repeated string targets = 1;
+  // 可选：自定义上限；0 走 server 默认（4096）。
+  int32 max_expansion = 2;
+}
+message PreviewExpandTargetsResponse {
+  // 展开后的具体 target 列表，长度 ≤ max_expansion。
+  repeated string expanded = 1;
+  // 完整展开后的总数（即使被截断也是真实值）。
+  int32 total = 2;
+  // total > max_expansion ⇒ true；UI 提示用户缩小输入或分批。
+  bool truncated = 3;
+  // 实际生效的 max_expansion（回显 server 默认值给前端）。
+  int32 max_expansion = 4;
 }

@@ -2217,3 +2217,113 @@ export class ListScanSuiteRunsResponse extends Message<ListScanSuiteRunsResponse
   }
 }
 
+/**
+ * @generated from message redmatrix.scan.v1.PreviewExpandTargetsRequest
+ */
+export class PreviewExpandTargetsRequest extends Message<PreviewExpandTargetsRequest> {
+  /**
+   * raw 用户输入，每行一个 target；混合 CIDR / IPv4 区间 / host / URL。
+   *
+   * @generated from field: repeated string targets = 1;
+   */
+  targets: string[] = [];
+
+  /**
+   * 可选：自定义上限；0 走 server 默认（4096）。
+   *
+   * @generated from field: int32 max_expansion = 2;
+   */
+  maxExpansion = 0;
+
+  constructor(data?: PartialMessage<PreviewExpandTargetsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.PreviewExpandTargetsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 2, name: "max_expansion", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PreviewExpandTargetsRequest {
+    return new PreviewExpandTargetsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PreviewExpandTargetsRequest {
+    return new PreviewExpandTargetsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PreviewExpandTargetsRequest {
+    return new PreviewExpandTargetsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PreviewExpandTargetsRequest | PlainMessage<PreviewExpandTargetsRequest> | undefined, b: PreviewExpandTargetsRequest | PlainMessage<PreviewExpandTargetsRequest> | undefined): boolean {
+    return proto3.util.equals(PreviewExpandTargetsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.scan.v1.PreviewExpandTargetsResponse
+ */
+export class PreviewExpandTargetsResponse extends Message<PreviewExpandTargetsResponse> {
+  /**
+   * 展开后的具体 target 列表，长度 ≤ max_expansion。
+   *
+   * @generated from field: repeated string expanded = 1;
+   */
+  expanded: string[] = [];
+
+  /**
+   * 完整展开后的总数（即使被截断也是真实值）。
+   *
+   * @generated from field: int32 total = 2;
+   */
+  total = 0;
+
+  /**
+   * total > max_expansion ⇒ true；UI 提示用户缩小输入或分批。
+   *
+   * @generated from field: bool truncated = 3;
+   */
+  truncated = false;
+
+  /**
+   * 实际生效的 max_expansion（回显 server 默认值给前端）。
+   *
+   * @generated from field: int32 max_expansion = 4;
+   */
+  maxExpansion = 0;
+
+  constructor(data?: PartialMessage<PreviewExpandTargetsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.scan.v1.PreviewExpandTargetsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "expanded", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 2, name: "total", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "truncated", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "max_expansion", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PreviewExpandTargetsResponse {
+    return new PreviewExpandTargetsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PreviewExpandTargetsResponse {
+    return new PreviewExpandTargetsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PreviewExpandTargetsResponse {
+    return new PreviewExpandTargetsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PreviewExpandTargetsResponse | PlainMessage<PreviewExpandTargetsResponse> | undefined, b: PreviewExpandTargetsResponse | PlainMessage<PreviewExpandTargetsResponse> | undefined): boolean {
+    return proto3.util.equals(PreviewExpandTargetsResponse, a, b);
+  }
+}
+

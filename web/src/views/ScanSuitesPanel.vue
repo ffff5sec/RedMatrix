@@ -2,7 +2,7 @@
 // ScanSuitesPanel —— 扫描套件管理（PR-S23）。
 //
 // 范围：列 / 创建 / 删除套件 + 在套件上"一键运行"触发 RunSuite。
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 
 import { scanClient, tenancyClient } from '@/api/transport';
 import { useToast } from '@/composables/useToast';
@@ -141,7 +141,53 @@ function parseTargets(raw: string): string[] {
 }
 
 const runTargetsParsed = computed(() => parseTargets(runForm.value.targetsRaw));
-const canRun = computed(() => !!runForm.value.projectId && runTargetsParsed.value.length > 0);
+
+// === PR-S24 展开预览 ===
+const expandPreview = ref<{
+  total: number;
+  truncated: boolean;
+  maxExpansion: number;
+  loading: boolean;
+  error: string;
+} | null>(null);
+let expandPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(runTargetsParsed, (parsed) => {
+  if (expandPreviewTimer) clearTimeout(expandPreviewTimer);
+  if (parsed.length === 0) {
+    expandPreview.value = null;
+    return;
+  }
+  expandPreviewTimer = setTimeout(async () => {
+    expandPreview.value = { total: 0, truncated: false, maxExpansion: 0, loading: true, error: '' };
+    try {
+      const r = await scanClient.previewExpandTargets({ targets: parsed });
+      expandPreview.value = {
+        total: r.total,
+        truncated: r.truncated,
+        maxExpansion: r.maxExpansion,
+        loading: false,
+        error: '',
+      };
+    } catch (e) {
+      expandPreview.value = {
+        total: 0,
+        truncated: false,
+        maxExpansion: 0,
+        loading: false,
+        error: errorMessage(e),
+      };
+    }
+  }, 300);
+}, { deep: false });
+
+const canRun = computed(
+  () =>
+    !!runForm.value.projectId &&
+    runTargetsParsed.value.length > 0 &&
+    !(expandPreview.value?.truncated) &&
+    !(expandPreview.value?.error),
+);
 
 async function runSuite() {
   if (submitting.value || !canRun.value) return;
@@ -287,7 +333,21 @@ function kindLabel(k: string) {
                 style="width: 100%; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px"
               />
               <div class="muted" style="font-size: 12px; margin-top: 4px">
-                {{ runTargetsParsed.length }} 个目标 → 每 kind 一个 task，共 {{ runTargetsParsed.length > 0 ? '若干' : 0 }} 个 task
+                <span>{{ runTargetsParsed.length }} 项输入</span>
+                <template v-if="expandPreview">
+                  <span v-if="expandPreview.loading"> · 解析中…</span>
+                  <template v-else-if="expandPreview.error">
+                    <span class="expand-err"> · 解析失败：{{ expandPreview.error }}</span>
+                  </template>
+                  <template v-else>
+                    <span v-if="expandPreview.total !== runTargetsParsed.length">
+                      → <strong>{{ expandPreview.total }}</strong> 个目标（含 CIDR/范围展开）
+                    </span>
+                    <span v-if="expandPreview.truncated" class="expand-warn">
+                      · 超出上限 {{ expandPreview.maxExpansion }}，请缩小输入
+                    </span>
+                  </template>
+                </template>
               </div>
             </div>
           </div>
@@ -350,4 +410,6 @@ function kindLabel(k: string) {
 .label { width: 100px; color: var(--muted, #6b7280); font-size: 13px; }
 .kind-check { display: block; margin-bottom: 4px; font-size: 13px; }
 .kind-check input { margin-right: 6px; }
+.expand-err { color: #b91c1c; }
+.expand-warn { color: #b45309; }
 </style>

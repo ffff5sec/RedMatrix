@@ -8,7 +8,7 @@
 // MVP 范围：仅任务管理；不含 dispatch / Agent 拉任务 / 结果上报。
 // 路径：/redmatrix.scan.v1.ScanService
 
-import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanSuiteRequest, CreateScanSuiteResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanSuiteRequest, DeleteScanSuiteResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetArtifactDownloadURLRequest, GetArtifactDownloadURLResponse, GetScanSuiteRequest, GetScanSuiteResponse, GetScanSuiteRunRequest, GetScanSuiteRunResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanSuiteRunsRequest, ListScanSuiteRunsResponse, ListScanSuitesRequest, ListScanSuitesResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse, RetryScanTaskRequest, RetryScanTaskResponse, RunScanSuiteRequest, RunScanSuiteResponse, SearchResultsRequest, SearchResultsResponse } from "./scan_pb.js";
+import { CancelScanTaskRequest, CancelScanTaskResponse, CreateScanSuiteRequest, CreateScanSuiteResponse, CreateScanTaskRequest, CreateScanTaskResponse, DeleteScanSuiteRequest, DeleteScanSuiteResponse, DeleteScanTaskRequest, DeleteScanTaskResponse, GetArtifactDownloadURLRequest, GetArtifactDownloadURLResponse, GetScanSuiteRequest, GetScanSuiteResponse, GetScanSuiteRunRequest, GetScanSuiteRunResponse, GetScanTaskRequest, GetScanTaskResponse, ListScanSuiteRunsRequest, ListScanSuiteRunsResponse, ListScanSuitesRequest, ListScanSuitesResponse, ListScanTasksRequest, ListScanTasksResponse, ListTaskAssignmentsRequest, ListTaskAssignmentsResponse, ListTaskResultsRequest, ListTaskResultsResponse, PreviewExpandTargetsRequest, PreviewExpandTargetsResponse, RetryScanTaskRequest, RetryScanTaskResponse, RunScanSuiteRequest, RunScanSuiteResponse, SearchResultsRequest, SearchResultsResponse } from "./scan_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -184,6 +184,19 @@ export const ScanService = {
       name: "ListScanSuiteRuns",
       I: ListScanSuiteRunsRequest,
       O: ListScanSuiteRunsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * === PR-S24 目标展开预览 ===
+     * PreviewExpandTargets 服务端解析 CIDR / IPv4 区间 / host，返回展开后列表。
+     * 客户端在 batch / RunSuite 提交前调用做预览。truncated=true 时 expanded 只含前 maxOut 个。
+     *
+     * @generated from rpc redmatrix.scan.v1.ScanService.PreviewExpandTargets
+     */
+    previewExpandTargets: {
+      name: "PreviewExpandTargets",
+      I: PreviewExpandTargetsRequest,
+      O: PreviewExpandTargetsResponse,
       kind: MethodKind.Unary,
     },
   }

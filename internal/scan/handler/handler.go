@@ -534,6 +534,44 @@ func resultToProto(r *scandomain.ScanResult) *scanv1.ScanResult {
 	return out
 }
 
+// PreviewExpandTargets（PR-S24）—— 服务端预演 CIDR/范围/host 展开，给前端实时预览。
+//
+// 任何已认证角色可调；输入是纯字符串、无 DB / 跨租户 / BOLA 风险。
+// 超过 max_expansion 时不报错，只返截断结果 + truncated=true（UI 提示）。
+func (h *Handler) PreviewExpandTargets(
+	ctx context.Context,
+	req *connect.Request[scanv1.PreviewExpandTargetsRequest],
+) (*connect.Response[scanv1.PreviewExpandTargetsResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	_ = ctx
+
+	maxOut := int(req.Msg.GetMaxExpansion())
+	if maxOut <= 0 {
+		maxOut = scandomain.DefaultMaxExpansion
+	}
+	// 客户端可以请求更小的 max，但不能请求超过 server 默认（防被滥用）
+	if maxOut > scandomain.DefaultMaxExpansion {
+		maxOut = scandomain.DefaultMaxExpansion
+	}
+	expanded, total, truncated, err := scandomain.PreviewExpandTargets(req.Msg.GetTargets(), maxOut)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	//nolint:gosec // total/maxOut ≤ DefaultMaxExpansion = 4096 经钳制；溢出 int32 不可能
+	return connect.NewResponse(&scanv1.PreviewExpandTargetsResponse{
+		Expanded:     expanded,
+		Total:        int32(total),
+		Truncated:    truncated,
+		MaxExpansion: int32(maxOut),
+	}), nil
+}
+
 // toConnectError —— 与其他 handler 一致：DomainError → connect.Code 映射。
 func toConnectError(err error) error {
 	if err == nil {

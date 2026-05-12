@@ -289,6 +289,10 @@ var codeToConnect = map[Code]connect.Code{
 	ErrReportExpired:          connect.CodeNotFound,
 	ErrReportTooLarge:         connect.CodeResourceExhausted,
 
+	// FINDING（PR-S26）
+	ErrFindingNotFound:          connect.CodeNotFound,
+	ErrFindingInvalidTransition: connect.CodeFailedPrecondition,
+
 	// EVENT
 	ErrEventNotFound: connect.CodeNotFound,
 

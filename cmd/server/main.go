@@ -392,8 +392,8 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		relay := eventbus.NewRelay(outbox, eventBus, eventRegistry, eventbus.RelayConfig{}, logger)
 
 		// === 8a₃-pre. NotifyService（PR-S25 通知）===
-		// 先于 scan 装：scan deps 注入 notify.ScanHook 让 task terminal /
-		// high-severity finding 触发通知投递。
+		// 先于 scan 装：scan deps 注入 composite hook 让 task terminal /
+		// high-severity finding 触发通知 + finding 工单。
 		notifyMount, notifySvc, notifyScanHook, err := buildNotifyMount(pool, authSvc, logger)
 		if err != nil {
 			logger.LogError(ctx, "notify stack init failed", err)
@@ -402,10 +402,26 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		mux.Handle(notifyMount.path, notifyMount.handler)
 
+		// === 8a₃-pre2. FindingService（PR-S26 漏洞工作流）===
+		findingMnt, findingSvc, err := buildFindingMount(pool, authSvc)
+		if err != nil {
+			logger.LogError(ctx, "finding stack init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(findingMnt.path, findingMnt.handler)
+
+		// 组装 composite hook：scan terminal → notify；high-severity result → notify + finding
+		scanHook := &scanCompositeNotifier{
+			notify:  notifyScanHook,
+			finding: findingSvc,
+			logger:  logger,
+		}
+
 		// === 8a₃. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。同时返回 scheduler 让 main 控生命周期（PR-S12）。
-		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, scanMetrics, eventBus, eventRegistry, logger, notifyScanHook)
+		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, scanMetrics, eventBus, eventRegistry, logger, scanHook)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+// FindingService（PR-S26 漏洞工作流）—— 漏洞工单状态机 + 评论 + 指派。
+//
+// 自动创建路径：scan ReportResults 识别高危 result（nuclei severity ∈ high/critical）→
+// notify ScanHook 内联调 finding.UpsertFromResult → dedup_key 去重，新建或累加 occurrence。
+//
+// 路径：/redmatrix.finding.v1.FindingService
+package redmatrix.finding.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service FindingService {
+  rpc ListFindings(ListFindingsRequest) returns (ListFindingsResponse);
+  rpc GetFinding(GetFindingRequest) returns (GetFindingResponse);
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+
+  // Transition 推进状态机；不合法转移返 FAILED_PRECONDITION。
+  rpc Transition(TransitionRequest) returns (TransitionResponse);
+  rpc Comment(CommentRequest) returns (CommentResponse);
+  rpc Assign(AssignRequest) returns (AssignResponse);
+}
+
+// === 类型 ===
+
+message Finding {
+  string id = 1;
+  string tenant_id = 2;
+  string project_id = 3;
+  string dedup_key = 4;
+  string template_id = 5;
+  string source_result_id = 6;
+  string asset_id = 7;
+
+  string severity = 8; // info / low / medium / high / critical
+  string title = 9;
+  string host = 10;
+  string description = 11;
+  string reference = 12;
+
+  string status = 13;     // open / triaged / confirmed / false_positive / fixed
+  string assignee_id = 14;
+
+  google.protobuf.Timestamp first_seen_at = 15;
+  google.protobuf.Timestamp last_seen_at = 16;
+  int32 occurrence_count = 17;
+
+  google.protobuf.Timestamp created_at = 18;
+  google.protobuf.Timestamp updated_at = 19;
+}
+
+message FindingEvent {
+  string id = 1;
+  string finding_id = 2;
+  string actor_id = 3; // 空 = system
+  string kind = 4;     // created / status_change / comment / assignee_change / occurrence
+
+  // 状态变更
+  string from_status = 5;
+  string to_status = 6;
+
+  // 指派变更
+  string from_assignee = 7;
+  string to_assignee = 8;
+
+  string body = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+// === 列 ===
+
+message ListFindingsRequest {
+  string project_id = 1;       // 空 = 不限项目（SA/TA 跨项目）
+  string status = 2;
+  string severity = 3;
+  string assignee_id = 4;
+  string keyword = 5;
+  string min_severity = 6;     // ≥ minSeverity（含本身）
+  int32 page = 7;
+  int32 page_size = 8;
+}
+message ListFindingsResponse {
+  repeated Finding findings = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetFindingRequest {
+  string id = 1;
+}
+message GetFindingResponse {
+  Finding finding = 1;
+}
+
+message ListEventsRequest {
+  string finding_id = 1;
+}
+message ListEventsResponse {
+  repeated FindingEvent events = 1;
+}
+
+// === 状态机 / 评论 / 指派 ===
+
+message TransitionRequest {
+  string id = 1;
+  string to_status = 2;
+  string comment = 3; // 可选 - 非空则同时落 comment 事件
+}
+message TransitionResponse {
+  Finding finding = 1;
+}
+
+message CommentRequest {
+  string finding_id = 1;
+  string body = 2;
+}
+message CommentResponse {
+  FindingEvent event = 1;
+}
+
+message AssignRequest {
+  string id = 1;
+  string assignee_id = 2; // 空 = 取消指派
+}
+message AssignResponse {
+  Finding finding = 1;
+}

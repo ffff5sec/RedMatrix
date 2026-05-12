@@ -177,6 +177,12 @@ const (
 	ErrReportTooLarge         Code = "REPORT_TOO_LARGE"
 )
 
+// === 3.13 漏洞工作流 FINDING（PR-S26）===
+const (
+	ErrFindingNotFound          Code = "FINDING_NOT_FOUND"
+	ErrFindingInvalidTransition Code = "FINDING_INVALID_TRANSITION"
+)
+
 // === 3.13 事件 EVENT ===
 const (
 	ErrEventNotFound Code = "EVENT_NOT_FOUND"
@@ -265,6 +271,8 @@ var AllCodes = []Code{
 	ErrAuditVerificationNotFound,
 	// REPORT
 	ErrReportNotFound, ErrReportGenerationFailed, ErrReportExpired, ErrReportTooLarge,
+	// FINDING（PR-S26）
+	ErrFindingNotFound, ErrFindingInvalidTransition,
 	// EVENT
 	ErrEventNotFound,
 	// CONFIG

@@ -36,6 +36,8 @@ import ScanResults from '@/views/ScanResults.vue';
 import ScanSuitesPanel from '@/views/ScanSuitesPanel.vue';
 import SuiteRunDetail from '@/views/SuiteRunDetail.vue';
 import NotificationsPanel from '@/views/NotificationsPanel.vue';
+import FindingsPanel from '@/views/FindingsPanel.vue';
+import FindingDetail from '@/views/FindingDetail.vue';
 import AssetsPanel from '@/views/AssetsPanel.vue';
 import AssetDetail from '@/views/AssetDetail.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
@@ -138,6 +140,18 @@ const routes: RouteRecordRaw[] = [
         name: 'notifications',
         component: NotificationsPanel,
         meta: { requiresAuth: true, title: '通知' },
+      },
+      {
+        path: 'findings',
+        name: 'findings',
+        component: FindingsPanel,
+        meta: { requiresAuth: true, title: '漏洞' },
+      },
+      {
+        path: 'findings/:id',
+        name: 'finding-detail',
+        component: FindingDetail,
+        meta: { requiresAuth: true, title: '漏洞详情' },
       },
       {
         path: 'assets/:id',

@@ -27,9 +27,9 @@ import (
 // NodeAgentHandler 实现 NodeAgentServiceHandler。
 type NodeAgentHandler struct {
 	svc       tenancy.Service
-	scanSvc   scan.Service       // 可空：scan 模块禁用时降级，PullTasks/ReportTaskProgress 返 NotImplemented
-	artifacts artifact.Store     // 可空：PR-S16 MinIO artifact；为 nil 时 CreateArtifactUploadURL 返 Unimplemented
-	pluginSvc pluginpkg.Service  // 可空：PR-S29 puller；为 nil 时 plugin RPC 返 Unimplemented
+	scanSvc   scan.Service      // 可空：scan 模块禁用时降级，PullTasks/ReportTaskProgress 返 NotImplemented
+	artifacts artifact.Store    // 可空：PR-S16 MinIO artifact；为 nil 时 CreateArtifactUploadURL 返 Unimplemented
+	pluginSvc pluginpkg.Service // 可空：PR-S29 puller；为 nil 时 plugin RPC 返 Unimplemented
 }
 
 var _ tenancyv1connect.NodeAgentServiceHandler = (*NodeAgentHandler)(nil)

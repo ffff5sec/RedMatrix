@@ -16,6 +16,8 @@ import (
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/platform/ctxmeta"
+	"github.com/ffff5sec/RedMatrix/internal/pluginpkg"
+	plugindomain "github.com/ffff5sec/RedMatrix/internal/pluginpkg/domain"
 	"github.com/ffff5sec/RedMatrix/internal/scan"
 	"github.com/ffff5sec/RedMatrix/internal/scan/artifact"
 	scandomain "github.com/ffff5sec/RedMatrix/internal/scan/domain"
@@ -25,18 +27,19 @@ import (
 // NodeAgentHandler 实现 NodeAgentServiceHandler。
 type NodeAgentHandler struct {
 	svc       tenancy.Service
-	scanSvc   scan.Service   // 可空：scan 模块禁用时降级，PullTasks/ReportTaskProgress 返 NotImplemented
-	artifacts artifact.Store // 可空：PR-S16 MinIO artifact；为 nil 时 CreateArtifactUploadURL 返 Unimplemented
+	scanSvc   scan.Service       // 可空：scan 模块禁用时降级，PullTasks/ReportTaskProgress 返 NotImplemented
+	artifacts artifact.Store     // 可空：PR-S16 MinIO artifact；为 nil 时 CreateArtifactUploadURL 返 Unimplemented
+	pluginSvc pluginpkg.Service  // 可空：PR-S29 puller；为 nil 时 plugin RPC 返 Unimplemented
 }
 
 var _ tenancyv1connect.NodeAgentServiceHandler = (*NodeAgentHandler)(nil)
 
-// NewNodeAgent 构造 NodeAgentService handler。scanSvc / artifacts 可空。
-func NewNodeAgent(svc tenancy.Service, scanSvc scan.Service, artifacts artifact.Store) (*NodeAgentHandler, error) {
+// NewNodeAgent 构造 NodeAgentService handler。scanSvc / artifacts / pluginSvc 可空。
+func NewNodeAgent(svc tenancy.Service, scanSvc scan.Service, artifacts artifact.Store, pluginSvc pluginpkg.Service) (*NodeAgentHandler, error) {
 	if svc == nil {
 		return nil, errx.New(errx.ErrInternal, "tenancy.handler.NewNodeAgent: svc 不能为 nil")
 	}
-	return &NodeAgentHandler{svc: svc, scanSvc: scanSvc, artifacts: artifacts}, nil
+	return &NodeAgentHandler{svc: svc, scanSvc: scanSvc, artifacts: artifacts, pluginSvc: pluginSvc}, nil
 }
 
 // Heartbeat 上报；node_id 从 ctx 取（mTLS middleware 已注入）。
@@ -203,4 +206,104 @@ func (h *NodeAgentHandler) CreateArtifactUploadURL(
 		Url:       url,
 		ExpiresAt: timestamppb.New(expires),
 	}), nil
+}
+
+// === PR-S29 插件包分发（agent puller 走 mTLS）===
+
+// ListPluginSigningKeys 返回所有未撤销公钥。
+func (h *NodeAgentHandler) ListPluginSigningKeys(
+	ctx context.Context,
+	_ *connect.Request[tenancyv1.ListPluginSigningKeysRequest],
+) (*connect.Response[tenancyv1.ListPluginSigningKeysResponse], error) {
+	if ctxmeta.NodeIDFromContext(ctx) == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errx.New(errx.ErrAuthFailed, "缺 node_id（mTLS 中间件未挂）"))
+	}
+	if h.pluginSvc == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errx.New(errx.ErrNotImplemented, "plugin puller 未启用"))
+	}
+	keys, err := h.pluginSvc.ListSigningKeys(ctx)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	pb := make([]*tenancyv1.PluginSigningKey, 0, len(keys))
+	for _, k := range keys {
+		pb = append(pb, pluginKeyToAgentProto(k))
+	}
+	return connect.NewResponse(&tenancyv1.ListPluginSigningKeysResponse{Keys: pb}), nil
+}
+
+// GetLatestPluginVersion 拉 (slug, platform) 最新可用包。
+func (h *NodeAgentHandler) GetLatestPluginVersion(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.GetLatestPluginVersionRequest],
+) (*connect.Response[tenancyv1.GetLatestPluginVersionResponse], error) {
+	if ctxmeta.NodeIDFromContext(ctx) == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errx.New(errx.ErrAuthFailed, "缺 node_id"))
+	}
+	if h.pluginSvc == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errx.New(errx.ErrNotImplemented, "plugin puller 未启用"))
+	}
+	pkg, err := h.pluginSvc.GetLatestVersion(ctx, req.Msg.GetSlug(), req.Msg.GetPlatform())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.GetLatestPluginVersionResponse{Package: pluginPkgToAgentProto(pkg)}), nil
+}
+
+// GetPluginDownloadURL 生成 presigned GET URL。
+func (h *NodeAgentHandler) GetPluginDownloadURL(
+	ctx context.Context,
+	req *connect.Request[tenancyv1.GetPluginDownloadURLRequest],
+) (*connect.Response[tenancyv1.GetPluginDownloadURLResponse], error) {
+	if ctxmeta.NodeIDFromContext(ctx) == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errx.New(errx.ErrAuthFailed, "缺 node_id"))
+	}
+	if h.pluginSvc == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errx.New(errx.ErrNotImplemented, "plugin puller 未启用"))
+	}
+	url, expires, err := h.pluginSvc.GetDownloadURL(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	return connect.NewResponse(&tenancyv1.GetPluginDownloadURLResponse{
+		Url:       url,
+		ExpiresAt: timestamppb.New(expires),
+	}), nil
+}
+
+func pluginKeyToAgentProto(k *plugindomain.SigningKey) *tenancyv1.PluginSigningKey {
+	if k == nil {
+		return nil
+	}
+	out := &tenancyv1.PluginSigningKey{
+		Id:          k.ID,
+		KeyId:       k.KeyID,
+		PublicKey:   k.PublicKey,
+		Description: k.Description,
+		CreatedAt:   timestamppb.New(k.CreatedAt),
+	}
+	if k.RevokedAt != nil {
+		out.RevokedAt = timestamppb.New(*k.RevokedAt)
+	}
+	return out
+}
+
+func pluginPkgToAgentProto(p *plugindomain.PluginPackage) *tenancyv1.PluginPackageRef {
+	if p == nil {
+		return nil
+	}
+	return &tenancyv1.PluginPackageRef{
+		Id:           p.ID,
+		Slug:         p.Slug,
+		Version:      p.Version,
+		Platform:     string(p.Platform),
+		ArtifactKey:  p.ArtifactKey,
+		Sha256:       p.SHA256,
+		Signature:    p.Signature,
+		SigningKeyId: p.SigningKeyID,
+		SizeBytes:    p.SizeBytes,
+		Description:  p.Description,
+		IsActive:     p.IsActive,
+		UploadedAt:   timestamppb.New(p.UploadedAt),
+	}
 }

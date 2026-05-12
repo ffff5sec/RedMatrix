@@ -78,6 +78,17 @@ func (s *stubClient) CreateArtifactUploadURL(_ context.Context, _ *connect.Reque
 	return connect.NewResponse(&tenancyv1.CreateArtifactUploadURLResponse{}), nil
 }
 
+// PR-S29 插件 puller RPC（heartbeat 测试不关心；空实现）。
+func (s *stubClient) ListPluginSigningKeys(_ context.Context, _ *connect.Request[tenancyv1.ListPluginSigningKeysRequest]) (*connect.Response[tenancyv1.ListPluginSigningKeysResponse], error) {
+	return connect.NewResponse(&tenancyv1.ListPluginSigningKeysResponse{}), nil
+}
+func (s *stubClient) GetLatestPluginVersion(_ context.Context, _ *connect.Request[tenancyv1.GetLatestPluginVersionRequest]) (*connect.Response[tenancyv1.GetLatestPluginVersionResponse], error) {
+	return connect.NewResponse(&tenancyv1.GetLatestPluginVersionResponse{}), nil
+}
+func (s *stubClient) GetPluginDownloadURL(_ context.Context, _ *connect.Request[tenancyv1.GetPluginDownloadURLRequest]) (*connect.Response[tenancyv1.GetPluginDownloadURLResponse], error) {
+	return connect.NewResponse(&tenancyv1.GetPluginDownloadURLResponse{}), nil
+}
+
 func (s *stubClient) ReissueCert(_ context.Context, _ *connect.Request[tenancyv1.ReissueCertRequest]) (*connect.Response[tenancyv1.ReissueCertResponse], error) {
 	s.reissueCalls.Add(1)
 	if s.reissueErr != nil {

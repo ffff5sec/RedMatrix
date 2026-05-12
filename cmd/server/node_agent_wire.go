@@ -20,6 +20,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
+	"github.com/ffff5sec/RedMatrix/internal/pluginpkg"
 	"github.com/ffff5sec/RedMatrix/internal/scan"
 	"github.com/ffff5sec/RedMatrix/internal/scan/artifact"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
@@ -50,6 +51,7 @@ func startNodeAgentServer(
 	svc tenancy.Service,
 	scanSvc scan.Service,
 	artifacts artifact.Store,
+	pluginSvc pluginpkg.Service,
 	ca *pki.CA,
 	addr string,
 ) (*nodeAgentServer, error) {
@@ -74,7 +76,7 @@ func startNodeAgentServer(
 	if err != nil {
 		return nil, err
 	}
-	h, err := tenancyhandler.NewNodeAgent(svc, scanSvc, artifacts)
+	h, err := tenancyhandler.NewNodeAgent(svc, scanSvc, artifacts, pluginSvc)
 	if err != nil {
 		return nil, err
 	}

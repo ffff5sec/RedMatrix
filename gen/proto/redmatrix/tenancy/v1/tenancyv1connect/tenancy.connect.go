@@ -125,6 +125,15 @@ const (
 	// NodeAgentServiceCreateArtifactUploadURLProcedure is the fully-qualified name of the
 	// NodeAgentService's CreateArtifactUploadURL RPC.
 	NodeAgentServiceCreateArtifactUploadURLProcedure = "/redmatrix.tenancy.v1.NodeAgentService/CreateArtifactUploadURL"
+	// NodeAgentServiceListPluginSigningKeysProcedure is the fully-qualified name of the
+	// NodeAgentService's ListPluginSigningKeys RPC.
+	NodeAgentServiceListPluginSigningKeysProcedure = "/redmatrix.tenancy.v1.NodeAgentService/ListPluginSigningKeys"
+	// NodeAgentServiceGetLatestPluginVersionProcedure is the fully-qualified name of the
+	// NodeAgentService's GetLatestPluginVersion RPC.
+	NodeAgentServiceGetLatestPluginVersionProcedure = "/redmatrix.tenancy.v1.NodeAgentService/GetLatestPluginVersion"
+	// NodeAgentServiceGetPluginDownloadURLProcedure is the fully-qualified name of the
+	// NodeAgentService's GetPluginDownloadURL RPC.
+	NodeAgentServiceGetPluginDownloadURLProcedure = "/redmatrix.tenancy.v1.NodeAgentService/GetPluginDownloadURL"
 )
 
 // TenancyServiceClient is a client for the redmatrix.tenancy.v1.TenancyService service.
@@ -883,6 +892,13 @@ type NodeAgentServiceClient interface {
 	// (key, url, expires_at)。tenant_id 由 server 从 mTLS ctx 推导。
 	// 之后 agent 在 ReportTaskResults 的 data.artifact_key 字段中带 key。
 	CreateArtifactUploadURL(context.Context, *connect.Request[v1.CreateArtifactUploadURLRequest]) (*connect.Response[v1.CreateArtifactUploadURLResponse], error)
+	// === 插件包分发（PR-S29 配 PR-S28 puller）===
+	// ListPluginSigningKeys agent 启动期一次性拉缓存；ed25519 验证插件签名。
+	ListPluginSigningKeys(context.Context, *connect.Request[v1.ListPluginSigningKeysRequest]) (*connect.Response[v1.ListPluginSigningKeysResponse], error)
+	// GetLatestPluginVersion(slug, platform) → 最新可用包元数据；本地 manifest 比对判是否更新。
+	GetLatestPluginVersion(context.Context, *connect.Request[v1.GetLatestPluginVersionRequest]) (*connect.Response[v1.GetLatestPluginVersionResponse], error)
+	// GetPluginDownloadURL(id) → presigned GET URL（TTL 15min）；HTTP GET 下载二进制。
+	GetPluginDownloadURL(context.Context, *connect.Request[v1.GetPluginDownloadURLRequest]) (*connect.Response[v1.GetPluginDownloadURLResponse], error)
 }
 
 // NewNodeAgentServiceClient constructs a client for the redmatrix.tenancy.v1.NodeAgentService
@@ -932,6 +948,24 @@ func NewNodeAgentServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(nodeAgentServiceMethods.ByName("CreateArtifactUploadURL")),
 			connect.WithClientOptions(opts...),
 		),
+		listPluginSigningKeys: connect.NewClient[v1.ListPluginSigningKeysRequest, v1.ListPluginSigningKeysResponse](
+			httpClient,
+			baseURL+NodeAgentServiceListPluginSigningKeysProcedure,
+			connect.WithSchema(nodeAgentServiceMethods.ByName("ListPluginSigningKeys")),
+			connect.WithClientOptions(opts...),
+		),
+		getLatestPluginVersion: connect.NewClient[v1.GetLatestPluginVersionRequest, v1.GetLatestPluginVersionResponse](
+			httpClient,
+			baseURL+NodeAgentServiceGetLatestPluginVersionProcedure,
+			connect.WithSchema(nodeAgentServiceMethods.ByName("GetLatestPluginVersion")),
+			connect.WithClientOptions(opts...),
+		),
+		getPluginDownloadURL: connect.NewClient[v1.GetPluginDownloadURLRequest, v1.GetPluginDownloadURLResponse](
+			httpClient,
+			baseURL+NodeAgentServiceGetPluginDownloadURLProcedure,
+			connect.WithSchema(nodeAgentServiceMethods.ByName("GetPluginDownloadURL")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -943,6 +977,9 @@ type nodeAgentServiceClient struct {
 	reportTaskProgress      *connect.Client[v1.ReportTaskProgressRequest, v1.ReportTaskProgressResponse]
 	reportTaskResults       *connect.Client[v1.ReportTaskResultsRequest, v1.ReportTaskResultsResponse]
 	createArtifactUploadURL *connect.Client[v1.CreateArtifactUploadURLRequest, v1.CreateArtifactUploadURLResponse]
+	listPluginSigningKeys   *connect.Client[v1.ListPluginSigningKeysRequest, v1.ListPluginSigningKeysResponse]
+	getLatestPluginVersion  *connect.Client[v1.GetLatestPluginVersionRequest, v1.GetLatestPluginVersionResponse]
+	getPluginDownloadURL    *connect.Client[v1.GetPluginDownloadURLRequest, v1.GetPluginDownloadURLResponse]
 }
 
 // Heartbeat calls redmatrix.tenancy.v1.NodeAgentService.Heartbeat.
@@ -975,6 +1012,21 @@ func (c *nodeAgentServiceClient) CreateArtifactUploadURL(ctx context.Context, re
 	return c.createArtifactUploadURL.CallUnary(ctx, req)
 }
 
+// ListPluginSigningKeys calls redmatrix.tenancy.v1.NodeAgentService.ListPluginSigningKeys.
+func (c *nodeAgentServiceClient) ListPluginSigningKeys(ctx context.Context, req *connect.Request[v1.ListPluginSigningKeysRequest]) (*connect.Response[v1.ListPluginSigningKeysResponse], error) {
+	return c.listPluginSigningKeys.CallUnary(ctx, req)
+}
+
+// GetLatestPluginVersion calls redmatrix.tenancy.v1.NodeAgentService.GetLatestPluginVersion.
+func (c *nodeAgentServiceClient) GetLatestPluginVersion(ctx context.Context, req *connect.Request[v1.GetLatestPluginVersionRequest]) (*connect.Response[v1.GetLatestPluginVersionResponse], error) {
+	return c.getLatestPluginVersion.CallUnary(ctx, req)
+}
+
+// GetPluginDownloadURL calls redmatrix.tenancy.v1.NodeAgentService.GetPluginDownloadURL.
+func (c *nodeAgentServiceClient) GetPluginDownloadURL(ctx context.Context, req *connect.Request[v1.GetPluginDownloadURLRequest]) (*connect.Response[v1.GetPluginDownloadURLResponse], error) {
+	return c.getPluginDownloadURL.CallUnary(ctx, req)
+}
+
 // NodeAgentServiceHandler is an implementation of the redmatrix.tenancy.v1.NodeAgentService
 // service.
 type NodeAgentServiceHandler interface {
@@ -1000,6 +1052,13 @@ type NodeAgentServiceHandler interface {
 	// (key, url, expires_at)。tenant_id 由 server 从 mTLS ctx 推导。
 	// 之后 agent 在 ReportTaskResults 的 data.artifact_key 字段中带 key。
 	CreateArtifactUploadURL(context.Context, *connect.Request[v1.CreateArtifactUploadURLRequest]) (*connect.Response[v1.CreateArtifactUploadURLResponse], error)
+	// === 插件包分发（PR-S29 配 PR-S28 puller）===
+	// ListPluginSigningKeys agent 启动期一次性拉缓存；ed25519 验证插件签名。
+	ListPluginSigningKeys(context.Context, *connect.Request[v1.ListPluginSigningKeysRequest]) (*connect.Response[v1.ListPluginSigningKeysResponse], error)
+	// GetLatestPluginVersion(slug, platform) → 最新可用包元数据；本地 manifest 比对判是否更新。
+	GetLatestPluginVersion(context.Context, *connect.Request[v1.GetLatestPluginVersionRequest]) (*connect.Response[v1.GetLatestPluginVersionResponse], error)
+	// GetPluginDownloadURL(id) → presigned GET URL（TTL 15min）；HTTP GET 下载二进制。
+	GetPluginDownloadURL(context.Context, *connect.Request[v1.GetPluginDownloadURLRequest]) (*connect.Response[v1.GetPluginDownloadURLResponse], error)
 }
 
 // NewNodeAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1045,6 +1104,24 @@ func NewNodeAgentServiceHandler(svc NodeAgentServiceHandler, opts ...connect.Han
 		connect.WithSchema(nodeAgentServiceMethods.ByName("CreateArtifactUploadURL")),
 		connect.WithHandlerOptions(opts...),
 	)
+	nodeAgentServiceListPluginSigningKeysHandler := connect.NewUnaryHandler(
+		NodeAgentServiceListPluginSigningKeysProcedure,
+		svc.ListPluginSigningKeys,
+		connect.WithSchema(nodeAgentServiceMethods.ByName("ListPluginSigningKeys")),
+		connect.WithHandlerOptions(opts...),
+	)
+	nodeAgentServiceGetLatestPluginVersionHandler := connect.NewUnaryHandler(
+		NodeAgentServiceGetLatestPluginVersionProcedure,
+		svc.GetLatestPluginVersion,
+		connect.WithSchema(nodeAgentServiceMethods.ByName("GetLatestPluginVersion")),
+		connect.WithHandlerOptions(opts...),
+	)
+	nodeAgentServiceGetPluginDownloadURLHandler := connect.NewUnaryHandler(
+		NodeAgentServiceGetPluginDownloadURLProcedure,
+		svc.GetPluginDownloadURL,
+		connect.WithSchema(nodeAgentServiceMethods.ByName("GetPluginDownloadURL")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.tenancy.v1.NodeAgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case NodeAgentServiceHeartbeatProcedure:
@@ -1059,6 +1136,12 @@ func NewNodeAgentServiceHandler(svc NodeAgentServiceHandler, opts ...connect.Han
 			nodeAgentServiceReportTaskResultsHandler.ServeHTTP(w, r)
 		case NodeAgentServiceCreateArtifactUploadURLProcedure:
 			nodeAgentServiceCreateArtifactUploadURLHandler.ServeHTTP(w, r)
+		case NodeAgentServiceListPluginSigningKeysProcedure:
+			nodeAgentServiceListPluginSigningKeysHandler.ServeHTTP(w, r)
+		case NodeAgentServiceGetLatestPluginVersionProcedure:
+			nodeAgentServiceGetLatestPluginVersionHandler.ServeHTTP(w, r)
+		case NodeAgentServiceGetPluginDownloadURLProcedure:
+			nodeAgentServiceGetPluginDownloadURLHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1090,4 +1173,16 @@ func (UnimplementedNodeAgentServiceHandler) ReportTaskResults(context.Context, *
 
 func (UnimplementedNodeAgentServiceHandler) CreateArtifactUploadURL(context.Context, *connect.Request[v1.CreateArtifactUploadURLRequest]) (*connect.Response[v1.CreateArtifactUploadURLResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.CreateArtifactUploadURL is not implemented"))
+}
+
+func (UnimplementedNodeAgentServiceHandler) ListPluginSigningKeys(context.Context, *connect.Request[v1.ListPluginSigningKeysRequest]) (*connect.Response[v1.ListPluginSigningKeysResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.ListPluginSigningKeys is not implemented"))
+}
+
+func (UnimplementedNodeAgentServiceHandler) GetLatestPluginVersion(context.Context, *connect.Request[v1.GetLatestPluginVersionRequest]) (*connect.Response[v1.GetLatestPluginVersionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.GetLatestPluginVersion is not implemented"))
+}
+
+func (UnimplementedNodeAgentServiceHandler) GetPluginDownloadURL(context.Context, *connect.Request[v1.GetPluginDownloadURLRequest]) (*connect.Response[v1.GetPluginDownloadURLResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.tenancy.v1.NodeAgentService.GetPluginDownloadURL is not implemented"))
 }

@@ -363,6 +363,14 @@ service NodeAgentService {
   // (key, url, expires_at)。tenant_id 由 server 从 mTLS ctx 推导。
   // 之后 agent 在 ReportTaskResults 的 data.artifact_key 字段中带 key。
   rpc CreateArtifactUploadURL(CreateArtifactUploadURLRequest) returns (CreateArtifactUploadURLResponse);
+
+  // === 插件包分发（PR-S29 配 PR-S28 puller）===
+  // ListPluginSigningKeys agent 启动期一次性拉缓存；ed25519 验证插件签名。
+  rpc ListPluginSigningKeys(ListPluginSigningKeysRequest) returns (ListPluginSigningKeysResponse);
+  // GetLatestPluginVersion(slug, platform) → 最新可用包元数据；本地 manifest 比对判是否更新。
+  rpc GetLatestPluginVersion(GetLatestPluginVersionRequest) returns (GetLatestPluginVersionResponse);
+  // GetPluginDownloadURL(id) → presigned GET URL（TTL 15min）；HTTP GET 下载二进制。
+  rpc GetPluginDownloadURL(GetPluginDownloadURLRequest) returns (GetPluginDownloadURLResponse);
 }
 
 message HeartbeatRequest {
@@ -490,4 +498,53 @@ message GetStatsResponse {
   int32 nodes_disabled = 7;
   // 未撤、未用、未过期。
   int32 registration_tokens_active = 8;
+}
+
+// ===== Plugin Puller（PR-S29）=====
+//
+// 与 redmatrix.pluginpkg.v1.PluginPackage / SigningKey 形态一致（独立复制避跨包 import）。
+
+message PluginSigningKey {
+  string id = 1;
+  string key_id = 2;
+  string public_key = 3; // base64 ed25519
+  string description = 4;
+  google.protobuf.Timestamp created_at = 5;
+  optional google.protobuf.Timestamp revoked_at = 6;
+}
+
+message PluginPackageRef {
+  string id = 1;
+  string slug = 2;
+  string version = 3;
+  string platform = 4;
+  string artifact_key = 5;
+  string sha256 = 6;
+  string signature = 7;
+  string signing_key_id = 8;
+  int64 size_bytes = 9;
+  string description = 10;
+  bool is_active = 11;
+  google.protobuf.Timestamp uploaded_at = 12;
+}
+
+message ListPluginSigningKeysRequest {}
+message ListPluginSigningKeysResponse {
+  repeated PluginSigningKey keys = 1;
+}
+
+message GetLatestPluginVersionRequest {
+  string slug = 1;
+  string platform = 2;
+}
+message GetLatestPluginVersionResponse {
+  PluginPackageRef package = 1;
+}
+
+message GetPluginDownloadURLRequest {
+  string id = 1;
+}
+message GetPluginDownloadURLResponse {
+  string url = 1;
+  google.protobuf.Timestamp expires_at = 2;
 }

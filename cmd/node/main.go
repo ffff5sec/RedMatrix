@@ -32,6 +32,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nuclei"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
+	"github.com/ffff5sec/RedMatrix/internal/agent/pluginpuller"
 	"github.com/ffff5sec/RedMatrix/internal/agent/store"
 	"github.com/ffff5sec/RedMatrix/internal/agent/tasks"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
@@ -215,12 +216,51 @@ func run(args []string, stdout, stderr io.Writer) error {
 		taskDone <- err
 	}()
 
+	// === 4. PR-S29 插件包 puller ===
+	// 周期拉服务器最新版本 → ed25519 验签 → 原子 mv 到 plugin_dir。
+	// plugin_dir 走 env REDMATRIX_PLUGIN_DIR；空 → $HOME/.redmatrix/plugins。
+	// 启动期把 plugin_dir prepend 到 PATH，让现有 exec.LookPath 在该目录找新二进制。
+	pluginDir := os.Getenv("REDMATRIX_PLUGIN_DIR")
+	if pluginDir == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			pluginDir = home + "/.redmatrix/plugins"
+		}
+	}
+	pullerDone := make(chan error, 1)
+	if pluginDir != "" {
+		if err := os.Setenv("PATH", pluginDir+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
+			logger.LogError(ctx, "node: PATH prepend failed (puller 仍尝试启动)", err)
+		}
+		manifest, err := pluginpuller.LoadManifest(pluginDir)
+		if err != nil {
+			logger.LogError(ctx, "node: 加载 manifest 失败，跳过 puller", err)
+			close(pullerDone)
+		} else {
+			puller, perr := pluginpuller.New(manifest, naClient, pluginpuller.Config{}, logger)
+			if perr != nil {
+				logger.LogError(ctx, "node: 构造 puller 失败", perr)
+				close(pullerDone)
+			} else {
+				go func() {
+					defer close(pullerDone)
+					if err := puller.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+						logger.LogError(ctx, "puller exited with error", err)
+					}
+				}()
+				logger.Info("plugin puller started", "plugin_dir", pluginDir)
+			}
+		}
+	} else {
+		close(pullerDone)
+	}
+
 	if err := hl.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		fmt.Fprintf(stderr, "redmatrix-node: heartbeat exited: %v\n", err)
 		return err
 	}
-	// 等任务循环退出（heartbeat 退出说明 ctx 已取消，任务循环也应很快收口）
+	// 等任务循环 + puller 退出（heartbeat 退出说明 ctx 已取消，子 goroutine 也应很快收口）
 	<-taskDone
+	<-pullerDone
 	logger.Info("redmatrix-node shutting down")
 	return nil
 }

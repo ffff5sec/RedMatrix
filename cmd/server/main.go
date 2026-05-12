@@ -412,7 +412,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle(findingMnt.path, findingMnt.handler)
 
 		// === 8a₃-pre3. PluginPackageService（PR-S28 插件包分发）===
-		pluginMnt, _, err := buildPluginPkgMount(ctx, pool, mio, authSvc, logger)
+		pluginMnt, pluginPkgSvc, err := buildPluginPkgMount(ctx, pool, mio, authSvc, logger)
 		if err != nil {
 			logger.LogError(ctx, "pluginpkg stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -469,7 +469,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			"timeout", sweeper.DefaultTimeout.String())
 
 		// === 8a₁'. NodeAgentService（mTLS-only；Agent 心跳 + 拉任务）===
-		nodeAgentSrv, err := startNodeAgentServer(ctx, logger, pool, tenancySvc, scanSvc, artifactStore, ca, cfg.Public.GRPCAddr)
+		nodeAgentSrv, err := startNodeAgentServer(ctx, logger, pool, tenancySvc, scanSvc, artifactStore, pluginPkgSvc, ca, cfg.Public.GRPCAddr)
 		if err != nil {
 			logger.LogError(ctx, "node_agent server init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

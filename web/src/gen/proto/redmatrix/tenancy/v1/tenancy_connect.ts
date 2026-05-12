@@ -6,7 +6,7 @@
 // TenancyService（LLD 02 §4 / 11）—— PR-T2 scope：Project CRUD（不含
 // 成员 / 节点 / 白名单 / 注册流程）。
 
-import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateArtifactUploadURLRequest, CreateArtifactUploadURLResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetNodeRequest, GetNodeResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, GetStatsRequest, GetStatsResponse, HeartbeatRequest, HeartbeatResponse, ListNodeCertificatesRequest, ListNodeCertificatesResponse, ListNodesRequest, ListNodesResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, PullTasksRequest, PullTasksResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, ReportTaskProgressRequest, ReportTaskProgressResponse, ReportTaskResultsRequest, ReportTaskResultsResponse, RevokeNodeCertificateRequest, RevokeNodeCertificateResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
+import { AddProjectMemberRequest, AddProjectMemberResponse, ArchiveProjectRequest, ArchiveProjectResponse, CreateArtifactUploadURLRequest, CreateArtifactUploadURLResponse, CreateNodeRequest, CreateNodeResponse, CreateProjectRequest, CreateProjectResponse, CreateRegistrationTokenRequest, CreateRegistrationTokenResponse, DeleteNodeRequest, DeleteNodeResponse, DeleteProjectRequest, DeleteProjectResponse, DisableNodeRequest, DisableNodeResponse, EnableNodeRequest, EnableNodeResponse, GetLatestPluginVersionRequest, GetLatestPluginVersionResponse, GetNodeRequest, GetNodeResponse, GetPluginDownloadURLRequest, GetPluginDownloadURLResponse, GetProjectAllowedNodesRequest, GetProjectAllowedNodesResponse, GetProjectRequest, GetProjectResponse, GetStatsRequest, GetStatsResponse, HeartbeatRequest, HeartbeatResponse, ListNodeCertificatesRequest, ListNodeCertificatesResponse, ListNodesRequest, ListNodesResponse, ListPluginSigningKeysRequest, ListPluginSigningKeysResponse, ListProjectMembersRequest, ListProjectMembersResponse, ListProjectsRequest, ListProjectsResponse, ListRegistrationTokensRequest, ListRegistrationTokensResponse, PullTasksRequest, PullTasksResponse, RedeemRegistrationTokenRequest, RedeemRegistrationTokenResponse, ReissueCertRequest, ReissueCertResponse, RemoveProjectMemberRequest, RemoveProjectMemberResponse, ReportTaskProgressRequest, ReportTaskProgressResponse, ReportTaskResultsRequest, ReportTaskResultsResponse, RevokeNodeCertificateRequest, RevokeNodeCertificateResponse, RevokeRegistrationTokenRequest, RevokeRegistrationTokenResponse, SetProjectAllowedNodesRequest, SetProjectAllowedNodesResponse, UnarchiveProjectRequest, UnarchiveProjectResponse } from "./tenancy_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -381,6 +381,40 @@ export const NodeAgentService = {
       name: "CreateArtifactUploadURL",
       I: CreateArtifactUploadURLRequest,
       O: CreateArtifactUploadURLResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * === 插件包分发（PR-S29 配 PR-S28 puller）===
+     * ListPluginSigningKeys agent 启动期一次性拉缓存；ed25519 验证插件签名。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.NodeAgentService.ListPluginSigningKeys
+     */
+    listPluginSigningKeys: {
+      name: "ListPluginSigningKeys",
+      I: ListPluginSigningKeysRequest,
+      O: ListPluginSigningKeysResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * GetLatestPluginVersion(slug, platform) → 最新可用包元数据；本地 manifest 比对判是否更新。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.NodeAgentService.GetLatestPluginVersion
+     */
+    getLatestPluginVersion: {
+      name: "GetLatestPluginVersion",
+      I: GetLatestPluginVersionRequest,
+      O: GetLatestPluginVersionResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * GetPluginDownloadURL(id) → presigned GET URL（TTL 15min）；HTTP GET 下载二进制。
+     *
+     * @generated from rpc redmatrix.tenancy.v1.NodeAgentService.GetPluginDownloadURL
+     */
+    getPluginDownloadURL: {
+      name: "GetPluginDownloadURL",
+      I: GetPluginDownloadURLRequest,
+      O: GetPluginDownloadURLResponse,
       kind: MethodKind.Unary,
     },
   }

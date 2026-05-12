@@ -3010,3 +3010,403 @@ export class GetStatsResponse extends Message<GetStatsResponse> {
   }
 }
 
+/**
+ * @generated from message redmatrix.tenancy.v1.PluginSigningKey
+ */
+export class PluginSigningKey extends Message<PluginSigningKey> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string key_id = 2;
+   */
+  keyId = "";
+
+  /**
+   * base64 ed25519
+   *
+   * @generated from field: string public_key = 3;
+   */
+  publicKey = "";
+
+  /**
+   * @generated from field: string description = 4;
+   */
+  description = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 5;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp revoked_at = 6;
+   */
+  revokedAt?: Timestamp;
+
+  constructor(data?: PartialMessage<PluginSigningKey>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.PluginSigningKey";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "key_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "public_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "created_at", kind: "message", T: Timestamp },
+    { no: 6, name: "revoked_at", kind: "message", T: Timestamp, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PluginSigningKey {
+    return new PluginSigningKey().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PluginSigningKey {
+    return new PluginSigningKey().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PluginSigningKey {
+    return new PluginSigningKey().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PluginSigningKey | PlainMessage<PluginSigningKey> | undefined, b: PluginSigningKey | PlainMessage<PluginSigningKey> | undefined): boolean {
+    return proto3.util.equals(PluginSigningKey, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.PluginPackageRef
+ */
+export class PluginPackageRef extends Message<PluginPackageRef> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string slug = 2;
+   */
+  slug = "";
+
+  /**
+   * @generated from field: string version = 3;
+   */
+  version = "";
+
+  /**
+   * @generated from field: string platform = 4;
+   */
+  platform = "";
+
+  /**
+   * @generated from field: string artifact_key = 5;
+   */
+  artifactKey = "";
+
+  /**
+   * @generated from field: string sha256 = 6;
+   */
+  sha256 = "";
+
+  /**
+   * @generated from field: string signature = 7;
+   */
+  signature = "";
+
+  /**
+   * @generated from field: string signing_key_id = 8;
+   */
+  signingKeyId = "";
+
+  /**
+   * @generated from field: int64 size_bytes = 9;
+   */
+  sizeBytes = protoInt64.zero;
+
+  /**
+   * @generated from field: string description = 10;
+   */
+  description = "";
+
+  /**
+   * @generated from field: bool is_active = 11;
+   */
+  isActive = false;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp uploaded_at = 12;
+   */
+  uploadedAt?: Timestamp;
+
+  constructor(data?: PartialMessage<PluginPackageRef>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.PluginPackageRef";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "slug", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "platform", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "artifact_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "signature", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "signing_key_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 10, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "is_active", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 12, name: "uploaded_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PluginPackageRef {
+    return new PluginPackageRef().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PluginPackageRef {
+    return new PluginPackageRef().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PluginPackageRef {
+    return new PluginPackageRef().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PluginPackageRef | PlainMessage<PluginPackageRef> | undefined, b: PluginPackageRef | PlainMessage<PluginPackageRef> | undefined): boolean {
+    return proto3.util.equals(PluginPackageRef, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListPluginSigningKeysRequest
+ */
+export class ListPluginSigningKeysRequest extends Message<ListPluginSigningKeysRequest> {
+  constructor(data?: PartialMessage<ListPluginSigningKeysRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListPluginSigningKeysRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListPluginSigningKeysRequest {
+    return new ListPluginSigningKeysRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListPluginSigningKeysRequest {
+    return new ListPluginSigningKeysRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListPluginSigningKeysRequest {
+    return new ListPluginSigningKeysRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListPluginSigningKeysRequest | PlainMessage<ListPluginSigningKeysRequest> | undefined, b: ListPluginSigningKeysRequest | PlainMessage<ListPluginSigningKeysRequest> | undefined): boolean {
+    return proto3.util.equals(ListPluginSigningKeysRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.ListPluginSigningKeysResponse
+ */
+export class ListPluginSigningKeysResponse extends Message<ListPluginSigningKeysResponse> {
+  /**
+   * @generated from field: repeated redmatrix.tenancy.v1.PluginSigningKey keys = 1;
+   */
+  keys: PluginSigningKey[] = [];
+
+  constructor(data?: PartialMessage<ListPluginSigningKeysResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.ListPluginSigningKeysResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "keys", kind: "message", T: PluginSigningKey, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListPluginSigningKeysResponse {
+    return new ListPluginSigningKeysResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListPluginSigningKeysResponse {
+    return new ListPluginSigningKeysResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListPluginSigningKeysResponse {
+    return new ListPluginSigningKeysResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListPluginSigningKeysResponse | PlainMessage<ListPluginSigningKeysResponse> | undefined, b: ListPluginSigningKeysResponse | PlainMessage<ListPluginSigningKeysResponse> | undefined): boolean {
+    return proto3.util.equals(ListPluginSigningKeysResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.GetLatestPluginVersionRequest
+ */
+export class GetLatestPluginVersionRequest extends Message<GetLatestPluginVersionRequest> {
+  /**
+   * @generated from field: string slug = 1;
+   */
+  slug = "";
+
+  /**
+   * @generated from field: string platform = 2;
+   */
+  platform = "";
+
+  constructor(data?: PartialMessage<GetLatestPluginVersionRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetLatestPluginVersionRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "slug", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "platform", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetLatestPluginVersionRequest {
+    return new GetLatestPluginVersionRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetLatestPluginVersionRequest {
+    return new GetLatestPluginVersionRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetLatestPluginVersionRequest {
+    return new GetLatestPluginVersionRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetLatestPluginVersionRequest | PlainMessage<GetLatestPluginVersionRequest> | undefined, b: GetLatestPluginVersionRequest | PlainMessage<GetLatestPluginVersionRequest> | undefined): boolean {
+    return proto3.util.equals(GetLatestPluginVersionRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.GetLatestPluginVersionResponse
+ */
+export class GetLatestPluginVersionResponse extends Message<GetLatestPluginVersionResponse> {
+  /**
+   * @generated from field: redmatrix.tenancy.v1.PluginPackageRef package = 1;
+   */
+  package?: PluginPackageRef;
+
+  constructor(data?: PartialMessage<GetLatestPluginVersionResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetLatestPluginVersionResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "package", kind: "message", T: PluginPackageRef },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetLatestPluginVersionResponse {
+    return new GetLatestPluginVersionResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetLatestPluginVersionResponse {
+    return new GetLatestPluginVersionResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetLatestPluginVersionResponse {
+    return new GetLatestPluginVersionResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetLatestPluginVersionResponse | PlainMessage<GetLatestPluginVersionResponse> | undefined, b: GetLatestPluginVersionResponse | PlainMessage<GetLatestPluginVersionResponse> | undefined): boolean {
+    return proto3.util.equals(GetLatestPluginVersionResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.GetPluginDownloadURLRequest
+ */
+export class GetPluginDownloadURLRequest extends Message<GetPluginDownloadURLRequest> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<GetPluginDownloadURLRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetPluginDownloadURLRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPluginDownloadURLRequest {
+    return new GetPluginDownloadURLRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPluginDownloadURLRequest {
+    return new GetPluginDownloadURLRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPluginDownloadURLRequest {
+    return new GetPluginDownloadURLRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPluginDownloadURLRequest | PlainMessage<GetPluginDownloadURLRequest> | undefined, b: GetPluginDownloadURLRequest | PlainMessage<GetPluginDownloadURLRequest> | undefined): boolean {
+    return proto3.util.equals(GetPluginDownloadURLRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.tenancy.v1.GetPluginDownloadURLResponse
+ */
+export class GetPluginDownloadURLResponse extends Message<GetPluginDownloadURLResponse> {
+  /**
+   * @generated from field: string url = 1;
+   */
+  url = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 2;
+   */
+  expiresAt?: Timestamp;
+
+  constructor(data?: PartialMessage<GetPluginDownloadURLResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.tenancy.v1.GetPluginDownloadURLResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "expires_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPluginDownloadURLResponse {
+    return new GetPluginDownloadURLResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPluginDownloadURLResponse {
+    return new GetPluginDownloadURLResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPluginDownloadURLResponse {
+    return new GetPluginDownloadURLResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPluginDownloadURLResponse | PlainMessage<GetPluginDownloadURLResponse> | undefined, b: GetPluginDownloadURLResponse | PlainMessage<GetPluginDownloadURLResponse> | undefined): boolean {
+    return proto3.util.equals(GetPluginDownloadURLResponse, a, b);
+  }
+}
+

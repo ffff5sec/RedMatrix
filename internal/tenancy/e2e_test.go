@@ -83,6 +83,26 @@ func (h *inlineNodeAgentHandler) CreateArtifactUploadURL(
 	return connect.NewResponse(&tenancyv1.CreateArtifactUploadURLResponse{}), nil
 }
 
+// PR-S29 stubs（e2e 不测插件 puller）。
+func (h *inlineNodeAgentHandler) ListPluginSigningKeys(
+	context.Context,
+	*connect.Request[tenancyv1.ListPluginSigningKeysRequest],
+) (*connect.Response[tenancyv1.ListPluginSigningKeysResponse], error) {
+	return connect.NewResponse(&tenancyv1.ListPluginSigningKeysResponse{}), nil
+}
+func (h *inlineNodeAgentHandler) GetLatestPluginVersion(
+	context.Context,
+	*connect.Request[tenancyv1.GetLatestPluginVersionRequest],
+) (*connect.Response[tenancyv1.GetLatestPluginVersionResponse], error) {
+	return connect.NewResponse(&tenancyv1.GetLatestPluginVersionResponse{}), nil
+}
+func (h *inlineNodeAgentHandler) GetPluginDownloadURL(
+	context.Context,
+	*connect.Request[tenancyv1.GetPluginDownloadURLRequest],
+) (*connect.Response[tenancyv1.GetPluginDownloadURLResponse], error) {
+	return connect.NewResponse(&tenancyv1.GetPluginDownloadURLResponse{}), nil
+}
+
 func (h *inlineNodeAgentHandler) ReissueCert(
 	ctx context.Context,
 	_ *connect.Request[tenancyv1.ReissueCertRequest],

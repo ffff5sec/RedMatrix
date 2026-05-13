@@ -454,12 +454,24 @@ func (s *service) aggregateSuiteRunStatus(ctx context.Context, runID string) err
 	}
 
 	nextStep := run.CurrentStep + 1
-	if err := s.createStepTask(ctx, suite, run, nextStep, nextTargets, run.CreatedBy); err != nil {
-		_ = s.suiteRuns.UpdateStatus(ctx, runID, domain.SuiteRunFailed, true)
+
+	// PR-S37: CAS 抢占 step 推进（current_step expected → next）。
+	// 多并发 aggregator 时仅一个成功推进；其它静默退出避免重复创建 task。
+	advanced, err := s.suiteRuns.AdvanceCurrentStep(ctx, runID, run.CurrentStep, nextStep)
+	if err != nil {
 		return err
 	}
-	// 推进 step + 状态保 running
-	if err := s.suiteRuns.UpdateCurrentStep(ctx, runID, nextStep); err != nil {
+	if !advanced {
+		// 另一并发已推进；本轮放弃，避免重复 createStepTask。
+		if s.logger != nil {
+			s.logger.Info("scan: chain advance lost CAS race, skipping",
+				"run_id", runID, "expected_step", run.CurrentStep)
+		}
+		return nil
+	}
+	// 抢占成功后再创建 step task；创建失败 → 标 failed（step 已推进无法回退，但状态已 failed 阻后续 aggregator）
+	if err := s.createStepTask(ctx, suite, run, nextStep, nextTargets, run.CreatedBy); err != nil {
+		_ = s.suiteRuns.UpdateStatus(ctx, runID, domain.SuiteRunFailed, true)
 		return err
 	}
 	if run.Status != domain.SuiteRunRunning {

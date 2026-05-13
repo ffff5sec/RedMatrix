@@ -149,6 +149,28 @@ func (h *Handler) CreateScanTask(
 	}
 
 	in := req.Msg
+	// PR-S37 BOLA：PA 必须是该 project 成员才能创建 task
+	if p.Role == identitydomain.RoleProjectAdmin {
+		if h.memberDB == nil {
+			return nil, toConnectError(errx.New(errx.ErrInternal, "PA 校验需 memberDB"))
+		}
+		ids, err := h.memberDB.ListProjectIDsByUser(ctx, p.UserID)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		found := false
+		for _, pid := range ids {
+			if pid == in.GetProjectId() {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, toConnectError(errx.New(errx.ErrAuthzNotProjectMember,
+				"未加入该 project").WithFields("project_id", in.GetProjectId()))
+		}
+	}
+
 	settings := map[string]any{}
 	if in.Settings != nil {
 		settings = in.Settings.AsMap()

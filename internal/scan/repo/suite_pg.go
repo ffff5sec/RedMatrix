@@ -364,6 +364,30 @@ func (r *pgSuiteRunRepo) UpdateCurrentStep(ctx context.Context, id string, step 
 	return nil
 }
 
+// AdvanceCurrentStep（PR-S37）原子推进 step：CAS WHERE current_step = expected。
+// 多并发 aggregator 同时触发时，仅一个会成功推进（另一个 RowsAffected=0 静默返 false）。
+// 返回 (advanced, err)：advanced=true 当且仅当 SQL 真的更新了一行。
+func (r *pgSuiteRunRepo) AdvanceCurrentStep(ctx context.Context, id string, expected, next int) (bool, error) {
+	if r == nil || r.pool == nil {
+		return false, errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	if next < 0 || expected < 0 {
+		return false, errx.New(errx.ErrInvalidInput, "current_step 不能 < 0")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE scan_suite_runs
+		   SET current_step = $3,
+		       updated_at = now()
+		 WHERE id = $1::uuid
+		   AND current_step = $2
+	`, id, expected, next)
+	if err != nil {
+		return false, errx.Wrap(errx.ErrDatabase, err, "scan.repo: advance suite_run current_step").
+			WithFields("id", id, "expected", expected, "next", next)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 func (r *pgSuiteRunRepo) UpdateStatus(ctx context.Context, id string, status domain.SuiteRunStatus, finished bool) error {
 	if r == nil || r.pool == nil {
 		return errx.New(errx.ErrInternal, "scan.repo: nil pool")

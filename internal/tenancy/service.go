@@ -750,6 +750,13 @@ func (s *service) RedeemRegistrationToken(ctx context.Context, req RedeemRegistr
 			"token 不可用（已用 / 已撤 / 已过期）")
 	}
 
+	// PR-S37: 先 MarkUsed 抢占 token（原子 WHERE used_at IS NULL AND revoked_at IS NULL）
+	// 再 Insert Node。MarkUsed 失败 → 无 node 创建；Insert 失败 → token 浪费但无双花。
+	// 与"先建 node 后 MarkUsed"相比，消除了 token 双花窗口。
+	if err := s.tokens.MarkUsed(ctx, tok.ID); err != nil {
+		return nil, err
+	}
+
 	// 创建 node 记录
 	n := &domain.Node{
 		TenantID: tok.TenantID,
@@ -758,11 +765,8 @@ func (s *service) RedeemRegistrationToken(ctx context.Context, req RedeemRegistr
 		Status:   domain.NodePending, // PR-T4-D3 心跳上线后转 online
 	}
 	if err := s.nodes.Insert(ctx, n); err != nil {
-		return nil, err
-	}
-
-	// 标 used；失败仅透传（不回滚 node：MVP 容忍 token 再用，运维可手动 Revoke）
-	if err := s.tokens.MarkUsed(ctx, tok.ID); err != nil {
+		// token 已 marked used 但 node 未创建；返错让 caller 重新 issue token。
+		// 不尝试回滚 token（无对应 repo 方法，且双花风险更高）。
 		return nil, err
 	}
 

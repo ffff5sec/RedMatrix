@@ -7,6 +7,7 @@ package handler
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -670,4 +671,65 @@ func newArtifactHandler(t *testing.T, princ *auth.UserPrincipal, svc *artifactUR
 	h, err := New(svc, authSvc, nil)
 	require.NoError(t, err)
 	return h
+}
+
+// TestCreateScanTask_PA_BOLA（PR-S37 P0 修复回归）
+//
+// PA 用户尝试给非加入项目创建 task → 应 403 NOT_PROJECT_MEMBER。
+func TestCreateScanTask_PA_BOLA(t *testing.T) {
+	princ := &auth.UserPrincipal{
+		UserID:   "u-pa",
+		TenantID: "ten-1",
+		Username: "alice",
+		Role:     identitydomain.RoleProjectAdmin,
+	}
+	mem := &stubMemberDB{ids: []string{"P-MINE"}}
+	h := newHandler(t, princ, nil, nil, mem)
+	req := connect.NewRequest(&scanv1.CreateScanTaskRequest{
+		ProjectId:  "P-OTHER", // not in mem.ids
+		Name:       "x",
+		Kind:       "port_scan",
+		Target:     "1.2.3.4",
+		TargetKind: "ip",
+	})
+	req.Header().Set("Authorization", "Bearer token")
+	_, err := h.CreateScanTask(context.Background(), req)
+	if err == nil {
+		t.Fatal("PA 非 member 创建 task 应失败")
+	}
+	if !strings.Contains(err.Error(), "NOT_PROJECT_MEMBER") {
+		t.Errorf("want NOT_PROJECT_MEMBER, got %v", err)
+	}
+}
+
+// TestCreateScanTask_PA_MemberOK 反例：PA 给自己加入的 project 创建 → BOLA 放行后才会触达
+// stubScanSvc.CreateTask 的 panic（"unexpected"）—— 即捕获到该 panic 等同于 BOLA 通过。
+func TestCreateScanTask_PA_MemberOK(t *testing.T) {
+	princ := &auth.UserPrincipal{
+		UserID:   "u-pa",
+		TenantID: "ten-1",
+		Username: "alice",
+		Role:     identitydomain.RoleProjectAdmin,
+	}
+	mem := &stubMemberDB{ids: []string{"P-MINE"}}
+	h := newHandler(t, princ, nil, nil, mem)
+	req := connect.NewRequest(&scanv1.CreateScanTaskRequest{
+		ProjectId:  "P-MINE",
+		Name:       "x",
+		Kind:       "port_scan",
+		Target:     "1.2.3.4",
+		TargetKind: "ip",
+	})
+	req.Header().Set("Authorization", "Bearer token")
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected stubScanSvc.CreateTask panic, got none (BOLA might have rejected too early)")
+		}
+		msg, _ := r.(string)
+		if !strings.Contains(msg, "CreateTask") {
+			t.Errorf("unexpected panic: %v", r)
+		}
+	}()
+	_, _ = h.CreateScanTask(context.Background(), req)
 }

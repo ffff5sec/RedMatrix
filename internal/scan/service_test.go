@@ -1028,6 +1028,17 @@ func (r *stubSuiteRunRepo) UpdateCurrentStep(_ context.Context, id string, step 
 	}
 	return nil
 }
+func (r *stubSuiteRunRepo) AdvanceCurrentStep(_ context.Context, id string, expected, next int) (bool, error) {
+	v, ok := r.runs[id]
+	if !ok {
+		return false, nil
+	}
+	if v.CurrentStep != expected {
+		return false, nil
+	}
+	v.CurrentStep = next
+	return true, nil
+}
 
 // suiteHarness 套件 aggregator 单测复用 testHarness + 装 suite repos。
 func newSuiteHarness(t *testing.T) (*testHarness, *stubSuiteRepo, *stubSuiteRunRepo) {

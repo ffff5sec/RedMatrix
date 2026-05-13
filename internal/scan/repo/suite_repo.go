@@ -47,4 +47,7 @@ type SuiteRunRepository interface {
 	UpdateStatus(ctx context.Context, id string, status domain.SuiteRunStatus, finished bool) error
 	// UpdateCurrentStep（PR-S27 chaining）：推进当前 step 索引；不改 status / finished_at。
 	UpdateCurrentStep(ctx context.Context, id string, step int) error
+	// AdvanceCurrentStep（PR-S37）：CAS 推进，仅当 current_step == expected 时才成功。
+	// 防止并发 aggregator 同时推进导致重复创建 step task。
+	AdvanceCurrentStep(ctx context.Context, id string, expected, next int) (bool, error)
 }

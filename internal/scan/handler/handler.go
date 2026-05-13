@@ -42,12 +42,27 @@ type MembershipLookup interface {
 
 var _ scanv1connect.ScanServiceHandler = (*Handler)(nil)
 
-// allRoles 接受任何已认证角色（SA / TA / PA / 平台审计）。
+// allRoles 接受任何已认证角色（读路径用：SA / PA / TA / 平台审计）。
+//
+// 写路径（Create / Cancel / Retry / Delete / ...）必须用 writers / saOnly，
+// 因为 HLD §4.3 明确「Auditor 只读」（TenantAuditor / PlatformAuditor 同语义）。
 var allRoles = []identitydomain.Role{
 	identitydomain.RoleSuperAdmin,
 	identitydomain.RoleTenantAuditor,
 	identitydomain.RoleProjectAdmin,
 	identitydomain.RolePlatformAuditor,
+}
+
+// writers PR-S40：写操作权限组（创建 / 取消 / 重试任务等）。
+// SA + PA；Auditor 二者都拒（HLD §4.3 Auditor 只读）。
+var writers = []identitydomain.Role{
+	identitydomain.RoleSuperAdmin,
+	identitydomain.RoleProjectAdmin,
+}
+
+// saOnly PR-S40：仅 SA。最严写权限（删除 / 跨项目结构性修改）。
+var saOnly = []identitydomain.Role{
+	identitydomain.RoleSuperAdmin,
 }
 
 // New 构造 ScanService handler。memberDB PA 路径必须传（assertTaskAccess /
@@ -144,7 +159,8 @@ func (h *Handler) CreateScanTask(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	// PR-S40: Create 为写操作，Auditor 拒
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 
@@ -271,7 +287,8 @@ func (h *Handler) CancelScanTask(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	// PR-S40: Cancel 为写操作，Auditor 拒
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 	t, err := h.assertTaskAccess(ctx, p, req.Msg.GetId())
@@ -304,9 +321,8 @@ func (h *Handler) DeleteScanTask(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	// 删任务暂限 SA + TA（PA 不可删别人的任务）
-	if err := identityhandler.RequireRole(p,
-		identitydomain.RoleSuperAdmin, identitydomain.RoleTenantAuditor); err != nil {
+	// PR-S40: Delete 最严限 SA-only（PA 不可删别人的；TA Auditor 只读）
+	if err := identityhandler.RequireRole(p, saOnly...); err != nil {
 		return nil, toConnectError(err)
 	}
 	t, err := h.assertTaskAccess(ctx, p, req.Msg.GetId())
@@ -359,7 +375,7 @@ func (h *Handler) GetArtifactDownloadURL(
 }
 
 // RetryScanTask（PR-S14）—— failed/canceled task 重派。
-// 同 CreateScanTask 角色（SA / TA / PA）；service 层校 status。
+// PR-S40: 同 CreateScanTask 写权限组（SA + PA）；service 层校 status。
 func (h *Handler) RetryScanTask(
 	ctx context.Context,
 	req *connect.Request[scanv1.RetryScanTaskRequest],
@@ -368,7 +384,7 @@ func (h *Handler) RetryScanTask(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 	if _, err := h.assertTaskAccess(ctx, p, req.Msg.GetId()); err != nil {

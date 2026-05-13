@@ -40,10 +40,19 @@ type Handler struct {
 
 var _ findingv1connect.FindingServiceHandler = (*Handler)(nil)
 
+// allRoles 读路径（List/Get/ListEvents）— 全部 4 个角色。
+// 写路径（Transition/Comment/Assign）用 writers（HLD §4.3：Auditor 只读）。
 var allRoles = []identitydomain.Role{
 	identitydomain.RoleSuperAdmin,
 	identitydomain.RoleTenantAuditor,
 	identitydomain.RolePlatformAuditor,
+	identitydomain.RoleProjectAdmin,
+}
+
+// writers PR-S40：写权限组（修改 finding 状态 / 评论 / 改派）。
+// SA + PA；Auditor 拒。
+var writers = []identitydomain.Role{
+	identitydomain.RoleSuperAdmin,
 	identitydomain.RoleProjectAdmin,
 }
 
@@ -194,7 +203,8 @@ func (h *Handler) Transition(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	// PR-S40: 状态转换为写操作，Auditor 拒
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 	if _, err := h.assertFindingVisible(ctx, p, req.Msg.GetId()); err != nil {
@@ -235,7 +245,8 @@ func (h *Handler) Comment(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	// PR-S40: 评论为写操作，Auditor 拒
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 	f, err := h.assertFindingVisible(ctx, p, req.Msg.GetFindingId())
@@ -273,7 +284,8 @@ func (h *Handler) Assign(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	// PR-S40: Assign 为写操作，Auditor 拒
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 	if _, err := h.assertFindingVisible(ctx, p, req.Msg.GetId()); err != nil {

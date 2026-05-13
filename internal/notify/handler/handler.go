@@ -38,11 +38,20 @@ type Handler struct {
 
 var _ notifyv1connect.NotifyServiceHandler = (*Handler)(nil)
 
-// allRoles 任意已认证角色都可调（具体可见性 RBAC 在每个 RPC 内进一步收紧）。
+// allRoles 读路径（List/Get/ListDeliveries）— 全部 4 个角色。
+// 写路径（Create/Update/Delete/Test）用 writers（HLD §4.3：Auditor 只读）。
 var allRoles = []identitydomain.Role{
 	identitydomain.RoleSuperAdmin,
 	identitydomain.RoleTenantAuditor,
 	identitydomain.RolePlatformAuditor,
+	identitydomain.RoleProjectAdmin,
+}
+
+// writers PR-S40：写权限组（订阅 CRUD + 发测试 webhook）。
+// SA + PA；Auditor 拒。TestSubscription 也归此组，
+// 因发测试 webhook 会触发外部 HTTP/邮件出站，等价于写操作。
+var writers = []identitydomain.Role{
+	identitydomain.RoleSuperAdmin,
 	identitydomain.RoleProjectAdmin,
 }
 
@@ -64,7 +73,8 @@ func (h *Handler) CreateSubscription(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	// PR-S40: 创建订阅为写操作，Auditor 拒
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 
@@ -182,7 +192,8 @@ func (h *Handler) UpdateSubscription(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	// PR-S40: 更新订阅为写操作，Auditor 拒
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 	if _, err := h.assertSubVisible(ctx, p, req.Msg.GetId()); err != nil {
@@ -226,7 +237,8 @@ func (h *Handler) DeleteSubscription(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	// PR-S40: 删除订阅为写操作，Auditor 拒
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 	if _, err := h.assertSubVisible(ctx, p, req.Msg.GetId()); err != nil {
@@ -287,7 +299,8 @@ func (h *Handler) TestSubscription(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+	// PR-S40: 发测试通知会触发外部 HTTP/邮件出站，等价于写操作，Auditor 拒
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
 	if _, err := h.assertSubVisible(ctx, p, req.Msg.GetId()); err != nil {

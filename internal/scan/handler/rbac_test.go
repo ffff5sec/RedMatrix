@@ -420,10 +420,16 @@ func TestAssertTaskAccess_GetScanTask_RBAC(t *testing.T) {
 // （SA OK / TA 跨租户 NotFound / PA wire 缺失 Internal）即可。深度由 GetScanTask 套保证。
 
 // rbacOp 描述一个走 assertTaskAccess 的 RPC 调用。
+//
+// PR-S40 收紧后角色矩阵：
+//   - read  (GetScanTask / ListTaskAssignments / ListTaskResults): SA + PA + TA + PA-Audit
+//   - write (Cancel / Retry):                                       SA + PA  (Auditor 拒)
+//   - admin (Delete):                                                SA only
 type rbacOp struct {
 	name      string
 	call      func(t *testing.T, h *Handler) error
-	allowedPA bool // 是否对 PA 开放（DeleteScanTask 仅 SA + TA）
+	allowedPA bool // 是否对 PA 开放（DeleteScanTask 仅 SA）
+	isWrite   bool // PR-S40: 写操作 — Auditor (TA/PA-Audit) 走 RequireRole 时被拒
 }
 
 func rbacOps() []rbacOp {
@@ -447,6 +453,7 @@ func rbacOps() []rbacOp {
 				return err
 			},
 			allowedPA: true,
+			isWrite:   true,
 		},
 		{
 			name: "DeleteScanTask",
@@ -456,7 +463,8 @@ func rbacOps() []rbacOp {
 					authHeaderReq(&scanv1.DeleteScanTaskRequest{Id: fixtureTaskID}))
 				return err
 			},
-			allowedPA: false, // SA + TA only（handler RequireRole 收紧）
+			allowedPA: false, // PR-S40: SA only
+			isWrite:   true,
 		},
 		{
 			name: "RetryScanTask",
@@ -467,6 +475,7 @@ func rbacOps() []rbacOp {
 				return err
 			},
 			allowedPA: true,
+			isWrite:   true,
 		},
 		{
 			name: "ListTaskAssignments",
@@ -491,15 +500,17 @@ func rbacOps() []rbacOp {
 	}
 }
 
-// TestAssertTaskAccess_AllOps_TACrossTenant 验证所有走 assertTaskAccess 的 RPC
-// 在 TA 跨租户时都返 TASK_NOT_FOUND（防枚举）。
+// TestAssertTaskAccess_AllOps_TACrossTenant 验证读路径 RPC 在 TA 跨租户时返
+// TASK_NOT_FOUND（防枚举）。写路径 Auditor 早被 RequireRole 拒，见
+// TestWriteOps_TenantAuditor_Rejected。
 func TestAssertTaskAccess_AllOps_TACrossTenant(t *testing.T) {
 	for _, op := range rbacOps() {
+		if op.isWrite {
+			continue // PR-S40: 写路径 TA 在 RequireRole 阶段被拒，不进 assertTaskAccess
+		}
 		t.Run(op.name, func(t *testing.T) {
 			p := principal(identitydomain.RoleTenantAuditor, "T-OTHER", "ta-1")
 			task := taskFixture(fixtureTaskID, fixtureTenantID, fixtureProjectID)
-			// CancelTask / DeleteTask / RetryTask 在 RBAC 失败后不会调 svc 的执行方法，
-			// 所以 stub 用 panic 兜底是 OK 的（永远不进入）。
 			h := newHandler(t, p, task, nil, nil)
 
 			err := op.call(t, h)
@@ -508,10 +519,35 @@ func TestAssertTaskAccess_AllOps_TACrossTenant(t *testing.T) {
 	}
 }
 
-// TestAssertTaskAccess_AllOps_PANilMemberDB 验证所有走 assertTaskAccess 的 RPC
-// 在 PA wire 缺失 memberDB 时都返 Internal（不是 NotFound）。
-// DeleteScanTask 不在此覆盖（PA 不能调 Delete，RequireRole 在 assertTaskAccess
-// 之前先拒掉）。
+// TestWriteOps_TenantAuditor_Rejected PR-S40：HLD §4.3 Auditor 只读。
+// Cancel/Delete/Retry 在 RequireRole 阶段被拒（不进 assertTaskAccess）。
+func TestWriteOps_TenantAuditor_Rejected(t *testing.T) {
+	for _, op := range rbacOps() {
+		if !op.isWrite {
+			continue
+		}
+		t.Run(op.name+"/TA", func(t *testing.T) {
+			p := principal(identitydomain.RoleTenantAuditor, fixtureTenantID, "ta-1")
+			task := taskFixture(fixtureTaskID, fixtureTenantID, fixtureProjectID)
+			h := newHandler(t, p, task, nil, nil)
+
+			err := op.call(t, h)
+			requireConnectCode(t, err, connect.CodePermissionDenied, errx.ErrAuthzRoleInsufficient)
+		})
+		t.Run(op.name+"/PlatformAuditor", func(t *testing.T) {
+			p := principal(identitydomain.RolePlatformAuditor, "", "pla-1")
+			task := taskFixture(fixtureTaskID, fixtureTenantID, fixtureProjectID)
+			h := newHandler(t, p, task, nil, nil)
+
+			err := op.call(t, h)
+			requireConnectCode(t, err, connect.CodePermissionDenied, errx.ErrAuthzRoleInsufficient)
+		})
+	}
+}
+
+// TestAssertTaskAccess_AllOps_PANilMemberDB 验证读 + 写（非 Delete）RPC 在 PA
+// wire 缺失 memberDB 时都返 Internal（不是 NotFound）。
+// DeleteScanTask 不在此覆盖（PR-S40 saOnly，PA 不能调）。
 func TestAssertTaskAccess_AllOps_PANilMemberDB(t *testing.T) {
 	for _, op := range rbacOps() {
 		if !op.allowedPA {

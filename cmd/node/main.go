@@ -32,6 +32,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nuclei"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/tlsx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/pluginpuller"
 	"github.com/ffff5sec/RedMatrix/internal/agent/store"
 	"github.com/ffff5sec/RedMatrix/internal/agent/tasks"
@@ -198,6 +199,14 @@ func run(args []string, stdout, stderr io.Writer) error {
 	} else {
 		logger.Info("plugin not installed; falling back to mock",
 			"kind", "vuln_scan", "tool", "nuclei", "err", err.Error())
+	}
+	// PR-S48: tlsx 证书探测
+	if tp, err := tlsx.New(); err == nil {
+		registry.Register(tp)
+		logger.Info("plugin registered", "kind", "tls_scan", "impl", "tlsx")
+	} else {
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "tls_scan", "tool", "tlsx", "err", err.Error())
 	}
 	tl := &tasks.Loop{
 		Client:        naClient,

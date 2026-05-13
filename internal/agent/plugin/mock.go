@@ -69,18 +69,40 @@ func (mockVulnScan) Run(_ context.Context, target, _ string, _ map[string]any) (
 	}, nil
 }
 
+// PR-S48：tls_scan mock — 没装 tlsx 时 fallback；返一张占位证书 fixture。
+type mockTLSScan struct{}
+
+func (mockTLSScan) Kind() string { return "tls_scan" }
+func (mockTLSScan) IsMock() bool { return true }
+func (mockTLSScan) Run(_ context.Context, target, _ string, _ map[string]any) ([]map[string]any, error) {
+	return []map[string]any{
+		{
+			"host":        target,
+			"port":        "443",
+			"subject_cn":  target,
+			"issuer_cn":   "Mock CA (install tlsx for real scan)",
+			"not_before":  "2024-01-01T00:00:00Z",
+			"not_after":   "2026-01-01T00:00:00Z",
+			"tls_version": "tls13",
+			"sha256":      "mock-fingerprint",
+		},
+	}, nil
+}
+
 // MockPortScan 等可用作真插件构造失败时的 fallback。
 func MockPortScan() Plugin    { return mockPortScan{} }
 func MockWebCrawl() Plugin    { return mockWebCrawl{} }
 func MockSubdomain() Plugin   { return mockSubdomain{} }
 func MockFingerprint() Plugin { return mockFingerprint{} }
 func MockVulnScan() Plugin    { return mockVulnScan{} }
+func MockTLSScan() Plugin     { return mockTLSScan{} }
 
-// RegisterAllMock 一键把 5 类 mock 注册到 Registry；测试 / dev 用。
+// RegisterAllMock 一键把 6 类 mock 注册到 Registry；测试 / dev 用。
 func RegisterAllMock(r *Registry) {
 	r.Register(mockPortScan{})
 	r.Register(mockWebCrawl{})
 	r.Register(mockSubdomain{})
 	r.Register(mockFingerprint{})
 	r.Register(mockVulnScan{})
+	r.Register(mockTLSScan{})
 }

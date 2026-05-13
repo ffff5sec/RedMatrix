@@ -53,11 +53,12 @@ const (
 	KindSubdomain   TaskKind = "subdomain"
 	KindFingerprint TaskKind = "fingerprint"
 	KindVulnScan    TaskKind = "vuln_scan" // PR-S21
+	KindTLSScan     TaskKind = "tls_scan"  // PR-S48: tlsx 证书探测
 )
 
 func (k TaskKind) Valid() bool {
 	switch k {
-	case KindPortScan, KindWebCrawl, KindSubdomain, KindFingerprint, KindVulnScan:
+	case KindPortScan, KindWebCrawl, KindSubdomain, KindFingerprint, KindVulnScan, KindTLSScan:
 		return true
 	}
 	return false

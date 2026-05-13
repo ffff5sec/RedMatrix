@@ -125,6 +125,7 @@ function kindLabel(k: string) {
     case 'subdomain':   return '子域名';
     case 'fingerprint': return '指纹识别';
     case 'vuln_scan':   return '漏洞扫描';
+    case 'tls_scan':    return '证书探测';
     default:            return k;
   }
 }
@@ -198,6 +199,7 @@ function facetBuckets(field: string) {
           <option value="subdomain">子域名</option>
           <option value="fingerprint">指纹识别</option>
           <option value="vuln_scan">漏洞扫描</option>
+          <option value="tls_scan">证书探测</option>
         </select>
         <select v-model="filterProjectId" :disabled="loading">
           <option value="">全部项目</option>

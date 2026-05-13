@@ -176,6 +176,19 @@ func (h *Handler) ChangePassword(
 		req.Msg.GetCurrentPassword(), req.Msg.GetNewPassword()); err != nil {
 		return nil, toConnectError(err)
 	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionPasswordChanged),
+			ResourceKind:  "user",
+			ResourceID:    p.UserID,
+			TenantID:      principalTenantOrDefault(p),
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			ActorIP:       clientIP(req.Header()).String(),
+			UserAgent:     userAgent(req.Header()),
+			Payload:       map[string]any{"all_sessions_revoked": true},
+		})
+	}
 	return connect.NewResponse(&identityv1.ChangePasswordResponse{
 		AllSessionsRevoked: true, // 当前实现总是 true（tv++）
 	}), nil
@@ -199,6 +212,18 @@ func (h *Handler) Logout(
 	if err := h.svc.Logout(ctx, p.SessionID); err != nil {
 		return nil, toConnectError(err)
 	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionLogout),
+			ResourceKind:  "session",
+			ResourceID:    p.SessionID,
+			TenantID:      principalTenantOrDefault(p),
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			ActorIP:       clientIP(req.Header()).String(),
+			UserAgent:     userAgent(req.Header()),
+		})
+	}
 	return connect.NewResponse(&identityv1.LogoutResponse{}), nil
 }
 
@@ -214,6 +239,18 @@ func (h *Handler) LogoutAllSessions(
 	}
 	if err := h.svc.LogoutAllSessions(ctx, p.UserID); err != nil {
 		return nil, toConnectError(err)
+	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionLogoutAll),
+			ResourceKind:  "user",
+			ResourceID:    p.UserID,
+			TenantID:      principalTenantOrDefault(p),
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			ActorIP:       clientIP(req.Header()).String(),
+			UserAgent:     userAgent(req.Header()),
+		})
 	}
 	return connect.NewResponse(&identityv1.LogoutAllSessionsResponse{}), nil
 }
@@ -263,6 +300,27 @@ func (h *Handler) CreateAPIKey(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	if h.audit != nil {
+		var expires any
+		if res.Key != nil && res.Key.ExpiresAt != nil {
+			expires = res.Key.ExpiresAt.Format("2006-01-02T15:04:05Z07:00")
+		}
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionAPIKeyCreated),
+			ResourceKind:  "api_key",
+			ResourceID:    res.Key.ID,
+			TenantID:      principalTenantOrDefault(p),
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			ActorIP:       clientIP(req.Header()).String(),
+			UserAgent:     userAgent(req.Header()),
+			Payload: map[string]any{
+				"name":       res.Key.Name,
+				"scopes":     res.Key.Scopes,
+				"expires_at": expires,
+			},
+		})
+	}
 	return connect.NewResponse(&identityv1.CreateAPIKeyResponse{
 		Key:    apiKeyToProto(res.Key),
 		Secret: res.Plaintext,
@@ -280,6 +338,18 @@ func (h *Handler) RevokeAPIKey(
 	if err := h.svc.RevokeAPIKey(ctx, p.UserID, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionAPIKeyRevoked),
+			ResourceKind:  "api_key",
+			ResourceID:    req.Msg.GetId(),
+			TenantID:      principalTenantOrDefault(p),
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			ActorIP:       clientIP(req.Header()).String(),
+			UserAgent:     userAgent(req.Header()),
+		})
+	}
 	return connect.NewResponse(&identityv1.RevokeAPIKeyResponse{}), nil
 }
 
@@ -291,6 +361,15 @@ var adminOnly = []domain.Role{domain.RoleSuperAdmin}
 // auditDefaultTenant 失败登录 / 无用户上下文时 audit 行的 tenant_id 兜底。
 // 与 tenancy.DefaultAccountID 一致；避免 audit_logs.tenant_id REFERENCES accounts 约束失败。
 const auditDefaultTenant = "00000000-0000-0000-0000-000000000001"
+
+// principalTenantOrDefault PR-S41：拿 principal.TenantID；SA 跨租户场景为空时回落到
+// auditDefaultTenant。audit_logs.tenant_id 是 NOT NULL FK，不能为空字符串。
+func principalTenantOrDefault(p *auth.UserPrincipal) string {
+	if p != nil && p.TenantID != "" {
+		return p.TenantID
+	}
+	return auditDefaultTenant
+}
 
 // adminAndAuditor 是 SA + TenantAuditor + PlatformAuditor 可调（只读 / 列表场景）。
 // PR-S38: PlatformAuditor 加入；router 已允许 PA-Audit 访问 /users 但后端原漏，
@@ -327,6 +406,23 @@ func (h *Handler) CreateUser(
 	res, err := h.svc.CreateUser(ctx, createReq)
 	if err != nil {
 		return nil, toConnectError(err)
+	}
+	if h.audit != nil && res.User != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionUserCreated),
+			ResourceKind:  "user",
+			ResourceID:    res.User.ID,
+			TenantID:      principalTenantOrDefault(p),
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			ActorIP:       clientIP(req.Header()).String(),
+			UserAgent:     userAgent(req.Header()),
+			Payload: map[string]any{
+				"username":      res.User.Username,
+				"role":          string(res.User.Role),
+				"target_tenant": res.User.TenantID,
+			},
+		})
 	}
 	return connect.NewResponse(&identityv1.CreateUserResponse{
 		User:              userToProto(res.User),
@@ -393,12 +489,14 @@ func (h *Handler) EnableUser(
 	ctx context.Context,
 	req *connect.Request[identityv1.EnableUserRequest],
 ) (*connect.Response[identityv1.EnableUserResponse], error) {
-	if err := h.requireSA(ctx, req.Header()); err != nil {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.EnableUser(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.auditSAUserOp(ctx, req.Header(), p, auditdomain.ActionUserEnabled, req.Msg.GetId(), nil)
 	return connect.NewResponse(&identityv1.EnableUserResponse{}), nil
 }
 
@@ -406,12 +504,14 @@ func (h *Handler) DisableUser(
 	ctx context.Context,
 	req *connect.Request[identityv1.DisableUserRequest],
 ) (*connect.Response[identityv1.DisableUserResponse], error) {
-	if err := h.requireSA(ctx, req.Header()); err != nil {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.DisableUser(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.auditSAUserOp(ctx, req.Header(), p, auditdomain.ActionUserDisabled, req.Msg.GetId(), nil)
 	return connect.NewResponse(&identityv1.DisableUserResponse{}), nil
 }
 
@@ -419,13 +519,15 @@ func (h *Handler) ResetPassword(
 	ctx context.Context,
 	req *connect.Request[identityv1.ResetPasswordRequest],
 ) (*connect.Response[identityv1.ResetPasswordResponse], error) {
-	if err := h.requireSA(ctx, req.Header()); err != nil {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	plain, err := h.svc.ResetPassword(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	h.auditSAUserOp(ctx, req.Header(), p, auditdomain.ActionPasswordReset, req.Msg.GetId(), nil)
 	return connect.NewResponse(&identityv1.ResetPasswordResponse{
 		TemporaryPassword: plain,
 	}), nil
@@ -435,22 +537,57 @@ func (h *Handler) ForceLogout(
 	ctx context.Context,
 	req *connect.Request[identityv1.ForceLogoutRequest],
 ) (*connect.Response[identityv1.ForceLogoutResponse], error) {
-	if err := h.requireSA(ctx, req.Header()); err != nil {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.ForceLogout(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.auditSAUserOp(ctx, req.Header(), p, auditdomain.ActionForceLogout, req.Msg.GetId(), nil)
 	return connect.NewResponse(&identityv1.ForceLogoutResponse{}), nil
 }
 
+// auditSAUserOp PR-S41：SA 账户管理操作统一 audit。
+// payload 可空（默认空 map）。
+func (h *Handler) auditSAUserOp(
+	ctx context.Context,
+	header http.Header,
+	p *auth.UserPrincipal,
+	action auditdomain.ActionKind,
+	targetUserID string,
+	payload map[string]any,
+) {
+	if h.audit == nil {
+		return
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	_ = h.audit.Log(ctx, audithook.Event{
+		Action:        string(action),
+		ResourceKind:  "user",
+		ResourceID:    targetUserID,
+		TenantID:      principalTenantOrDefault(p),
+		ActorUserID:   p.UserID,
+		ActorUsername: p.Username,
+		ActorIP:       clientIP(header).String(),
+		UserAgent:     userAgent(header),
+		Payload:       payload,
+	})
+}
+
 // requireSA 是 SA-only RPC 的 auth+authz 简写。
-func (h *Handler) requireSA(ctx context.Context, header http.Header) error {
+// PR-S41: 返 principal 以便 audit hook 记 actor。
+func (h *Handler) requireSA(ctx context.Context, header http.Header) (*auth.UserPrincipal, error) {
 	p, err := RequireAuth(ctx, h.svc, header)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return RequireRole(p, adminOnly...)
+	if err := RequireRole(p, adminOnly...); err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 // === error mapping ===

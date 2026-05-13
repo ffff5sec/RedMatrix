@@ -18,6 +18,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/identity/handler"
 	"github.com/ffff5sec/RedMatrix/internal/identity/policy"
 	"github.com/ffff5sec/RedMatrix/internal/identity/repo"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	rmredis "github.com/ffff5sec/RedMatrix/internal/storage/redis"
@@ -92,7 +93,8 @@ func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*
 // 返回 ConnectRPC mount + service（NodeAgent 端点复用 svc 共享 mTLS 配置一致性）。
 //
 // 依赖：pgxpool.App + identity Auth Service + 节点签发用 CA。
-func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA) (*identityHandlerMount, tenancy.Service, error) {
+// PR-S41: auditHook 可空；不空则 wire 进 handler.WithAudit，项目/成员变更落 audit。
+func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA, auditHook audithook.Hook) (*identityHandlerMount, tenancy.Service, error) {
 	if pool == nil || pool.App == nil {
 		return nil, nil, errx.New(errx.ErrInternal, "buildTenancyMount: pg.Pool.App 不能为 nil")
 	}
@@ -114,6 +116,9 @@ func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA) (*identi
 	h, err := tenancyhandler.New(svc, authSvc)
 	if err != nil {
 		return nil, nil, err
+	}
+	if auditHook != nil {
+		h.WithAudit(auditHook)
 	}
 	path, hh := tenancyv1connect.NewTenancyServiceHandler(h)
 	return &identityHandlerMount{path: path, handler: hh}, svc, nil

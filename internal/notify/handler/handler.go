@@ -16,12 +16,14 @@ import (
 
 	notifyv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/notify/v1"
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/notify/v1/notifyv1connect"
+	auditdomain "github.com/ffff5sec/RedMatrix/internal/audit/domain"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	identityhandler "github.com/ffff5sec/RedMatrix/internal/identity/handler"
 	"github.com/ffff5sec/RedMatrix/internal/notify"
 	notifydomain "github.com/ffff5sec/RedMatrix/internal/notify/domain"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 )
 
 // MembershipLookup PA 路径专用。
@@ -34,9 +36,53 @@ type Handler struct {
 	svc      notify.Service
 	authSvc  auth.Service
 	memberDB MembershipLookup
+	audit    audithook.Hook // PR-S41 可空
 }
 
 var _ notifyv1connect.NotifyServiceHandler = (*Handler)(nil)
+
+// WithAudit 注入审计钩子（PR-S41）。
+func (h *Handler) WithAudit(a audithook.Hook) *Handler {
+	h.audit = a
+	return h
+}
+
+// logSubAudit PR-S41：订阅 CRUD 通用 audit。
+func (h *Handler) logSubAudit(
+	ctx context.Context,
+	p *auth.UserPrincipal,
+	action auditdomain.ActionKind,
+	sub *notifydomain.Subscription,
+	subID string,
+	payload map[string]any,
+) {
+	if h.audit == nil {
+		return
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	tenantID := p.TenantID
+	if sub != nil && sub.TenantID != "" {
+		tenantID = sub.TenantID
+	}
+	if tenantID == "" {
+		tenantID = "00000000-0000-0000-0000-000000000001"
+	}
+	ev := audithook.Event{
+		Action:        string(action),
+		ResourceKind:  "notify_subscription",
+		ResourceID:    subID,
+		TenantID:      tenantID,
+		ActorUserID:   p.UserID,
+		ActorUsername: p.Username,
+		Payload:       payload,
+	}
+	if sub != nil && sub.ProjectID != nil {
+		ev.ProjectID = *sub.ProjectID
+	}
+	_ = h.audit.Log(ctx, ev)
+}
 
 // allRoles 读路径（List/Get/ListDeliveries）— 全部 4 个角色。
 // 写路径（Create/Update/Delete/Test）用 writers（HLD §4.3：Auditor 只读）。
@@ -115,6 +161,11 @@ func (h *Handler) CreateSubscription(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logSubAudit(ctx, p, auditdomain.ActionNotifySubCreated, sub, sub.ID, map[string]any{
+		"name":    sub.Name,
+		"channel": string(sub.Channel),
+		"enabled": sub.Enabled,
+	})
 	return connect.NewResponse(&notifyv1.CreateSubscriptionResponse{Subscription: subToProto(sub)}), nil
 }
 
@@ -226,6 +277,11 @@ func (h *Handler) UpdateSubscription(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logSubAudit(ctx, p, auditdomain.ActionNotifySubUpdated, sub, sub.ID, map[string]any{
+		"name":    sub.Name,
+		"channel": string(sub.Channel),
+		"enabled": sub.Enabled,
+	})
 	return connect.NewResponse(&notifyv1.UpdateSubscriptionResponse{Subscription: subToProto(sub)}), nil
 }
 
@@ -241,12 +297,16 @@ func (h *Handler) DeleteSubscription(
 	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
-	if _, err := h.assertSubVisible(ctx, p, req.Msg.GetId()); err != nil {
+	sub, err := h.assertSubVisible(ctx, p, req.Msg.GetId())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.DeleteSubscription(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logSubAudit(ctx, p, auditdomain.ActionNotifySubDeleted, sub, req.Msg.GetId(), map[string]any{
+		"name": sub.Name,
+	})
 	return connect.NewResponse(&notifyv1.DeleteSubscriptionResponse{}), nil
 }
 
@@ -303,12 +363,16 @@ func (h *Handler) TestSubscription(
 	if err := identityhandler.RequireRole(p, writers...); err != nil {
 		return nil, toConnectError(err)
 	}
-	if _, err := h.assertSubVisible(ctx, p, req.Msg.GetId()); err != nil {
+	sub, err := h.assertSubVisible(ctx, p, req.Msg.GetId())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.TestSubscription(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logSubAudit(ctx, p, auditdomain.ActionNotifySubTested, sub, req.Msg.GetId(), map[string]any{
+		"channel": string(sub.Channel),
+	})
 	return connect.NewResponse(&notifyv1.TestSubscriptionResponse{}), nil
 }
 

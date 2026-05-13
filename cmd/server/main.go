@@ -368,7 +368,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
 			return failExitCode(err)
 		}
-		tnMount, tenancySvc, err := buildTenancyMount(pool, authSvc, ca)
+		tnMount, tenancySvc, err := buildTenancyMount(pool, authSvc, ca, auditHook)
 		if err != nil {
 			logger.LogError(ctx, "tenancy stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -409,7 +409,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		// === 8a₃-pre. NotifyService（PR-S25 通知）===
 		// 先于 scan 装：scan deps 注入 composite hook 让 task terminal /
 		// high-severity finding 触发通知 + finding 工单。
-		notifyMount, notifySvc, notifyScanHook, err := buildNotifyMount(pool, authSvc, logger)
+		notifyMount, notifySvc, notifyScanHook, err := buildNotifyMount(pool, authSvc, logger, auditHook)
 		if err != nil {
 			logger.LogError(ctx, "notify stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

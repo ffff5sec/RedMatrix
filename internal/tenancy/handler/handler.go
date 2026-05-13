@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -15,10 +16,12 @@ import (
 
 	tenancyv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1"
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/tenancy/v1/tenancyv1connect"
+	auditdomain "github.com/ffff5sec/RedMatrix/internal/audit/domain"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	identityhandler "github.com/ffff5sec/RedMatrix/internal/identity/handler"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/tenancy"
 	tenancydomain "github.com/ffff5sec/RedMatrix/internal/tenancy/domain"
 )
@@ -26,7 +29,8 @@ import (
 // Handler 实现 tenancyv1connect.TenancyServiceHandler。
 type Handler struct {
 	svc     tenancy.Service
-	authSvc auth.Service // 给 RequireAuth 用
+	authSvc auth.Service   // 给 RequireAuth 用
+	audit   audithook.Hook // PR-S41 可空（无审计时不写）
 }
 
 var _ tenancyv1connect.TenancyServiceHandler = (*Handler)(nil)
@@ -37,6 +41,64 @@ func New(svc tenancy.Service, authSvc auth.Service) (*Handler, error) {
 		return nil, errx.New(errx.ErrInternal, "tenancy.handler.New: 依赖不能为 nil")
 	}
 	return &Handler{svc: svc, authSvc: authSvc}, nil
+}
+
+// WithAudit 注入审计钩子（PR-S41）。
+func (h *Handler) WithAudit(a audithook.Hook) *Handler {
+	h.audit = a
+	return h
+}
+
+// clientIPFromHeader PR-S41：与 identity.handler.clientIP 同语义的简版，
+// 返字符串形态（audithook.Event.ActorIP 是 string）。
+func clientIPFromHeader(header http.Header) string {
+	if v := header.Get("X-Forwarded-For"); v != "" {
+		first := v
+		if i := strings.IndexByte(v, ','); i > 0 {
+			first = v[:i]
+		}
+		return strings.TrimSpace(first)
+	}
+	if v := header.Get("X-Real-IP"); v != "" {
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
+
+// logAudit PR-S41 通用 audit helper：写项目 / 成员变更等结构性事件。
+func (h *Handler) logAudit(
+	ctx context.Context,
+	p *auth.UserPrincipal,
+	header http.Header,
+	action auditdomain.ActionKind,
+	resourceKind, resourceID, tenantID, projectID string,
+	payload map[string]any,
+) {
+	if h.audit == nil {
+		return
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	if tenantID == "" {
+		// SA 跨租户场景 fallback；与 identity.auditDefaultTenant 一致
+		tenantID = "00000000-0000-0000-0000-000000000001"
+	}
+	ev := audithook.Event{
+		Action:        string(action),
+		ResourceKind:  resourceKind,
+		ResourceID:    resourceID,
+		TenantID:      tenantID,
+		ActorUserID:   p.UserID,
+		ActorUsername: p.Username,
+		ActorIP:       clientIPFromHeader(header),
+		UserAgent:     header.Get("User-Agent"),
+		Payload:       payload,
+	}
+	if projectID != "" {
+		ev.ProjectID = projectID
+	}
+	_ = h.audit.Log(ctx, ev)
 }
 
 // === 共享 ===
@@ -90,6 +152,9 @@ func (h *Handler) CreateProject(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logAudit(ctx, p, req.Header(),
+		auditdomain.ActionProjectCreated, "project", out.ID, out.TenantID, out.ID,
+		map[string]any{"name": out.Name})
 	return connect.NewResponse(&tenancyv1.CreateProjectResponse{
 		Project: projectToProto(out),
 	}), nil
@@ -172,12 +237,15 @@ func (h *Handler) ArchiveProject(
 	ctx context.Context,
 	req *connect.Request[tenancyv1.ArchiveProjectRequest],
 ) (*connect.Response[tenancyv1.ArchiveProjectResponse], error) {
-	if _, err := h.requireSA(ctx, req.Header()); err != nil {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.ArchiveProject(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logAudit(ctx, p, req.Header(),
+		auditdomain.ActionProjectArchived, "project", req.Msg.GetId(), p.TenantID, req.Msg.GetId(), nil)
 	return connect.NewResponse(&tenancyv1.ArchiveProjectResponse{}), nil
 }
 
@@ -185,12 +253,15 @@ func (h *Handler) UnarchiveProject(
 	ctx context.Context,
 	req *connect.Request[tenancyv1.UnarchiveProjectRequest],
 ) (*connect.Response[tenancyv1.UnarchiveProjectResponse], error) {
-	if _, err := h.requireSA(ctx, req.Header()); err != nil {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.UnarchiveProject(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logAudit(ctx, p, req.Header(),
+		auditdomain.ActionProjectUnarchived, "project", req.Msg.GetId(), p.TenantID, req.Msg.GetId(), nil)
 	return connect.NewResponse(&tenancyv1.UnarchiveProjectResponse{}), nil
 }
 
@@ -198,12 +269,15 @@ func (h *Handler) DeleteProject(
 	ctx context.Context,
 	req *connect.Request[tenancyv1.DeleteProjectRequest],
 ) (*connect.Response[tenancyv1.DeleteProjectResponse], error) {
-	if _, err := h.requireSA(ctx, req.Header()); err != nil {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.DeleteProject(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logAudit(ctx, p, req.Header(),
+		auditdomain.ActionProjectDeleted, "project", req.Msg.GetId(), p.TenantID, req.Msg.GetId(), nil)
 	return connect.NewResponse(&tenancyv1.DeleteProjectResponse{}), nil
 }
 
@@ -224,6 +298,10 @@ func (h *Handler) AddProjectMember(
 	}); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logAudit(ctx, p, req.Header(),
+		auditdomain.ActionProjectMemberAdded, "project_member", req.Msg.GetProjectId(),
+		p.TenantID, req.Msg.GetProjectId(),
+		map[string]any{"user_id": req.Msg.GetUserId()})
 	return connect.NewResponse(&tenancyv1.AddProjectMemberResponse{}), nil
 }
 
@@ -231,13 +309,18 @@ func (h *Handler) RemoveProjectMember(
 	ctx context.Context,
 	req *connect.Request[tenancyv1.RemoveProjectMemberRequest],
 ) (*connect.Response[tenancyv1.RemoveProjectMemberResponse], error) {
-	if _, err := h.requireSA(ctx, req.Header()); err != nil {
+	p, err := h.requireSA(ctx, req.Header())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.RemoveProjectMember(ctx,
 		req.Msg.GetProjectId(), req.Msg.GetUserId()); err != nil {
 		return nil, toConnectError(err)
 	}
+	h.logAudit(ctx, p, req.Header(),
+		auditdomain.ActionProjectMemberRemoved, "project_member", req.Msg.GetProjectId(),
+		p.TenantID, req.Msg.GetProjectId(),
+		map[string]any{"user_id": req.Msg.GetUserId()})
 	return connect.NewResponse(&tenancyv1.RemoveProjectMemberResponse{}), nil
 }
 

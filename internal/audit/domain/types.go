@@ -24,9 +24,16 @@ const (
 	// identity
 	ActionLogin           ActionKind = "login"
 	ActionLogout          ActionKind = "logout"
+	ActionLogoutAll       ActionKind = "logout_all" // PR-S41
 	ActionPasswordChanged ActionKind = "password_changed"
 	ActionAPIKeyCreated   ActionKind = "api_key_created"
 	ActionAPIKeyRevoked   ActionKind = "api_key_revoked"
+	// identity / SA 账户管理（PR-S41）
+	ActionUserCreated   ActionKind = "user_created"
+	ActionUserEnabled   ActionKind = "user_enabled"
+	ActionUserDisabled  ActionKind = "user_disabled"
+	ActionPasswordReset ActionKind = "password_reset"
+	ActionForceLogout   ActionKind = "force_logout"
 
 	// scan
 	ActionTaskCreate ActionKind = "task_create"
@@ -39,19 +46,35 @@ const (
 	ActionFindingComment    ActionKind = "finding_comment"
 	ActionFindingAssign     ActionKind = "finding_assign" // PR-S38
 
-	// pluginpkg / notify （后续可扩）
+	// tenancy（PR-S41）
+	ActionProjectCreated       ActionKind = "project_created"
+	ActionProjectArchived      ActionKind = "project_archived"
+	ActionProjectUnarchived    ActionKind = "project_unarchived"
+	ActionProjectDeleted       ActionKind = "project_deleted"
+	ActionProjectMemberAdded   ActionKind = "project_member_added"
+	ActionProjectMemberRemoved ActionKind = "project_member_removed"
+
+	// pluginpkg / notify
 	ActionPluginUploaded   ActionKind = "plugin_uploaded"
 	ActionNotifySubCreated ActionKind = "notify_sub_created"
+	ActionNotifySubUpdated ActionKind = "notify_sub_updated" // PR-S41
+	ActionNotifySubDeleted ActionKind = "notify_sub_deleted" // PR-S41
+	ActionNotifySubTested  ActionKind = "notify_sub_tested"  // PR-S41
 )
 
 // Valid 判定 action 合法。
 func (a ActionKind) Valid() bool {
 	switch a {
-	case ActionLogin, ActionLogout, ActionPasswordChanged,
+	case ActionLogin, ActionLogout, ActionLogoutAll, ActionPasswordChanged,
 		ActionAPIKeyCreated, ActionAPIKeyRevoked,
+		ActionUserCreated, ActionUserEnabled, ActionUserDisabled,
+		ActionPasswordReset, ActionForceLogout,
 		ActionTaskCreate, ActionTaskCancel, ActionTaskDelete, ActionSuiteRun,
 		ActionFindingTransition, ActionFindingComment, ActionFindingAssign,
-		ActionPluginUploaded, ActionNotifySubCreated:
+		ActionProjectCreated, ActionProjectArchived, ActionProjectUnarchived,
+		ActionProjectDeleted, ActionProjectMemberAdded, ActionProjectMemberRemoved,
+		ActionPluginUploaded, ActionNotifySubCreated,
+		ActionNotifySubUpdated, ActionNotifySubDeleted, ActionNotifySubTested:
 		return true
 	}
 	return false

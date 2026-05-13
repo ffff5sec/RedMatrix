@@ -15,6 +15,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/notify"
 	notifyhandler "github.com/ffff5sec/RedMatrix/internal/notify/handler"
 	notifyrepo "github.com/ffff5sec/RedMatrix/internal/notify/repo"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	tenancyrepo "github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
@@ -29,10 +30,12 @@ type notifyMount struct {
 // buildNotifyMount 装配 NotifyService。
 //
 // 返回值：mount + 桥接到 scan 的 hook（cmd/server 主流程注入到 scanDeps.Notifier）。
+// PR-S41: auditHook 可空；不空则订阅写操作落 audit。
 func buildNotifyMount(
 	pool *pg.Pool,
 	authSvc auth.Service,
 	logger *log.Logger,
+	auditHook audithook.Hook,
 ) (*notifyMount, notify.Service, *notify.ScanHook, error) {
 	if pool == nil || pool.App == nil {
 		return nil, nil, nil, errx.New(errx.ErrInternal, "buildNotifyMount: pg.Pool.App 不能为 nil")
@@ -65,6 +68,9 @@ func buildNotifyMount(
 	h, err := notifyhandler.New(svc, authSvc, memberDB)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	if auditHook != nil {
+		h.WithAudit(auditHook)
 	}
 	path, hh := notifyv1connect.NewNotifyServiceHandler(h)
 

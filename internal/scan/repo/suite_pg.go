@@ -34,6 +34,8 @@ SELECT id::text,
        schedule_kind,
        COALESCE(cron_expr, '') AS cron_expr,
        default_targets,
+       incremental,
+       incremental_stale_days,
        COALESCE(created_by::text, '') AS created_by,
        created_at,
        updated_at,
@@ -64,13 +66,15 @@ func (r *pgSuiteRepo) Insert(ctx context.Context, s *domain.ScanSuite) error {
 		INSERT INTO scan_suites (
 			tenant_id, project_id, name, kinds, target_kind, default_settings,
 			schedule_kind, cron_expr, default_targets,
+			incremental, incremental_stale_days,
 			created_by
-		) VALUES ($1::uuid, $2, $3, $4::text[], $5, $6, $7, $8, $9::text[], $10)
+		) VALUES ($1::uuid, $2, $3, $4::text[], $5, $6, $7, $8, $9::text[], $10, $11, $12)
 		RETURNING id::text, created_at, updated_at
 	`,
 		s.TenantID, nullableUUIDPtr(s.ProjectID), s.Name,
 		kinds, string(s.TargetKind), settingsJSON,
 		string(s.ScheduleKind), s.CronExpr, defaultTargets,
+		s.Incremental, s.IncrementalStaleDays,
 		nullableUUID(s.CreatedBy),
 	)
 	if err := row.Scan(&s.ID, &s.CreatedAt, &s.UpdatedAt); err != nil {
@@ -204,6 +208,7 @@ func scanSuite(s interface {
 		&kinds, (*string)(&out.TargetKind),
 		&settingsBytes,
 		&scheduleKind, &out.CronExpr, &out.DefaultTargets,
+		&out.Incremental, &out.IncrementalStaleDays,
 		&out.CreatedBy,
 		&out.CreatedAt, &out.UpdatedAt, &out.DeletedAt,
 	); err != nil {

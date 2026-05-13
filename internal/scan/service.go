@@ -65,6 +65,14 @@ type AssetDeriver interface {
 	UpsertFromResults(ctx context.Context, items []AssetResultInput) error
 }
 
+// AssetReader（PR-S34 增量模式）：读取 project 内 stale 资产作为 cron 套件触发的 targets。
+// 可空——dev 不挂 asset 模块时增量套件 cron 跳过该轮（log 警告）。
+type AssetReader interface {
+	// ListStaleAssetValues 返回 project 内 last_seen < now - staleDays 的资产 value 列表（按 last_seen ASC，先扫最老的）。
+	// 上限 limit；超出时只取前 limit 个。
+	ListStaleAssetValues(ctx context.Context, projectID string, staleDays, limit int) ([]string, error)
+}
+
 // AssetResultInput 是 AssetDeriver 的入参；与 asset.ResultInput 同形，
 // 这里独立类型避免 scan 直接 import asset 包。
 type AssetResultInput struct {
@@ -303,6 +311,7 @@ type service struct {
 	logger         *log.Logger
 	notifier       TaskNotifier // PR-S25：task terminal / high-severity finding 钩子；可空
 	suiteScheduler Scheduler    // PR-S30：suite cron；可空（无 cron 时不注册）
+	assetReader    AssetReader  // PR-S34：增量套件 cron 拉 stale assets；可空
 	now            func() time.Time
 }
 
@@ -343,6 +352,8 @@ type Deps struct {
 	Notifier TaskNotifier
 	// SuiteScheduler（PR-S30）可空：nil → 套件 cron 不注册（仍可手动 RunSuite）。
 	SuiteScheduler Scheduler
+	// AssetReader（PR-S34）可空：nil → 增量套件 cron 跳过本轮。
+	AssetReader AssetReader
 }
 
 // NewService 构造 scan Service（PR-S18-A：options pattern）。
@@ -364,6 +375,7 @@ func NewService(d Deps) (Service, error) {
 		metrics: met,
 		logger:  d.Logger, notifier: d.Notifier,
 		suiteScheduler: d.SuiteScheduler,
+		assetReader:    d.AssetReader,
 		now:            time.Now,
 	}, nil
 }

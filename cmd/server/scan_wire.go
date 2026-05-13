@@ -41,6 +41,7 @@ func buildScanMount(
 	esClient *es.Client,
 	authSvc auth.Service,
 	assetDeriver scan.AssetDeriver,
+	assetReader scan.AssetReader, // PR-S34 增量套件 cron；可空
 	artifactStore scan.ArtifactStore,
 	scanMetrics *metricsscan.Collectors,
 	eventBus *eventbus.Bus,
@@ -120,8 +121,9 @@ func buildScanMount(
 		Artifacts:      artifactStore,
 		Metrics:        scanMetrics,
 		Logger:         logger,
-		Notifier:       notifier,   // PR-S25
-		SuiteScheduler: suiteSched, // PR-S30
+		Notifier:       notifier,    // PR-S25
+		SuiteScheduler: suiteSched,  // PR-S30
+		AssetReader:    assetReader, // PR-S34
 	})
 	if err != nil {
 		return nil, nil, nil, nil, err

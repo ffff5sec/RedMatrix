@@ -65,6 +65,8 @@ const newSuite = ref({
   scheduleKind: 'immediate' as 'immediate' | 'cron',
   cronExpr: '0 2 * * *',
   defaultTargetsRaw: '',
+  incremental: false,
+  incrementalStaleDays: 7,
 });
 const submitting = ref(false);
 
@@ -88,8 +90,9 @@ async function createSuite() {
       toast.error('cron 模式必须填 cron_expr');
       return;
     }
-    if (defaultTargets.length === 0) {
-      toast.error('cron 模式必须填 default_targets 至少 1 个');
+    // PR-S34 增量模式不需要 default_targets（用 stale assets 代替）
+    if (!newSuite.value.incremental && defaultTargets.length === 0) {
+      toast.error('非增量 cron 必须填 default_targets 至少 1 个');
       return;
     }
     if (!newSuite.value.projectId) {
@@ -107,6 +110,8 @@ async function createSuite() {
       scheduleKind: newSuite.value.scheduleKind,
       cronExpr: newSuite.value.cronExpr,
       defaultTargets,
+      incremental: newSuite.value.incremental,
+      incrementalStaleDays: newSuite.value.incrementalStaleDays,
     });
     toast.success(`套件 ${newSuite.value.name} 已创建`);
     showCreate.value = false;
@@ -115,6 +120,7 @@ async function createSuite() {
       kindsSelected: ['port_scan', 'subdomain', 'fingerprint', 'vuln_scan'],
       targetKind: 'host',
       scheduleKind: 'immediate', cronExpr: '0 2 * * *', defaultTargetsRaw: '',
+      incremental: false, incrementalStaleDays: 7,
     };
     await refresh();
   } catch (e) {
@@ -315,7 +321,11 @@ function kindLabel(k: string) {
               <span v-if="s.scheduleKind === 'cron'" class="chip cron-chip" :title="`cron: ${s.cronExpr}`">
                 ⏱ {{ s.cronExpr }}
               </span>
-              <span v-else class="muted" style="font-size: 12px">手动</span>
+              <span v-if="s.scheduleKind === 'cron' && s.incremental" class="chip inc-chip"
+                    :title="`仅扫 ≥ ${s.incrementalStaleDays}d 未扫的资产`">
+                Δ {{ s.incrementalStaleDays }}d
+              </span>
+              <span v-if="s.scheduleKind !== 'cron'" class="muted" style="font-size: 12px">手动</span>
             </td>
             <td class="muted" :title="formatAbsoluteTime(s.createdAt)">
               {{ formatRelativeTime(s.createdAt, nowTick) }}
@@ -381,7 +391,19 @@ function kindLabel(k: string) {
             <input v-model="newSuite.cronExpr" placeholder="0 2 * * *（每天凌晨 2 点）"
                    :disabled="submitting" style="flex: 1; font-family: monospace" />
           </div>
-          <div v-if="newSuite.scheduleKind === 'cron'" class="form-row form-row-top">
+          <div v-if="newSuite.scheduleKind === 'cron'" class="form-row">
+            <span class="label">增量模式</span>
+            <label class="incremental-toggle">
+              <input type="checkbox" v-model="newSuite.incremental" :disabled="submitting" />
+              <span>仅扫近 {{ newSuite.incrementalStaleDays }} 天未扫的资产（PR-S34）</span>
+            </label>
+          </div>
+          <div v-if="newSuite.scheduleKind === 'cron' && newSuite.incremental" class="form-row">
+            <span class="label">stale 阈值（天）</span>
+            <input v-model.number="newSuite.incrementalStaleDays" type="number" min="1" max="365"
+                   :disabled="submitting" style="width: 100px" />
+          </div>
+          <div v-if="newSuite.scheduleKind === 'cron' && !newSuite.incremental" class="form-row form-row-top">
             <span class="label">默认目标</span>
             <div style="flex: 1">
               <textarea v-model="newSuite.defaultTargetsRaw"
@@ -390,6 +412,11 @@ function kindLabel(k: string) {
                         style="width: 100%; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px" />
             </div>
           </div>
+          <p v-if="newSuite.scheduleKind === 'cron' && newSuite.incremental" class="muted"
+             style="margin: 0; padding: 6px 8px; background: rgba(59, 130, 246, 0.08); border-radius: 4px; font-size: 12px">
+            ℹ 增量模式：cron 触发时自动拉项目内 last_seen &lt; now - {{ newSuite.incrementalStaleDays }} 天的资产作为 targets；
+            无 stale 资产时本轮跳过。
+          </p>
           <p v-if="newSuite.scheduleKind === 'cron' && !newSuite.projectId" class="muted"
              style="margin: 0; padding: 6px 8px; background: rgba(245, 158, 11, 0.12); border-radius: 4px; font-size: 12px">
             ⚠ cron 套件必须指定项目，跨项目暂不支持自动触发。
@@ -528,6 +555,9 @@ function kindLabel(k: string) {
 .expand-err { color: #b91c1c; }
 .expand-warn { color: #b45309; }
 .cron-chip { background: rgba(124, 58, 237, 0.12); color: #6d28d9; font-family: ui-monospace, SFMono-Regular, monospace; }
+.inc-chip { background: rgba(34, 197, 94, 0.12); color: #15803d; font-family: ui-monospace, SFMono-Regular, monospace; margin-left: 4px; }
+.incremental-toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.incremental-toggle input { margin: 0; }
 .curl-block {
   background: #0f172a;
   color: #e2e8f0;

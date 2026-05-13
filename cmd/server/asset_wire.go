@@ -32,25 +32,25 @@ func buildAssetMount(
 	pool *pg.Pool,
 	authSvc auth.Service,
 	logger *log.Logger,
-) (*assetMount, scan.AssetDeriver, error) {
+) (*assetMount, scan.AssetDeriver, scan.AssetReader, error) {
 	if pool == nil || pool.App == nil {
-		return nil, nil, errx.New(errx.ErrInternal, "buildAssetMount: pg.Pool.App 不能为 nil")
+		return nil, nil, nil, errx.New(errx.ErrInternal, "buildAssetMount: pg.Pool.App 不能为 nil")
 	}
 	if authSvc == nil {
-		return nil, nil, errx.New(errx.ErrInternal, "buildAssetMount: authSvc 不能为 nil")
+		return nil, nil, nil, errx.New(errx.ErrInternal, "buildAssetMount: authSvc 不能为 nil")
 	}
 	r := assetrepo.NewPG(pool.App)
 	svc, err := asset.NewService(r, logger)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	memberDB := tenancyrepo.NewProjectMemberPG(pool.App)
 	h, err := assethandler.New(svc, authSvc, memberDB)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	path, hh := assetv1connect.NewAssetServiceHandler(h)
-	return &assetMount{path: path, handler: hh}, &scanAssetAdapter{svc: svc}, nil
+	return &assetMount{path: path, handler: hh}, &scanAssetAdapter{svc: svc}, &scanAssetReader{assets: svc}, nil
 }
 
 // scanAssetAdapter 把 scan.AssetResultInput 转 asset.ResultInput；

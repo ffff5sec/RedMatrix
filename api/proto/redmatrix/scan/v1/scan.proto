@@ -250,6 +250,9 @@ message ScanSuite {
   string schedule_kind = 11; // immediate / cron
   string cron_expr = 12;
   repeated string default_targets = 13;
+  // PR-S34 增量模式
+  bool incremental = 14;
+  int32 incremental_stale_days = 15;
 }
 
 message ScanSuiteRun {
@@ -279,6 +282,9 @@ message CreateScanSuiteRequest {
   string schedule_kind = 6;
   string cron_expr = 7;
   repeated string default_targets = 8;
+  // PR-S34 增量模式（仅 cron 有效）
+  bool incremental = 9;
+  int32 incremental_stale_days = 10;
 }
 message CreateScanSuiteResponse {
   ScanSuite suite = 1;

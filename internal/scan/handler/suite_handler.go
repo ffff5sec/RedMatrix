@@ -58,16 +58,18 @@ func (h *Handler) CreateScanSuite(
 		scheduleKind = scandomain.ScheduleImmediate
 	}
 	suite, err := h.svc.CreateSuite(ctx, scan.CreateSuiteRequest{
-		TenantID:        p.TenantID,
-		ProjectID:       projectID,
-		Name:            in.GetName(),
-		Kinds:           kinds,
-		TargetKind:      scandomain.TargetKind(in.GetTargetKind()),
-		DefaultSettings: defaults,
-		CreatedBy:       p.UserID,
-		ScheduleKind:    scheduleKind,
-		CronExpr:        in.GetCronExpr(),
-		DefaultTargets:  in.GetDefaultTargets(),
+		TenantID:             p.TenantID,
+		ProjectID:            projectID,
+		Name:                 in.GetName(),
+		Kinds:                kinds,
+		TargetKind:           scandomain.TargetKind(in.GetTargetKind()),
+		DefaultSettings:      defaults,
+		CreatedBy:            p.UserID,
+		ScheduleKind:         scheduleKind,
+		CronExpr:             in.GetCronExpr(),
+		DefaultTargets:       in.GetDefaultTargets(),
+		Incremental:          in.GetIncremental(),
+		IncrementalStaleDays: int(in.GetIncrementalStaleDays()),
 	})
 	if err != nil {
 		return nil, toConnectError(err)
@@ -380,6 +382,9 @@ func suiteToProto(s *scandomain.ScanSuite) *scanv1.ScanSuite {
 		ScheduleKind:   string(s.ScheduleKind),
 		CronExpr:       s.CronExpr,
 		DefaultTargets: append([]string(nil), s.DefaultTargets...),
+		Incremental:    s.Incremental,
+		//nolint:gosec // IncrementalStaleDays 配置上限合理；int32 不溢出
+		IncrementalStaleDays: int32(s.IncrementalStaleDays),
 	}
 	if s.ProjectID != nil {
 		out.ProjectId = *s.ProjectID

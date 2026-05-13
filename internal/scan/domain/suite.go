@@ -62,6 +62,13 @@ type ScanSuite struct {
 	CronExpr       string
 	DefaultTargets []string
 
+	// PR-S34 增量模式（仅 ScheduleKind=cron 有效）：
+	//   - Incremental=true → TriggerCronSuite 不用 DefaultTargets，而是查 project 内
+	//     last_seen < now - IncrementalStaleDays 的 asset 作 targets
+	//   - 空 stale → 本轮 skip
+	Incremental          bool
+	IncrementalStaleDays int
+
 	CreatedBy string
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -121,12 +128,16 @@ func (s *ScanSuite) ValidateForCreate() error {
 			return errx.New(errx.ErrTaskCronInvalid, "suite cron_expr 不合法（标准 5 字段）").
 				WithFields("expr", s.CronExpr)
 		}
-		if len(s.DefaultTargets) == 0 {
-			return errx.New(errx.ErrTaskNoTargets, "suite cron 必填 default_targets 至少 1 个")
+		// PR-S34 增量模式不需要 default_targets（用 stale assets 代替）
+		if !s.Incremental && len(s.DefaultTargets) == 0 {
+			return errx.New(errx.ErrTaskNoTargets, "suite cron（非增量）必填 default_targets 至少 1 个")
 		}
 	}
 	if s.DefaultTargets == nil {
 		s.DefaultTargets = []string{}
+	}
+	if s.IncrementalStaleDays <= 0 {
+		s.IncrementalStaleDays = 7
 	}
 	return nil
 }

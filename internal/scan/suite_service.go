@@ -27,6 +27,10 @@ type CreateSuiteRequest struct {
 	ScheduleKind   domain.ScheduleKind
 	CronExpr       string
 	DefaultTargets []string
+
+	// PR-S34 增量模式（仅 cron + project 内有效）
+	Incremental          bool
+	IncrementalStaleDays int
 }
 
 // ListSuitesRequest 列套件入参。
@@ -102,16 +106,18 @@ func (s *service) CreateSuite(ctx context.Context, req CreateSuiteRequest) (*dom
 		}
 	}
 	suite := &domain.ScanSuite{
-		TenantID:        req.TenantID,
-		ProjectID:       req.ProjectID,
-		Name:            req.Name,
-		Kinds:           req.Kinds,
-		TargetKind:      req.TargetKind,
-		DefaultSettings: req.DefaultSettings,
-		CreatedBy:       req.CreatedBy,
-		ScheduleKind:    req.ScheduleKind,
-		CronExpr:        req.CronExpr,
-		DefaultTargets:  req.DefaultTargets,
+		TenantID:             req.TenantID,
+		ProjectID:            req.ProjectID,
+		Name:                 req.Name,
+		Kinds:                req.Kinds,
+		TargetKind:           req.TargetKind,
+		DefaultSettings:      req.DefaultSettings,
+		CreatedBy:            req.CreatedBy,
+		ScheduleKind:         req.ScheduleKind,
+		CronExpr:             req.CronExpr,
+		DefaultTargets:       req.DefaultTargets,
+		Incremental:          req.Incremental,
+		IncrementalStaleDays: req.IncrementalStaleDays,
 	}
 	if err := s.suites.Insert(ctx, suite); err != nil {
 		return nil, err
@@ -590,10 +596,43 @@ func (s *service) TriggerCronSuite(ctx context.Context, suiteID string) error {
 		return nil
 	}
 
+	// PR-S34 增量模式：拉 stale assets 作 targets
+	targets := append([]string(nil), suite.DefaultTargets...)
+	if suite.Incremental {
+		if s.assetReader == nil {
+			if s.logger != nil {
+				s.logger.Info("scan: 增量套件 cron 跳过（assetReader 未注入）",
+					"suite_id", suiteID)
+			}
+			return nil
+		}
+		const maxIncrementalTargets = 4096
+		staleDays := suite.IncrementalStaleDays
+		if staleDays <= 0 {
+			staleDays = 7
+		}
+		stale, sErr := s.assetReader.ListStaleAssetValues(ctx, *suite.ProjectID, staleDays, maxIncrementalTargets)
+		if sErr != nil {
+			if s.logger != nil {
+				s.logger.LogError(ctx, "scan: 增量套件拉 stale assets 失败", sErr,
+					"suite_id", suiteID, "stale_days", staleDays)
+			}
+			return sErr
+		}
+		if len(stale) == 0 {
+			if s.logger != nil {
+				s.logger.Info("scan: 增量套件本轮无 stale 资产，跳过",
+					"suite_id", suiteID, "stale_days", staleDays)
+			}
+			return nil
+		}
+		targets = stale
+	}
+
 	_, err = s.RunSuite(ctx, RunSuiteRequest{
 		SuiteID:   suiteID,
 		ProjectID: *suite.ProjectID,
-		Targets:   append([]string(nil), suite.DefaultTargets...),
+		Targets:   targets,
 		// CreatedBy 留空 = system；UI 列表会显示"系统触发"
 	})
 	if err != nil {
@@ -605,7 +644,7 @@ func (s *service) TriggerCronSuite(ctx context.Context, suiteID string) error {
 	}
 	if s.logger != nil {
 		s.logger.Info("scan: cron suite triggered",
-			"suite_id", suiteID, "targets", len(suite.DefaultTargets))
+			"suite_id", suiteID, "targets", len(targets), "incremental", suite.Incremental)
 	}
 	return nil
 }

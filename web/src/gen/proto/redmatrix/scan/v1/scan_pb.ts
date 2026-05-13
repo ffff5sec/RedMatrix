@@ -1466,6 +1466,18 @@ export class ScanSuite extends Message<ScanSuite> {
    */
   defaultTargets: string[] = [];
 
+  /**
+   * PR-S34 增量模式
+   *
+   * @generated from field: bool incremental = 14;
+   */
+  incremental = false;
+
+  /**
+   * @generated from field: int32 incremental_stale_days = 15;
+   */
+  incrementalStaleDays = 0;
+
   constructor(data?: PartialMessage<ScanSuite>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1487,6 +1499,8 @@ export class ScanSuite extends Message<ScanSuite> {
     { no: 11, name: "schedule_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 12, name: "cron_expr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 13, name: "default_targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 14, name: "incremental", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 15, name: "incremental_stale_days", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ScanSuite {
@@ -1655,6 +1669,18 @@ export class CreateScanSuiteRequest extends Message<CreateScanSuiteRequest> {
    */
   defaultTargets: string[] = [];
 
+  /**
+   * PR-S34 增量模式（仅 cron 有效）
+   *
+   * @generated from field: bool incremental = 9;
+   */
+  incremental = false;
+
+  /**
+   * @generated from field: int32 incremental_stale_days = 10;
+   */
+  incrementalStaleDays = 0;
+
   constructor(data?: PartialMessage<CreateScanSuiteRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1671,6 +1697,8 @@ export class CreateScanSuiteRequest extends Message<CreateScanSuiteRequest> {
     { no: 6, name: "schedule_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "cron_expr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "default_targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 9, name: "incremental", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 10, name: "incremental_stale_days", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateScanSuiteRequest {

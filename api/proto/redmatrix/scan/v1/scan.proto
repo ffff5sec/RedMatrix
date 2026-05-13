@@ -246,6 +246,10 @@ message ScanSuite {
   string created_by = 8;
   google.protobuf.Timestamp created_at = 9;
   google.protobuf.Timestamp updated_at = 10;
+  // PR-S30 cron 调度
+  string schedule_kind = 11; // immediate / cron
+  string cron_expr = 12;
+  repeated string default_targets = 13;
 }
 
 message ScanSuiteRun {
@@ -271,6 +275,10 @@ message CreateScanSuiteRequest {
   repeated string kinds = 3;
   string target_kind = 4;
   google.protobuf.Struct default_settings = 5;
+  // PR-S30 cron 调度（schedule_kind=cron 时 cron_expr + default_targets 必填）
+  string schedule_kind = 6;
+  string cron_expr = 7;
+  repeated string default_targets = 8;
 }
 message CreateScanSuiteResponse {
   ScanSuite suite = 1;

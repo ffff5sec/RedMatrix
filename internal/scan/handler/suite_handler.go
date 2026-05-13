@@ -53,6 +53,10 @@ func (h *Handler) CreateScanSuite(
 	if in.DefaultSettings != nil {
 		defaults = in.DefaultSettings.AsMap()
 	}
+	scheduleKind := scandomain.ScheduleKind(in.GetScheduleKind())
+	if scheduleKind == "" {
+		scheduleKind = scandomain.ScheduleImmediate
+	}
 	suite, err := h.svc.CreateSuite(ctx, scan.CreateSuiteRequest{
 		TenantID:        p.TenantID,
 		ProjectID:       projectID,
@@ -61,6 +65,9 @@ func (h *Handler) CreateScanSuite(
 		TargetKind:      scandomain.TargetKind(in.GetTargetKind()),
 		DefaultSettings: defaults,
 		CreatedBy:       p.UserID,
+		ScheduleKind:    scheduleKind,
+		CronExpr:        in.GetCronExpr(),
+		DefaultTargets:  in.GetDefaultTargets(),
 	})
 	if err != nil {
 		return nil, toConnectError(err)
@@ -363,13 +370,16 @@ func suiteToProto(s *scandomain.ScanSuite) *scanv1.ScanSuite {
 		return nil
 	}
 	out := &scanv1.ScanSuite{
-		Id:         s.ID,
-		TenantId:   s.TenantID,
-		Name:       s.Name,
-		TargetKind: string(s.TargetKind),
-		CreatedBy:  s.CreatedBy,
-		CreatedAt:  timestamppb.New(s.CreatedAt),
-		UpdatedAt:  timestamppb.New(s.UpdatedAt),
+		Id:             s.ID,
+		TenantId:       s.TenantID,
+		Name:           s.Name,
+		TargetKind:     string(s.TargetKind),
+		CreatedBy:      s.CreatedBy,
+		CreatedAt:      timestamppb.New(s.CreatedAt),
+		UpdatedAt:      timestamppb.New(s.UpdatedAt),
+		ScheduleKind:   string(s.ScheduleKind),
+		CronExpr:       s.CronExpr,
+		DefaultTargets: append([]string(nil), s.DefaultTargets...),
 	}
 	if s.ProjectID != nil {
 		out.ProjectId = *s.ProjectID

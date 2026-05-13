@@ -138,6 +138,10 @@ type Service interface {
 	// 模板 task 已软删 / 取消时静默跳过（不返错，避免 cron 反复打日志）。
 	TriggerCronTask(ctx context.Context, taskID string) error
 
+	// TriggerCronSuite（PR-S30）—— 由 suite scheduler 到点时回调。
+	// 用 suite.default_targets 自动调 RunSuite；suite 软删 / 非 cron → 静默跳过。
+	TriggerCronSuite(ctx context.Context, suiteID string) error
+
 	// SweepStaleAssignments（PR-S14）—— sweeper 定期调；把 status IN
 	// (pulled, running) 且超过 timeout 未上报的 assignment 标 failed，并
 	// 触发 task 状态聚合。返已扫数。
@@ -290,15 +294,16 @@ type service struct {
 	allowed     AllowedNodesLookup
 	// pool 用于 ReportResults 开 tx（PR-S17-OUTB：InsertBulk + PublishTx 原子）。
 	// 可空 — 测试 / scaffold 不挂 PG 时 ReportResults 走非-tx 老路径（best-effort）。
-	pool      *pgxpool.Pool
-	indexer   Indexer       // 可空
-	assets    AssetDeriver  // 可空
-	scheduler Scheduler     // 可空
-	artifacts ArtifactStore // 可空
-	metrics   *metricsscan.Collectors
-	logger    *log.Logger
-	notifier  TaskNotifier // PR-S25：task terminal / high-severity finding 钩子；可空
-	now       func() time.Time
+	pool           *pgxpool.Pool
+	indexer        Indexer       // 可空
+	assets         AssetDeriver  // 可空
+	scheduler      Scheduler     // 可空
+	artifacts      ArtifactStore // 可空
+	metrics        *metricsscan.Collectors
+	logger         *log.Logger
+	notifier       TaskNotifier // PR-S25：task terminal / high-severity finding 钩子；可空
+	suiteScheduler Scheduler    // PR-S30：suite cron；可空（无 cron 时不注册）
+	now            func() time.Time
 }
 
 // TaskNotifier 通知系统钩子（PR-S25），由 cmd/server 装配时注入。
@@ -336,6 +341,8 @@ type Deps struct {
 	SuiteRuns repo.SuiteRunRepository
 	// Notifier（PR-S25）可空：nil → 通知禁用，scan 跑得了。
 	Notifier TaskNotifier
+	// SuiteScheduler（PR-S30）可空：nil → 套件 cron 不注册（仍可手动 RunSuite）。
+	SuiteScheduler Scheduler
 }
 
 // NewService 构造 scan Service（PR-S18-A：options pattern）。
@@ -355,7 +362,9 @@ func NewService(d Deps) (Service, error) {
 		pool:    d.Pool,
 		indexer: d.Indexer, assets: d.Assets, scheduler: d.Scheduler, artifacts: d.Artifacts,
 		metrics: met,
-		logger:  d.Logger, notifier: d.Notifier, now: time.Now,
+		logger:  d.Logger, notifier: d.Notifier,
+		suiteScheduler: d.SuiteScheduler,
+		now:            time.Now,
 	}, nil
 }
 

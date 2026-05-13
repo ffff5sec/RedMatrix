@@ -88,6 +88,10 @@ func (s *stubScanSvc) TriggerCronTask(_ context.Context, _ string) error {
 	panic("unexpected: TriggerCronTask")
 }
 
+func (s *stubScanSvc) TriggerCronSuite(_ context.Context, _ string) error {
+	panic("unexpected: TriggerCronSuite")
+}
+
 func (s *stubScanSvc) SweepStaleAssignments(_ context.Context, _ time.Duration) (int, error) {
 	panic("unexpected: SweepStaleAssignments")
 }

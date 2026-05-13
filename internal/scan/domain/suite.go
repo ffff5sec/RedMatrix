@@ -55,6 +55,13 @@ type ScanSuite struct {
 	// DefaultSettings: {"port_scan": {...}, "nuclei": {...}} —— per-kind 覆盖
 	DefaultSettings map[string]any
 
+	// PR-S30 套件 cron 调度：
+	//   - ScheduleKind = immediate（默认）→ 仅手动 RunSuite 触发
+	//   - ScheduleKind = cron → scheduler 周期触发，RunSuite(DefaultTargets)
+	ScheduleKind   ScheduleKind
+	CronExpr       string
+	DefaultTargets []string
+
 	CreatedBy string
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -97,6 +104,29 @@ func (s *ScanSuite) ValidateForCreate() error {
 	}
 	if s.DefaultSettings == nil {
 		s.DefaultSettings = map[string]any{}
+	}
+	// PR-S30 cron 字段
+	if s.ScheduleKind == "" {
+		s.ScheduleKind = ScheduleImmediate
+	}
+	if !s.ScheduleKind.Valid() {
+		return errx.New(errx.ErrInvalidInput, "scan_suite.schedule_kind 不合法").
+			WithFields("got", string(s.ScheduleKind))
+	}
+	if s.ScheduleKind == ScheduleCron {
+		if strings.TrimSpace(s.CronExpr) == "" {
+			return errx.New(errx.ErrTaskCronInvalid, "suite schedule_kind=cron 时 cron_expr 必填")
+		}
+		if !ValidCronExpr(s.CronExpr) {
+			return errx.New(errx.ErrTaskCronInvalid, "suite cron_expr 不合法（标准 5 字段）").
+				WithFields("expr", s.CronExpr)
+		}
+		if len(s.DefaultTargets) == 0 {
+			return errx.New(errx.ErrTaskNoTargets, "suite cron 必填 default_targets 至少 1 个")
+		}
+	}
+	if s.DefaultTargets == nil {
+		s.DefaultTargets = []string{}
 	}
 	return nil
 }

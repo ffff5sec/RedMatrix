@@ -430,7 +430,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		// === 8a₃. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。同时返回 scheduler 让 main 控生命周期（PR-S12）。
-		scMount, scanSvc, scanSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, scanMetrics, eventBus, eventRegistry, logger, scanHook)
+		scMount, scanSvc, scanSched, suiteSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, artifactStore, scanMetrics, eventBus, eventRegistry, logger, scanHook)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -452,6 +452,14 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		scanSched.Start()
 		defer scanSched.Stop()
 		logger.Info("scan scheduler started", "cron_tasks", scanSched.Count())
+
+		// PR-S30 suite scheduler
+		if err := suiteSched.LoadAll(ctx); err != nil {
+			logger.LogError(ctx, "scan: suite scheduler LoadAll failed (continuing)", err)
+		}
+		suiteSched.Start()
+		defer suiteSched.Stop()
+		logger.Info("suite scheduler started", "cron_suites", suiteSched.Count())
 
 		// === 8a₃'. Sweeper（PR-S14）—— 回收卡 running 超时的派发 ===
 		// PR-S17-RACE：用 sweeperDone 让 shutdown 显式等 goroutine 退出，

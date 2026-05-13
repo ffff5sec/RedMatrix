@@ -20,6 +20,15 @@ type SuiteRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.ScanSuite, error)
 	List(ctx context.Context, filter SuiteFilter, page Page) ([]*domain.ScanSuite, int, error)
 	SoftDelete(ctx context.Context, id string) error
+	// ListCronTemplates（PR-S30）返所有 schedule_kind=cron 且未软删的 suite。
+	// 启动期 scheduler.LoadAll 用；只返 ID + CronExpr 关键字段足够。
+	ListCronTemplates(ctx context.Context) ([]SuiteCronTemplate, error)
+}
+
+// SuiteCronTemplate scheduler 启动加载用的最小字段。
+type SuiteCronTemplate struct {
+	SuiteID  string
+	CronExpr string
 }
 
 // SuiteRunFilter ListSuiteRuns 查询过滤。

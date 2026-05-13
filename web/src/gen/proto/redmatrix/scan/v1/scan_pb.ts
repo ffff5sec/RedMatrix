@@ -1447,6 +1447,25 @@ export class ScanSuite extends Message<ScanSuite> {
    */
   updatedAt?: Timestamp;
 
+  /**
+   * PR-S30 cron 调度
+   *
+   * immediate / cron
+   *
+   * @generated from field: string schedule_kind = 11;
+   */
+  scheduleKind = "";
+
+  /**
+   * @generated from field: string cron_expr = 12;
+   */
+  cronExpr = "";
+
+  /**
+   * @generated from field: repeated string default_targets = 13;
+   */
+  defaultTargets: string[] = [];
+
   constructor(data?: PartialMessage<ScanSuite>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1465,6 +1484,9 @@ export class ScanSuite extends Message<ScanSuite> {
     { no: 8, name: "created_by", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 9, name: "created_at", kind: "message", T: Timestamp },
     { no: 10, name: "updated_at", kind: "message", T: Timestamp },
+    { no: 11, name: "schedule_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "cron_expr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "default_targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ScanSuite {
@@ -1616,6 +1638,23 @@ export class CreateScanSuiteRequest extends Message<CreateScanSuiteRequest> {
    */
   defaultSettings?: Struct;
 
+  /**
+   * PR-S30 cron 调度（schedule_kind=cron 时 cron_expr + default_targets 必填）
+   *
+   * @generated from field: string schedule_kind = 6;
+   */
+  scheduleKind = "";
+
+  /**
+   * @generated from field: string cron_expr = 7;
+   */
+  cronExpr = "";
+
+  /**
+   * @generated from field: repeated string default_targets = 8;
+   */
+  defaultTargets: string[] = [];
+
   constructor(data?: PartialMessage<CreateScanSuiteRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1629,6 +1668,9 @@ export class CreateScanSuiteRequest extends Message<CreateScanSuiteRequest> {
     { no: 3, name: "kinds", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 4, name: "target_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "default_settings", kind: "message", T: Struct },
+    { no: 6, name: "schedule_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "cron_expr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "default_targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateScanSuiteRequest {

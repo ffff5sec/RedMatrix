@@ -1678,8 +1678,12 @@ type ScanSuite struct {
 	CreatedBy       string                 `protobuf:"bytes,8,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
 	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// PR-S30 cron 调度
+	ScheduleKind   string   `protobuf:"bytes,11,opt,name=schedule_kind,json=scheduleKind,proto3" json:"schedule_kind,omitempty"` // immediate / cron
+	CronExpr       string   `protobuf:"bytes,12,opt,name=cron_expr,json=cronExpr,proto3" json:"cron_expr,omitempty"`
+	DefaultTargets []string `protobuf:"bytes,13,rep,name=default_targets,json=defaultTargets,proto3" json:"default_targets,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ScanSuite) Reset() {
@@ -1778,6 +1782,27 @@ func (x *ScanSuite) GetCreatedAt() *timestamppb.Timestamp {
 func (x *ScanSuite) GetUpdatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *ScanSuite) GetScheduleKind() string {
+	if x != nil {
+		return x.ScheduleKind
+	}
+	return ""
+}
+
+func (x *ScanSuite) GetCronExpr() string {
+	if x != nil {
+		return x.CronExpr
+	}
+	return ""
+}
+
+func (x *ScanSuite) GetDefaultTargets() []string {
+	if x != nil {
+		return x.DefaultTargets
 	}
 	return nil
 }
@@ -1916,8 +1941,12 @@ type CreateScanSuiteRequest struct {
 	Kinds           []string         `protobuf:"bytes,3,rep,name=kinds,proto3" json:"kinds,omitempty"`
 	TargetKind      string           `protobuf:"bytes,4,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"`
 	DefaultSettings *structpb.Struct `protobuf:"bytes,5,opt,name=default_settings,json=defaultSettings,proto3" json:"default_settings,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// PR-S30 cron 调度（schedule_kind=cron 时 cron_expr + default_targets 必填）
+	ScheduleKind   string   `protobuf:"bytes,6,opt,name=schedule_kind,json=scheduleKind,proto3" json:"schedule_kind,omitempty"`
+	CronExpr       string   `protobuf:"bytes,7,opt,name=cron_expr,json=cronExpr,proto3" json:"cron_expr,omitempty"`
+	DefaultTargets []string `protobuf:"bytes,8,rep,name=default_targets,json=defaultTargets,proto3" json:"default_targets,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CreateScanSuiteRequest) Reset() {
@@ -1981,6 +2010,27 @@ func (x *CreateScanSuiteRequest) GetTargetKind() string {
 func (x *CreateScanSuiteRequest) GetDefaultSettings() *structpb.Struct {
 	if x != nil {
 		return x.DefaultSettings
+	}
+	return nil
+}
+
+func (x *CreateScanSuiteRequest) GetScheduleKind() string {
+	if x != nil {
+		return x.ScheduleKind
+	}
+	return ""
+}
+
+func (x *CreateScanSuiteRequest) GetCronExpr() string {
+	if x != nil {
+		return x.CronExpr
+	}
+	return ""
+}
+
+func (x *CreateScanSuiteRequest) GetDefaultTargets() []string {
+	if x != nil {
+		return x.DefaultTargets
 	}
 	return nil
 }
@@ -2966,7 +3016,7 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x120\n" +
-	"\x06facets\x18\x05 \x03(\v2\x18.redmatrix.scan.v1.FacetR\x06facets\"\xfb\x02\n" +
+	"\x06facets\x18\x05 \x03(\v2\x18.redmatrix.scan.v1.FacetR\x06facets\"\xe6\x03\n" +
 	"\tScanSuite\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1d\n" +
@@ -2983,7 +3033,10 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb1\x03\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12#\n" +
+	"\rschedule_kind\x18\v \x01(\tR\fscheduleKind\x12\x1b\n" +
+	"\tcron_expr\x18\f \x01(\tR\bcronExpr\x12'\n" +
+	"\x0fdefault_targets\x18\r \x03(\tR\x0edefaultTargets\"\xb1\x03\n" +
 	"\fScanSuiteRun\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bsuite_id\x18\x02 \x01(\tR\asuiteId\x12\x1b\n" +
@@ -3002,7 +3055,7 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	" \x01(\v2\x1a.google.protobuf.TimestampH\x00R\n" +
 	"finishedAt\x88\x01\x01\x12!\n" +
 	"\fcurrent_step\x18\v \x01(\x05R\vcurrentStepB\x0e\n" +
-	"\f_finished_at\"\xc6\x01\n" +
+	"\f_finished_at\"\xb1\x02\n" +
 	"\x16CreateScanSuiteRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x12\n" +
@@ -3010,7 +3063,10 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\x05kinds\x18\x03 \x03(\tR\x05kinds\x12\x1f\n" +
 	"\vtarget_kind\x18\x04 \x01(\tR\n" +
 	"targetKind\x12B\n" +
-	"\x10default_settings\x18\x05 \x01(\v2\x17.google.protobuf.StructR\x0fdefaultSettings\"M\n" +
+	"\x10default_settings\x18\x05 \x01(\v2\x17.google.protobuf.StructR\x0fdefaultSettings\x12#\n" +
+	"\rschedule_kind\x18\x06 \x01(\tR\fscheduleKind\x12\x1b\n" +
+	"\tcron_expr\x18\a \x01(\tR\bcronExpr\x12'\n" +
+	"\x0fdefault_targets\x18\b \x03(\tR\x0edefaultTargets\"M\n" +
 	"\x17CreateScanSuiteResponse\x122\n" +
 	"\x05suite\x18\x01 \x01(\v2\x1c.redmatrix.scan.v1.ScanSuiteR\x05suite\"\x81\x01\n" +
 	"\x15ListScanSuitesRequest\x12\x1d\n" +

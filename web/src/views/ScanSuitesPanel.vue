@@ -62,6 +62,9 @@ const newSuite = ref({
   name: '',
   kindsSelected: ['port_scan', 'subdomain', 'fingerprint', 'vuln_scan'],
   targetKind: 'host',
+  scheduleKind: 'immediate' as 'immediate' | 'cron',
+  cronExpr: '0 2 * * *',
+  defaultTargetsRaw: '',
 });
 const submitting = ref(false);
 
@@ -79,6 +82,21 @@ async function createSuite() {
     toast.error('套件名 + 至少 1 个 kind 必填');
     return;
   }
+  const defaultTargets = parseTargets(newSuite.value.defaultTargetsRaw);
+  if (newSuite.value.scheduleKind === 'cron') {
+    if (!newSuite.value.cronExpr.trim()) {
+      toast.error('cron 模式必须填 cron_expr');
+      return;
+    }
+    if (defaultTargets.length === 0) {
+      toast.error('cron 模式必须填 default_targets 至少 1 个');
+      return;
+    }
+    if (!newSuite.value.projectId) {
+      toast.error('cron 套件必须指定项目（cron 触发时需上下文）');
+      return;
+    }
+  }
   submitting.value = true;
   try {
     await scanClient.createScanSuite({
@@ -86,10 +104,18 @@ async function createSuite() {
       name: newSuite.value.name,
       kinds: newSuite.value.kindsSelected,
       targetKind: newSuite.value.targetKind,
+      scheduleKind: newSuite.value.scheduleKind,
+      cronExpr: newSuite.value.cronExpr,
+      defaultTargets,
     });
     toast.success(`套件 ${newSuite.value.name} 已创建`);
     showCreate.value = false;
-    newSuite.value = { projectId: '', name: '', kindsSelected: ['port_scan', 'subdomain', 'fingerprint', 'vuln_scan'], targetKind: 'host' };
+    newSuite.value = {
+      projectId: '', name: '',
+      kindsSelected: ['port_scan', 'subdomain', 'fingerprint', 'vuln_scan'],
+      targetKind: 'host',
+      scheduleKind: 'immediate', cronExpr: '0 2 * * *', defaultTargetsRaw: '',
+    };
     await refresh();
   } catch (e) {
     toast.error(errorMessage(e));
@@ -233,6 +259,7 @@ function kindLabel(k: string) {
             <th>项目</th>
             <th>包含</th>
             <th>目标类型</th>
+            <th>调度</th>
             <th>创建</th>
             <th>操作</th>
           </tr>
@@ -248,6 +275,12 @@ function kindLabel(k: string) {
               <span v-for="k in s.kinds" :key="k" class="chip kind-chip">{{ kindLabel(k) }}</span>
             </td>
             <td>{{ s.targetKind }}</td>
+            <td>
+              <span v-if="s.scheduleKind === 'cron'" class="chip cron-chip" :title="`cron: ${s.cronExpr}`">
+                ⏱ {{ s.cronExpr }}
+              </span>
+              <span v-else class="muted" style="font-size: 12px">手动</span>
+            </td>
             <td class="muted" :title="formatAbsoluteTime(s.createdAt)">
               {{ formatRelativeTime(s.createdAt, nowTick) }}
             </td>
@@ -299,6 +332,31 @@ function kindLabel(k: string) {
               <option value="url">URL</option>
             </select>
           </div>
+          <div class="form-row">
+            <span class="label">调度</span>
+            <select v-model="newSuite.scheduleKind" :disabled="submitting" style="flex: 1">
+              <option value="immediate">手动触发（默认）</option>
+              <option value="cron">cron 周期触发</option>
+            </select>
+          </div>
+          <div v-if="newSuite.scheduleKind === 'cron'" class="form-row">
+            <span class="label">cron_expr</span>
+            <input v-model="newSuite.cronExpr" placeholder="0 2 * * *（每天凌晨 2 点）"
+                   :disabled="submitting" style="flex: 1; font-family: monospace" />
+          </div>
+          <div v-if="newSuite.scheduleKind === 'cron'" class="form-row form-row-top">
+            <span class="label">默认目标</span>
+            <div style="flex: 1">
+              <textarea v-model="newSuite.defaultTargetsRaw"
+                        placeholder="每行一个目标，逗号也可。cron 触发时用此列表。&#10;example.com&#10;10.0.0.0/24"
+                        :disabled="submitting" rows="5"
+                        style="width: 100%; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px" />
+            </div>
+          </div>
+          <p v-if="newSuite.scheduleKind === 'cron' && !newSuite.projectId" class="muted"
+             style="margin: 0; padding: 6px 8px; background: rgba(245, 158, 11, 0.12); border-radius: 4px; font-size: 12px">
+            ⚠ cron 套件必须指定项目，跨项目暂不支持自动触发。
+          </p>
 
           <div class="row">
             <button class="primary" :disabled="submitting" @click="createSuite">
@@ -412,4 +470,5 @@ function kindLabel(k: string) {
 .kind-check input { margin-right: 6px; }
 .expand-err { color: #b91c1c; }
 .expand-warn { color: #b45309; }
+.cron-chip { background: rgba(124, 58, 237, 0.12); color: #6d28d9; font-family: ui-monospace, SFMono-Regular, monospace; }
 </style>

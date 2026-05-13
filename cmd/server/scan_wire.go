@@ -47,12 +47,12 @@ func buildScanMount(
 	eventRegistry *eventbus.Registry,
 	logger *log.Logger,
 	notifier scan.TaskNotifier, // PR-S25 可空
-) (*scanMount, scan.Service, *scheduler.Scheduler, error) {
+) (*scanMount, scan.Service, *scheduler.Scheduler, *scheduler.Scheduler, error) {
 	if pool == nil || pool.App == nil {
-		return nil, nil, nil, errx.New(errx.ErrInternal, "buildScanMount: pg.Pool.App 不能为 nil")
+		return nil, nil, nil, nil, errx.New(errx.ErrInternal, "buildScanMount: pg.Pool.App 不能为 nil")
 	}
 	if authSvc == nil {
-		return nil, nil, nil, errx.New(errx.ErrInternal, "buildScanMount: authSvc 不能为 nil")
+		return nil, nil, nil, nil, errx.New(errx.ErrInternal, "buildScanMount: authSvc 不能为 nil")
 	}
 	tasks := scanrepo.NewTaskPG(pool.App)
 	assignments := scanrepo.NewAssignmentPG(pool.App)
@@ -68,7 +68,7 @@ func buildScanMount(
 	if esClient != nil && esClient.Client != nil {
 		i, err := indexer.New(esClient)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		// EnsureTemplate 失败仅日志，不阻断启动（dev / 弱网常见）。
 		if err := i.EnsureTemplate(ctx); err != nil {
@@ -90,29 +90,41 @@ func buildScanMount(
 		}
 	}, logger)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
+	}
+
+	// PR-S30 suite cron scheduler：独立实例，trigger 调 service.TriggerCronSuite。
+	suiteListing := &suiteCronListingAdapter{repo: suites}
+	suiteSched, err := scheduler.New(suiteListing, func(ctx context.Context, suiteID string) {
+		if svc != nil {
+			_ = svc.TriggerCronSuite(ctx, suiteID)
+		}
+	}, logger)
+	if err != nil {
+		return nil, nil, nil, nil, err
 	}
 
 	svc, err = scan.NewService(scan.Deps{
-		Tasks:       tasks,
-		Assignments: assignments,
-		Results:     results,
-		Suites:      suites,    // PR-S23
-		SuiteRuns:   suiteRuns, // PR-S23
-		Projects:    projects,
-		Nodes:       nodes,
-		Allowed:     allowed,
-		Pool:        pool.App,
-		Indexer:     idx,
-		Assets:      assetDeriver,
-		Scheduler:   sched,
-		Artifacts:   artifactStore,
-		Metrics:     scanMetrics,
-		Logger:      logger,
-		Notifier:    notifier, // PR-S25
+		Tasks:          tasks,
+		Assignments:    assignments,
+		Results:        results,
+		Suites:         suites,    // PR-S23
+		SuiteRuns:      suiteRuns, // PR-S23
+		Projects:       projects,
+		Nodes:          nodes,
+		Allowed:        allowed,
+		Pool:           pool.App,
+		Indexer:        idx,
+		Assets:         assetDeriver,
+		Scheduler:      sched,
+		Artifacts:      artifactStore,
+		Metrics:        scanMetrics,
+		Logger:         logger,
+		Notifier:       notifier,   // PR-S25
+		SuiteScheduler: suiteSched, // PR-S30
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	// PR-S17-OUTB：注册 outbox 事件类型 + relay 投递 handler。
@@ -131,10 +143,10 @@ func buildScanMount(
 	memberDB := tenancyrepo.NewProjectMemberPG(pool.App)
 	h, err := scanhandler.New(svc, authSvc, memberDB)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	path, hh := scanv1connect.NewScanServiceHandler(h)
-	return &scanMount{path: path, handler: hh}, svc, sched, nil
+	return &scanMount{path: path, handler: hh}, svc, sched, suiteSched, nil
 }
 
 // cronListingAdapter 把 scanrepo.TaskRepository 适配成 scheduler.TaskListing。
@@ -151,6 +163,23 @@ func (a *cronListingAdapter) ListCronTemplates(ctx context.Context) ([]scheduler
 	out := make([]scheduler.CronTemplate, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, scheduler.CronTemplate{TaskID: r.TaskID, CronExpr: r.CronExpr})
+	}
+	return out, nil
+}
+
+// suiteCronListingAdapter（PR-S30）把 SuiteRepository 适配成 scheduler.TaskListing。
+type suiteCronListingAdapter struct {
+	repo scanrepo.SuiteRepository
+}
+
+func (a *suiteCronListingAdapter) ListCronTemplates(ctx context.Context) ([]scheduler.CronTemplate, error) {
+	rows, err := a.repo.ListCronTemplates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]scheduler.CronTemplate, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, scheduler.CronTemplate{TaskID: r.SuiteID, CronExpr: r.CronExpr})
 	}
 	return out, nil
 }

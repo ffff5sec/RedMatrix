@@ -31,6 +31,9 @@ SELECT id::text,
        kinds,
        target_kind,
        default_settings,
+       schedule_kind,
+       COALESCE(cron_expr, '') AS cron_expr,
+       default_targets,
        COALESCE(created_by::text, '') AS created_by,
        created_at,
        updated_at,
@@ -53,14 +56,21 @@ func (r *pgSuiteRepo) Insert(ctx context.Context, s *domain.ScanSuite) error {
 	for _, k := range s.Kinds {
 		kinds = append(kinds, string(k))
 	}
+	defaultTargets := s.DefaultTargets
+	if defaultTargets == nil {
+		defaultTargets = []string{}
+	}
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO scan_suites (
-			tenant_id, project_id, name, kinds, target_kind, default_settings, created_by
-		) VALUES ($1::uuid, $2, $3, $4::text[], $5, $6, $7)
+			tenant_id, project_id, name, kinds, target_kind, default_settings,
+			schedule_kind, cron_expr, default_targets,
+			created_by
+		) VALUES ($1::uuid, $2, $3, $4::text[], $5, $6, $7, $8, $9::text[], $10)
 		RETURNING id::text, created_at, updated_at
 	`,
 		s.TenantID, nullableUUIDPtr(s.ProjectID), s.Name,
 		kinds, string(s.TargetKind), settingsJSON,
+		string(s.ScheduleKind), s.CronExpr, defaultTargets,
 		nullableUUID(s.CreatedBy),
 	)
 	if err := row.Scan(&s.ID, &s.CreatedAt, &s.UpdatedAt); err != nil {
@@ -138,6 +148,32 @@ func (r *pgSuiteRepo) List(ctx context.Context, f SuiteFilter, p Page) ([]*domai
 	return out, total, rows.Err()
 }
 
+func (r *pgSuiteRepo) ListCronTemplates(ctx context.Context) ([]SuiteCronTemplate, error) {
+	if r == nil || r.pool == nil {
+		return nil, errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id::text, cron_expr
+		FROM scan_suites
+		WHERE schedule_kind = 'cron'
+		  AND deleted_at IS NULL
+		  AND length(trim(cron_expr)) > 0
+	`)
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: list suite cron templates")
+	}
+	defer rows.Close()
+	out := []SuiteCronTemplate{}
+	for rows.Next() {
+		var t SuiteCronTemplate
+		if err := rows.Scan(&t.SuiteID, &t.CronExpr); err != nil {
+			return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: scan suite cron")
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 func (r *pgSuiteRepo) SoftDelete(ctx context.Context, id string) error {
 	if r == nil || r.pool == nil {
 		return errx.New(errx.ErrInternal, "scan.repo: nil pool")
@@ -162,10 +198,12 @@ func scanSuite(s interface {
 	var settingsBytes []byte
 	var projectID *string
 	var kinds []string
+	var scheduleKind string
 	if err := s.Scan(
 		&out.ID, &out.TenantID, &projectID, &out.Name,
 		&kinds, (*string)(&out.TargetKind),
 		&settingsBytes,
+		&scheduleKind, &out.CronExpr, &out.DefaultTargets,
 		&out.CreatedBy,
 		&out.CreatedAt, &out.UpdatedAt, &out.DeletedAt,
 	); err != nil {
@@ -182,6 +220,7 @@ func scanSuite(s interface {
 	if len(settingsBytes) > 0 {
 		_ = json.Unmarshal(settingsBytes, &out.DefaultSettings)
 	}
+	out.ScheduleKind = domain.ScheduleKind(scheduleKind)
 	return out, nil
 }
 

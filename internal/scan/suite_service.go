@@ -22,6 +22,11 @@ type CreateSuiteRequest struct {
 	TargetKind      domain.TargetKind
 	DefaultSettings map[string]any
 	CreatedBy       string
+
+	// PR-S30 cron 调度（默认 immediate）
+	ScheduleKind   domain.ScheduleKind
+	CronExpr       string
+	DefaultTargets []string
 }
 
 // ListSuitesRequest 列套件入参。
@@ -104,9 +109,19 @@ func (s *service) CreateSuite(ctx context.Context, req CreateSuiteRequest) (*dom
 		TargetKind:      req.TargetKind,
 		DefaultSettings: req.DefaultSettings,
 		CreatedBy:       req.CreatedBy,
+		ScheduleKind:    req.ScheduleKind,
+		CronExpr:        req.CronExpr,
+		DefaultTargets:  req.DefaultTargets,
 	}
 	if err := s.suites.Insert(ctx, suite); err != nil {
 		return nil, err
+	}
+	// PR-S30: cron 套件注册到 suite scheduler
+	if s.suiteScheduler != nil && suite.ScheduleKind == domain.ScheduleCron {
+		if err := s.suiteScheduler.Add(suite.ID, suite.CronExpr); err != nil && s.logger != nil {
+			s.logger.LogError(ctx, "scan: suite cron 注册失败", err,
+				"suite_id", suite.ID, "expr", suite.CronExpr)
+		}
 	}
 	return suite, nil
 }
@@ -143,7 +158,14 @@ func (s *service) DeleteSuite(ctx context.Context, id string) error {
 	if s.suites == nil {
 		return errx.New(errx.ErrNotImplemented, "scan: suite repo 未配置")
 	}
-	return s.suites.SoftDelete(ctx, id)
+	if err := s.suites.SoftDelete(ctx, id); err != nil {
+		return err
+	}
+	// PR-S30: 注销 cron（幂等，非 cron 时 no-op）
+	if s.suiteScheduler != nil {
+		s.suiteScheduler.Remove(id)
+	}
+	return nil
 }
 
 // RunSuite 用套件 + targets[] 触发一次扫描：每 kind 1 个 immediate task。
@@ -527,3 +549,63 @@ func pageSizeOrDefault(ps, def int) int {
 
 // 防 unused import 警告
 var _ = time.Now
+
+// TriggerCronSuite（PR-S30）—— 由 suite scheduler 到点时回调。
+//
+// 行为：
+//   - GetByID(suiteID)：软删 / 不存在 / 非 cron 时静默 no-op（让 scheduler 自动注销）
+//   - 否则 default_targets 必须 ≥ 1（schema CHECK 已保证 cron 时非空）
+//   - 调 RunSuite(default_targets) 触发整链（继承 PR-S27 chaining）
+//
+// 失败仅 log（cron 下一周期会重试）。
+func (s *service) TriggerCronSuite(ctx context.Context, suiteID string) error {
+	if s.suites == nil || s.suiteRuns == nil {
+		return nil
+	}
+	if s.metrics != nil {
+		s.metrics.SchedulerTriggers.Inc()
+	}
+	suite, err := s.suites.GetByID(ctx, suiteID)
+	if err != nil {
+		// 软删 / 不存在 → 让 caller 决定注销（scan_wire 闭包内调 scheduler.Remove）
+		return nil //nolint:nilerr // 非异常，cron 自然终止
+	}
+	if suite.ScheduleKind != domain.ScheduleCron {
+		return nil
+	}
+	if len(suite.DefaultTargets) == 0 {
+		if s.logger != nil {
+			s.logger.LogError(ctx, "scan: cron suite 触发但 default_targets 为空（schema 不应允许）",
+				nil, "suite_id", suiteID)
+		}
+		return nil
+	}
+
+	// 选定 RunSuite 用的 project：suite 限项目则用其；否则用第一个能 RunSuite 的项目
+	// MVP：跨项目 cron suite 暂不支持自动 RunSuite（缺 project 上下文）
+	if suite.ProjectID == nil || *suite.ProjectID == "" {
+		if s.logger != nil {
+			s.logger.LogError(ctx, "scan: 跨项目 cron suite 暂不支持自动触发", nil, "suite_id", suiteID)
+		}
+		return nil
+	}
+
+	_, err = s.RunSuite(ctx, RunSuiteRequest{
+		SuiteID:   suiteID,
+		ProjectID: *suite.ProjectID,
+		Targets:   append([]string(nil), suite.DefaultTargets...),
+		// CreatedBy 留空 = system；UI 列表会显示"系统触发"
+	})
+	if err != nil {
+		if s.logger != nil {
+			s.logger.LogError(ctx, "scan: cron suite RunSuite failed", err,
+				"suite_id", suiteID)
+		}
+		return err
+	}
+	if s.logger != nil {
+		s.logger.Info("scan: cron suite triggered",
+			"suite_id", suiteID, "targets", len(suite.DefaultTargets))
+	}
+	return nil
+}

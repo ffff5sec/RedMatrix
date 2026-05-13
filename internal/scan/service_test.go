@@ -973,6 +973,15 @@ func (r *stubSuiteRepo) List(_ context.Context, _ repo.SuiteFilter, _ repo.Page)
 	return nil, 0, nil
 }
 func (r *stubSuiteRepo) SoftDelete(_ context.Context, _ string) error { return nil }
+func (r *stubSuiteRepo) ListCronTemplates(_ context.Context) ([]repo.SuiteCronTemplate, error) {
+	out := []repo.SuiteCronTemplate{}
+	for _, s := range r.suites {
+		if s.ScheduleKind == domain.ScheduleCron && s.CronExpr != "" {
+			out = append(out, repo.SuiteCronTemplate{SuiteID: s.ID, CronExpr: s.CronExpr})
+		}
+	}
+	return out, nil
+}
 
 type stubSuiteRunRepo struct {
 	runs      map[string]*domain.ScanSuiteRun

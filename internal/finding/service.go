@@ -166,8 +166,16 @@ func (s *service) Transition(ctx context.Context, req TransitionRequest) (*domai
 			WithFields("from", string(cur.Status), "to", string(req.To))
 	}
 
-	if err := s.findings.UpdateStatus(ctx, req.ID, req.To); err != nil {
+	// PR-S42 CAS：原子检查 status = cur.Status 才改为 req.To。
+	// 消除两并发 Transition 都过 CanTransition 而互相覆盖的 TOCTOU。
+	matched, err := s.findings.UpdateStatusCAS(ctx, req.ID, cur.Status, req.To)
+	if err != nil {
 		return nil, err
+	}
+	if !matched {
+		return nil, errx.New(errx.ErrFindingInvalidTransition,
+			"不允许的状态转移（并发已改）").
+			WithFields("from", string(cur.Status), "to", string(req.To))
 	}
 
 	from := cur.Status
@@ -218,8 +226,17 @@ func (s *service) Assign(ctx context.Context, req AssignRequest) (*domain.Findin
 	if err != nil {
 		return nil, err
 	}
-	if err := s.findings.UpdateAssignee(ctx, req.ID, req.AssigneeID); err != nil {
+	// PR-S42 CAS：原子检查 assignee_id = cur.AssigneeID 才改。
+	// 两并发 Assign(A) / Assign(B) 都基于 Get 的 from-assignee，CAS 让后到者
+	// matched=false 返 invalid，不会写入误导性的 event 流水。
+	matched, err := s.findings.UpdateAssigneeCAS(ctx, req.ID, cur.AssigneeID, req.AssigneeID)
+	if err != nil {
 		return nil, err
+	}
+	if !matched {
+		return nil, errx.New(errx.ErrFindingInvalidTransition,
+			"指派失败（并发已改 assignee，请重试）").
+			WithFields("id", req.ID)
 	}
 	ev := &domain.FindingEvent{
 		FindingID:    req.ID,

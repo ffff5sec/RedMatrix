@@ -224,6 +224,67 @@ func (r *pgFindingRepo) UpdateAssignee(ctx context.Context, id string, assigneeI
 	return nil
 }
 
+// UpdateStatusCAS PR-S42：原子条件 — 仅当 status = from 才改为 to。
+// matched=false 表示 status 已被并发改成别的值；row 缺失 → ErrFindingNotFound。
+func (r *pgFindingRepo) UpdateStatusCAS(
+	ctx context.Context, id string, from, to domain.FindingStatus,
+) (bool, error) {
+	if r == nil || r.pool == nil {
+		return false, errx.New(errx.ErrInternal, "finding.repo: nil pool")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE findings SET status = $3, updated_at = now()
+		WHERE id = $1::uuid AND deleted_at IS NULL AND status = $2
+	`, id, string(from), string(to))
+	if err != nil {
+		return false, errx.Wrap(errx.ErrDatabase, err, "finding.repo: update status cas").WithFields("id", id)
+	}
+	if tag.RowsAffected() > 0 {
+		return true, nil
+	}
+	var exists bool
+	if err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM findings WHERE id = $1::uuid AND deleted_at IS NULL)
+	`, id).Scan(&exists); err != nil {
+		return false, errx.Wrap(errx.ErrDatabase, err, "finding.repo: cas exists check").WithFields("id", id)
+	}
+	if !exists {
+		return false, errx.New(errx.ErrFindingNotFound, "finding 不存在").WithFields("id", id)
+	}
+	return false, nil
+}
+
+// UpdateAssigneeCAS PR-S42：原子条件 — 当前 assignee_id 等于 from 才改为 to。
+// from/to 均可空（IS NOT DISTINCT FROM 处理 NULL 等于 NULL 的语义）。
+func (r *pgFindingRepo) UpdateAssigneeCAS(
+	ctx context.Context, id string, from, to *string,
+) (bool, error) {
+	if r == nil || r.pool == nil {
+		return false, errx.New(errx.ErrInternal, "finding.repo: nil pool")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE findings SET assignee_id = $3, updated_at = now()
+		WHERE id = $1::uuid AND deleted_at IS NULL
+		  AND assignee_id IS NOT DISTINCT FROM $2
+	`, id, nullableUUIDPtr(from), nullableUUIDPtr(to))
+	if err != nil {
+		return false, errx.Wrap(errx.ErrDatabase, err, "finding.repo: update assignee cas").WithFields("id", id)
+	}
+	if tag.RowsAffected() > 0 {
+		return true, nil
+	}
+	var exists bool
+	if err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM findings WHERE id = $1::uuid AND deleted_at IS NULL)
+	`, id).Scan(&exists); err != nil {
+		return false, errx.Wrap(errx.ErrDatabase, err, "finding.repo: assignee cas exists check").WithFields("id", id)
+	}
+	if !exists {
+		return false, errx.New(errx.ErrFindingNotFound, "finding 不存在").WithFields("id", id)
+	}
+	return false, nil
+}
+
 func (r *pgFindingRepo) SoftDelete(ctx context.Context, id string) error {
 	if r == nil || r.pool == nil {
 		return errx.New(errx.ErrInternal, "finding.repo: nil pool")

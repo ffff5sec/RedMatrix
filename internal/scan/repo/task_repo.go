@@ -26,6 +26,18 @@ type TaskRepository interface {
 	// （MVP 仅 CancelTask 路径用，写 finished_at）。
 	UpdateStatus(ctx context.Context, id string, status domain.TaskStatus, finishedAt *string) error
 
+	// UpdateStatusCAS PR-S42：原子条件更新 —— 仅当当前 status ∈ expected 才改。
+	// 用于消除 CancelTask 与 aggregateTaskStatus 的 TOCTOU 竞态。
+	// 返：matched=true → 更新生效；matched=false → status 已被并发改（不是错误）。
+	// row 不存在或软删 → ErrTaskNotFound。
+	UpdateStatusCAS(
+		ctx context.Context,
+		id string,
+		expected []domain.TaskStatus,
+		to domain.TaskStatus,
+		finishedAt *string,
+	) (matched bool, err error)
+
 	// SoftDelete 标 deleted_at = now()。
 	SoftDelete(ctx context.Context, id string) error
 

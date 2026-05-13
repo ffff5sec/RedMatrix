@@ -192,6 +192,55 @@ func (r *pgTaskRepo) UpdateStatus(ctx context.Context, id string, status domain.
 	return nil
 }
 
+// UpdateStatusCAS PR-S42：原子条件更新。
+// expected 空 → 等价 UpdateStatus（任何状态都改，不推荐）；非空 → 仅当
+// status = ANY(expected) 才改。matched=false 表示 status 已被并发改成
+// 不在 expected 之列的值。row 不存在 / 软删 → ErrTaskNotFound（用 EXISTS 区分）。
+func (r *pgTaskRepo) UpdateStatusCAS(
+	ctx context.Context,
+	id string,
+	expected []domain.TaskStatus,
+	to domain.TaskStatus,
+	finishedAt *string,
+) (bool, error) {
+	if r == nil || r.pool == nil {
+		return false, errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	if !to.Valid() {
+		return false, errx.New(errx.ErrTaskInvalidState, "status 不合法").WithFields("got", string(to))
+	}
+	expectedStrs := make([]string, 0, len(expected))
+	for _, s := range expected {
+		expectedStrs = append(expectedStrs, string(s))
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE scan_tasks
+		   SET status = $2,
+		       finished_at = CASE WHEN $3::text IS NULL THEN finished_at ELSE now() END,
+		       updated_at = now()
+		 WHERE id = $1::uuid
+		   AND deleted_at IS NULL
+		   AND (cardinality($4::text[]) = 0 OR status = ANY($4::text[]))
+	`, id, string(to), nullableString(toS(finishedAt)), expectedStrs)
+	if err != nil {
+		return false, errx.Wrap(errx.ErrDatabase, err, "scan.repo: update status cas").WithFields("id", id)
+	}
+	if tag.RowsAffected() > 0 {
+		return true, nil
+	}
+	// 区分 not_found vs status 不匹配
+	var exists bool
+	if err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM scan_tasks WHERE id = $1::uuid AND deleted_at IS NULL)
+	`, id).Scan(&exists); err != nil {
+		return false, errx.Wrap(errx.ErrDatabase, err, "scan.repo: cas exists check").WithFields("id", id)
+	}
+	if !exists {
+		return false, errx.New(errx.ErrTaskNotFound, "task 不存在").WithFields("id", id)
+	}
+	return false, nil
+}
+
 func (r *pgTaskRepo) SoftDelete(ctx context.Context, id string) error {
 	if r == nil || r.pool == nil {
 		return errx.New(errx.ErrInternal, "scan.repo: nil pool")

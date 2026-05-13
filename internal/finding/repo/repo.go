@@ -35,8 +35,16 @@ type FindingRepository interface {
 	List(ctx context.Context, filter FindingFilter, page Page) ([]*domain.Finding, int, error)
 	// UpdateStatus 推进状态机；不校转移合法（service 层校）。
 	UpdateStatus(ctx context.Context, id string, status domain.FindingStatus) error
+	// UpdateStatusCAS PR-S42：原子条件更新——仅当当前 status = from 才改为 to。
+	// 消除 Transition TOCTOU 竞态（两并发都过 service 层 CanTransition）。
+	// matched=true → 更新生效；matched=false → status 已被并发改（不是错误）；
+	// row 不存在 / 软删 → ErrFindingNotFound。
+	UpdateStatusCAS(ctx context.Context, id string, from, to domain.FindingStatus) (matched bool, err error)
 	// UpdateAssignee 设置 assignee；nil → 取消。
 	UpdateAssignee(ctx context.Context, id string, assigneeID *string) error
+	// UpdateAssigneeCAS PR-S42：原子条件 — 当前 assignee_id 等于 from 才改为 to。
+	// from/to 均可空（*string 模型）。消除并发 Assign 时 from-assignee 漂移。
+	UpdateAssigneeCAS(ctx context.Context, id string, from, to *string) (matched bool, err error)
 	SoftDelete(ctx context.Context, id string) error
 }
 

@@ -15,6 +15,8 @@ import (
 type stubFindingRepo struct {
 	byID    map[string]*domain.Finding
 	byDedup map[string]*domain.Finding
+	// PR-S42: 注入 CAS 入口前的并发钩子；测试用它模拟"GetByID 后状态被外部改"
+	casPreHook func()
 }
 
 func (r *stubFindingRepo) Upsert(_ context.Context, f *domain.Finding) (*domain.Finding, bool, error) {
@@ -50,7 +52,9 @@ func (r *stubFindingRepo) GetByID(_ context.Context, id string) (*domain.Finding
 	if !ok {
 		return nil, errors.New("not found")
 	}
-	return f, nil
+	// PR-S42: 返副本，避免 service 与测试并发改 stub 内对象时互相干扰
+	cp := *f
+	return &cp, nil
 }
 func (r *stubFindingRepo) List(_ context.Context, _ findingrepo.FindingFilter, _ findingrepo.Page) ([]*domain.Finding, int, error) {
 	out := []*domain.Finding{}
@@ -75,6 +79,44 @@ func (r *stubFindingRepo) UpdateAssignee(_ context.Context, id string, assigneeI
 	}
 	f.AssigneeID = assigneeID
 	return nil
+}
+func (r *stubFindingRepo) UpdateStatusCAS(_ context.Context, id string, from, to domain.FindingStatus) (bool, error) {
+	if r.casPreHook != nil {
+		r.casPreHook()
+	}
+	f, ok := r.byID[id]
+	if !ok {
+		return false, errors.New("not found")
+	}
+	if f.Status != from {
+		return false, nil
+	}
+	f.Status = to
+	f.UpdatedAt = time.Now()
+	return true, nil
+}
+func (r *stubFindingRepo) UpdateAssigneeCAS(_ context.Context, id string, from, to *string) (bool, error) {
+	if r.casPreHook != nil {
+		r.casPreHook()
+	}
+	f, ok := r.byID[id]
+	if !ok {
+		return false, errors.New("not found")
+	}
+	if !ptrEqStr(f.AssigneeID, from) {
+		return false, nil
+	}
+	f.AssigneeID = to
+	return true, nil
+}
+func ptrEqStr(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
 }
 func (r *stubFindingRepo) SoftDelete(_ context.Context, id string) error {
 	delete(r.byID, id)
@@ -325,6 +367,68 @@ func TestAssign_RecordsEvent(t *testing.T) {
 	}
 	if assignEvents != 1 {
 		t.Errorf("assignee_change events = %d, want 1", assignEvents)
+	}
+}
+
+// TestTransition_CASLost PR-S42：模拟并发——service.GetByID 看到 open，CAS 入口
+// 前钩子触发把 status 改为 triaged → CAS matched=false → 返 ErrFindingInvalidTransition
+// 且不写 status_change event。
+func TestTransition_CASLost(t *testing.T) {
+	svc, findings, events := newHarness(t)
+	f, _, _ := svc.UpsertFromResult(context.Background(), UpsertFromResultRequest{
+		TenantID: "t1", ProjectID: "p1", TemplateID: "T1", Host: "x.test",
+		Severity: domain.SeverityHigh, Title: "X",
+	})
+	// service.Transition 调 CAS 时，stub 钩子触发：先把 status 改成 triaged
+	// 模拟另一并发线程已经推进过；service 持有的 cur.Status=open（CAS 的 from）
+	// 与 stub 实际 status=triaged 不符 → matched=false
+	findings.casPreHook = func() {
+		findings.byID[f.ID].Status = domain.FindingTriaged
+	}
+
+	_, err := svc.Transition(context.Background(), TransitionRequest{
+		ID: f.ID, To: domain.FindingFalsePositive, ActorID: "u1",
+	})
+	if err == nil {
+		t.Fatal("expected CAS-lost invalid transition error")
+	}
+	// 没有 status_change event 写入
+	for _, e := range events.events {
+		if e.Kind == domain.EventStatusChange {
+			t.Errorf("status_change event leaked despite CAS miss: %+v", e)
+		}
+	}
+}
+
+// TestAssign_CASLost PR-S42：并发改派——service.GetByID 看到 assignee=nil，CAS
+// 入口前钩子触发把 assignee 改为 "u-other" → CAS matched=false → 返 InvalidTransition
+// 且不写 assignee_change event。
+func TestAssign_CASLost(t *testing.T) {
+	svc, findings, events := newHarness(t)
+	f, _, _ := svc.UpsertFromResult(context.Background(), UpsertFromResultRequest{
+		TenantID: "t1", ProjectID: "p1", TemplateID: "T1", Host: "x.test",
+		Severity: domain.SeverityHigh, Title: "X",
+	})
+	other := "u-other"
+	findings.casPreHook = func() {
+		findings.byID[f.ID].AssigneeID = &other
+	}
+
+	target := "u-me"
+	_, err := svc.Assign(context.Background(), AssignRequest{
+		ID: f.ID, ActorID: "actor", AssigneeID: &target,
+	})
+	if err == nil {
+		t.Fatal("expected CAS-lost assign error")
+	}
+	// assignee 没被覆盖
+	if findings.byID[f.ID].AssigneeID == nil || *findings.byID[f.ID].AssigneeID != other {
+		t.Errorf("assignee mutated despite CAS miss: %v", findings.byID[f.ID].AssigneeID)
+	}
+	for _, e := range events.events {
+		if e.Kind == domain.EventAssigneeChange {
+			t.Errorf("assignee_change event leaked despite CAS miss: %+v", e)
+		}
 	}
 }
 

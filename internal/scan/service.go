@@ -621,9 +621,20 @@ func (s *service) CancelTask(ctx context.Context, id string) error {
 			"当前状态不允许取消（仅 pending / running 可）").
 			WithFields("status", string(t.Status))
 	}
+	// PR-S42 CAS：原子检查 status ∈ {pending, running} 才置 canceled。
+	// 消除与 aggregateTaskStatus 并发的 TOCTOU——若任务在 GetByID 后被 worker
+	// 推进到 completed/failed，CAS matched=false，返 InvalidState 不覆盖终态。
 	now := s.now().UTC().Format(time.RFC3339)
-	if err := s.tasks.UpdateStatus(ctx, id, domain.TaskCanceled, &now); err != nil {
+	matched, err := s.tasks.UpdateStatusCAS(ctx, id,
+		[]domain.TaskStatus{domain.TaskPending, domain.TaskRunning},
+		domain.TaskCanceled, &now)
+	if err != nil {
 		return err
+	}
+	if !matched {
+		return errx.New(errx.ErrTaskInvalidState,
+			"当前状态不允许取消（并发已推进终态）").
+			WithFields("requested", "cancel")
 	}
 	s.metrics.TasksTerminal.WithLabelValues(string(domain.TaskCanceled)).Inc() // PR-S17-OBSV
 	// PR-S12：cron 模板取消后停止后续触发；幂等，未注册时 no-op。

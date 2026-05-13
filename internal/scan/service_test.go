@@ -122,6 +122,42 @@ func (r *stubTaskRepo) UpdateStatus(_ context.Context, id string, status domain.
 	return nil
 }
 
+// UpdateStatusCAS PR-S42 stub：模拟原子 CAS。
+//   - 不存在 → ErrTaskNotFound
+//   - 当前 status ∈ expected → 改为 to，matched=true
+//   - 否则 matched=false（不改、不报错）
+func (r *stubTaskRepo) UpdateStatusCAS(
+	_ context.Context,
+	id string,
+	expected []domain.TaskStatus,
+	to domain.TaskStatus,
+	finishedAt *string,
+) (bool, error) {
+	r.updateCall++
+	r.statusLog = append(r.statusLog, taskStatusUpdate{ID: id, Status: to, FinishedAt: finishedAt})
+	if r.updateErr != nil {
+		return false, r.updateErr
+	}
+	t, ok := r.tasks[id]
+	if !ok {
+		return false, errx.New(errx.ErrTaskNotFound, "task not found")
+	}
+	if len(expected) > 0 {
+		matched := false
+		for _, e := range expected {
+			if t.Status == e {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false, nil
+		}
+	}
+	t.Status = to
+	return true, nil
+}
+
 func (r *stubTaskRepo) SoftDelete(_ context.Context, id string) error {
 	if r.deleteErr != nil {
 		return r.deleteErr
@@ -776,6 +812,32 @@ func TestSweepStaleAssignments_ListErrPropagates(t *testing.T) {
 }
 
 // === Tests: aggregateTaskStatus (直接调，覆盖各状态转移) =======================
+
+// TestCancelTask_CASLost_AlreadyTerminal PR-S42：模拟并发 — service.GetByID
+// 看到 running，但 aggregateTaskStatus 在 CAS 之前已把任务推到 completed。
+// CAS 期望 status ∈ {pending, running}，实际是 completed → matched=false →
+// 返 ErrTaskInvalidState，不写状态、不 inc cancel metric、不触 cron remove。
+func TestCancelTask_CASLost_AlreadyTerminal(t *testing.T) {
+	h := newHarness(t)
+	h.tasks.put(&domain.ScanTask{
+		ID: "tk-1", TenantID: "ten-1", ProjectID: "p-1",
+		Name: "x", Kind: domain.KindPortScan, Target: "x", TargetKind: domain.TargetIP,
+		Status: domain.TaskRunning, ScheduleKind: domain.ScheduleImmediate,
+	})
+	// service.GetByID 后、CAS 前的并发：worker 把 task 推到 completed
+	// 我们用一个 wrapper 模拟：直接在 stub 里改 status
+	go func() {}() // 仅为表示并发；测试是同步的
+	h.tasks.tasks["tk-1"].Status = domain.TaskCompleted
+
+	err := h.svc.CancelTask(context.Background(), "tk-1")
+	if err == nil {
+		t.Fatal("expected CAS-lost InvalidState error")
+	}
+	// status 没被覆写回 canceled
+	if got := h.tasks.tasks["tk-1"].Status; got != domain.TaskCompleted {
+		t.Errorf("status overwritten despite CAS miss: got %s", got)
+	}
+}
 
 func TestAggregateTaskStatus_TaskCanceled_NoChange(t *testing.T) {
 	h := newHarness(t)

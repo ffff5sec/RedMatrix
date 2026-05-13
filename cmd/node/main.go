@@ -29,9 +29,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/heartbeat"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
-	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nuclei"
-	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/tlsx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/pluginpuller"
 	"github.com/ffff5sec/RedMatrix/internal/agent/store"
@@ -162,36 +160,26 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	// === 3. PR-S3 任务拉取循环（goroutine；与 heartbeat 并行）===
-	// 注册插件——先全 mock 兜底，再尝试真插件覆盖（PR-S9 nmap, PR-S10 subfinder）。
+	// 注册插件——先全 mock 兜底，再尝试真插件覆盖（PR-S9 nmap, PR-S10 subfinder,
+	// PR-S48 tlsx, PR-S49 katana / rustscan / amass）。
+	//
+	// PR-S49 引入 env 切换：
+	//   PORT_SCAN_PLUGIN=nmap (default) | rustscan
+	//   SUBDOMAIN_PLUGIN=subfinder (default) | amass
+	//   WEB_CRAWL_PLUGIN=httpx (default) | katana
+	// 未设 env 或值不识别 → 用 default。tlsx / nuclei / fingerprint 当前
+	// 单实现无切换。
 	registry := plugin.NewRegistry()
 	plugin.RegisterAllMock(registry)
-	if np, err := nmap.New(); err == nil {
-		registry.Register(np)
-		logger.Info("plugin registered", "kind", "port_scan", "impl", "nmap")
-	} else {
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "port_scan", "tool", "nmap", "err", err.Error())
-	}
-	if sp, err := subfinder.New(); err == nil {
-		registry.Register(sp)
-		logger.Info("plugin registered", "kind", "subdomain", "impl", "subfinder")
-	} else {
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "subdomain", "tool", "subfinder", "err", err.Error())
-	}
+	registerPortScanPlugin(registry, logger)
+	registerSubdomainPlugin(registry, logger)
+	registerWebCrawlPlugin(registry, logger)
 	if fp, err := httpx.NewFingerprint(); err == nil {
 		registry.Register(fp)
 		logger.Info("plugin registered", "kind", "fingerprint", "impl", "httpx")
 	} else {
 		logger.Info("plugin not installed; falling back to mock",
 			"kind", "fingerprint", "tool", "httpx", "err", err.Error())
-	}
-	if wp, err := httpx.NewWebCrawl(); err == nil {
-		registry.Register(wp)
-		logger.Info("plugin registered", "kind", "web_crawl", "impl", "httpx")
-	} else {
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "web_crawl", "tool", "httpx", "err", err.Error())
 	}
 	if vp, err := nuclei.New(); err == nil {
 		registry.Register(vp)

@@ -1,0 +1,108 @@
+// plugin_register.go PR-S49 —— plugin 注册按 env 切换实现。
+//
+// 引入背景：SPEC §2.5 资产发现矩阵列出多个工具（nmap / rustscan / subfinder /
+// amass / httpx / katana），但 plugin.Registry 当前是 kind → Plugin 1:1 映射。
+// 引入 env 让 ops 自主选实现，不改架构。
+//
+// 后续 PR-S5x 计划改 Registry 为 kind → []Plugin 聚合多源，env 转为白名单。
+package main
+
+import (
+	"os"
+	"strings"
+
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/amass"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/katana"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/rustscan"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
+	"github.com/ffff5sec/RedMatrix/internal/platform/log"
+)
+
+// envOrDefault 读 env 并归一为小写；空 / 未设返 def。
+func envOrDefault(key, def string) string {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	return strings.ToLower(v)
+}
+
+// registerPortScanPlugin 按 PORT_SCAN_PLUGIN env 注册 port_scan 真插件。
+// 支持值："nmap"（default）/ "rustscan"。未识别 → 用 default。
+// 真工具未安装 → 静默回落 mock（已由 RegisterAllMock 兜底）。
+func registerPortScanPlugin(registry *plugin.Registry, logger *log.Logger) {
+	choice := envOrDefault("PORT_SCAN_PLUGIN", "nmap")
+	if choice == "rustscan" {
+		p, err := rustscan.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "port_scan", "impl", "rustscan")
+			return
+		}
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "port_scan", "tool", "rustscan", "err", err.Error())
+		return
+	}
+	// nmap 或未识别值
+	p, err := nmap.New()
+	if err == nil {
+		registry.Register(p)
+		logger.Info("plugin registered", "kind", "port_scan", "impl", "nmap")
+		return
+	}
+	logger.Info("plugin not installed; falling back to mock",
+		"kind", "port_scan", "tool", "nmap", "err", err.Error())
+}
+
+// registerSubdomainPlugin 按 SUBDOMAIN_PLUGIN env 注册 subdomain 真插件。
+// 支持值："subfinder"（default）/ "amass"。
+func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
+	choice := envOrDefault("SUBDOMAIN_PLUGIN", "subfinder")
+	if choice == "amass" {
+		p, err := amass.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "subdomain", "impl", "amass")
+			return
+		}
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "subdomain", "tool", "amass", "err", err.Error())
+		return
+	}
+	p, err := subfinder.New()
+	if err == nil {
+		registry.Register(p)
+		logger.Info("plugin registered", "kind", "subdomain", "impl", "subfinder")
+		return
+	}
+	logger.Info("plugin not installed; falling back to mock",
+		"kind", "subdomain", "tool", "subfinder", "err", err.Error())
+}
+
+// registerWebCrawlPlugin 按 WEB_CRAWL_PLUGIN env 注册 web_crawl 真插件。
+// 支持值："httpx"（default）/ "katana"。katana 真爬虫；httpx 仅 URL 探活。
+func registerWebCrawlPlugin(registry *plugin.Registry, logger *log.Logger) {
+	choice := envOrDefault("WEB_CRAWL_PLUGIN", "httpx")
+	if choice == "katana" {
+		p, err := katana.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "web_crawl", "impl", "katana")
+			return
+		}
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "web_crawl", "tool", "katana", "err", err.Error())
+		return
+	}
+	p, err := httpx.NewWebCrawl()
+	if err == nil {
+		registry.Register(p)
+		logger.Info("plugin registered", "kind", "web_crawl", "impl", "httpx")
+		return
+	}
+	logger.Info("plugin not installed; falling back to mock",
+		"kind", "web_crawl", "tool", "httpx", "err", err.Error())
+}

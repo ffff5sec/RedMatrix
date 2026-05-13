@@ -129,12 +129,14 @@ func (x *Asset) GetResultCount() int32 {
 }
 
 type ListAssetsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kind          *string                `protobuf:"bytes,1,opt,name=kind,proto3,oneof" json:"kind,omitempty"`
-	ProjectId     *string                `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3,oneof" json:"project_id,omitempty"`
-	Keyword       *string                `protobuf:"bytes,3,opt,name=keyword,proto3,oneof" json:"keyword,omitempty"` // value ILIKE %kw%
-	Page          int32                  `protobuf:"varint,4,opt,name=page,proto3" json:"page,omitempty"`
-	PageSize      int32                  `protobuf:"varint,5,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Kind      *string                `protobuf:"bytes,1,opt,name=kind,proto3,oneof" json:"kind,omitempty"`
+	ProjectId *string                `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3,oneof" json:"project_id,omitempty"`
+	Keyword   *string                `protobuf:"bytes,3,opt,name=keyword,proto3,oneof" json:"keyword,omitempty"` // value ILIKE %kw%
+	Page      int32                  `protobuf:"varint,4,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize  int32                  `protobuf:"varint,5,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// PR-S31 freshness：> 0 时仅返 last_seen ≤ now - 此天数 的资产。
+	MinAgeDays    int32 `protobuf:"varint,6,opt,name=min_age_days,json=minAgeDays,proto3" json:"min_age_days,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -200,6 +202,13 @@ func (x *ListAssetsRequest) GetPage() int32 {
 func (x *ListAssetsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListAssetsRequest) GetMinAgeDays() int32 {
+	if x != nil {
+		return x.MinAgeDays
 	}
 	return 0
 }
@@ -375,14 +384,16 @@ const file_redmatrix_asset_v1_asset_proto_rawDesc = "" +
 	"\n" +
 	"first_seen\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tfirstSeen\x127\n" +
 	"\tlast_seen\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\x12!\n" +
-	"\fresult_count\x18\b \x01(\x05R\vresultCount\"\xc4\x01\n" +
+	"\fresult_count\x18\b \x01(\x05R\vresultCount\"\xe6\x01\n" +
 	"\x11ListAssetsRequest\x12\x17\n" +
 	"\x04kind\x18\x01 \x01(\tH\x00R\x04kind\x88\x01\x01\x12\"\n" +
 	"\n" +
 	"project_id\x18\x02 \x01(\tH\x01R\tprojectId\x88\x01\x01\x12\x1d\n" +
 	"\akeyword\x18\x03 \x01(\tH\x02R\akeyword\x88\x01\x01\x12\x12\n" +
 	"\x04page\x18\x04 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x05 \x01(\x05R\bpageSizeB\a\n" +
+	"\tpage_size\x18\x05 \x01(\x05R\bpageSize\x12 \n" +
+	"\fmin_age_days\x18\x06 \x01(\x05R\n" +
+	"minAgeDaysB\a\n" +
 	"\x05_kindB\r\n" +
 	"\v_project_idB\n" +
 	"\n" +

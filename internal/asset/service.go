@@ -50,6 +50,10 @@ type ListRequest struct {
 	Page      int
 	PageSize  int
 
+	// MinAgeDays（PR-S31 freshness）：> 0 时仅返 last_seen ≤ now - 此天数 的资产。
+	// 0 = 不过滤；用于 "最近 N 天未扫" 视图。
+	MinAgeDays int
+
 	// RBAC（handler 注入）
 	ScopedTenantID   string
 	ScopedProjectIDs []string // nil = 不限；空切片 = PA 0 项目，service 直返空
@@ -190,6 +194,10 @@ func (s *service) ListAssets(ctx context.Context, req ListRequest) (*ListRespons
 		ProjectIDs: req.ScopedProjectIDs,
 		Kind:       req.Kind,
 		Keyword:    strings.TrimSpace(req.Keyword),
+	}
+	if req.MinAgeDays > 0 {
+		cutoff := s.now().Add(-time.Duration(req.MinAgeDays) * 24 * time.Hour)
+		f.LastSeenBefore = &cutoff
 	}
 	page, size := normalizePage(req.Page, req.PageSize)
 	list, total, err := s.repo.List(ctx, f, repo.Page{Page: page, PageSize: size})

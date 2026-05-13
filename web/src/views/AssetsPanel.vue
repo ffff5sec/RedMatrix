@@ -25,6 +25,7 @@ const loading = ref(false);
 const filterKind = ref<'' | 'host' | 'subdomain' | 'url'>('');
 const filterProjectId = ref('');
 const keyword = ref('');
+const minAgeDays = ref(0); // 0 = 不过滤；7/30/90 等
 
 const projects = ref<Project[]>([]);
 const nowTick = ref(Date.now());
@@ -45,6 +46,7 @@ async function refresh() {
       kind: filterKind.value || undefined,
       projectId: filterProjectId.value || undefined,
       keyword: keyword.value || undefined,
+      minAgeDays: minAgeDays.value > 0 ? minAgeDays.value : undefined,
       page: page.value,
       pageSize: pageSize.value,
     });
@@ -97,6 +99,21 @@ function kindLabel(k: string) {
     default: return k;
   }
 }
+
+// PR-S31 freshness: 距 lastSeen 多少天
+function daysSinceLastSeen(lastSeen?: { seconds: bigint } | null): number {
+  if (!lastSeen) return 0;
+  const ms = Number(lastSeen.seconds) * 1000;
+  return Math.floor((nowTick.value - ms) / 86_400_000);
+}
+
+// 高于 30 天 → stale；高于 90 天 → very stale
+function staleLevel(lastSeen?: { seconds: bigint } | null): '' | 'stale' | 'very-stale' {
+  const d = daysSinceLastSeen(lastSeen);
+  if (d >= 90) return 'very-stale';
+  if (d >= 30) return 'stale';
+  return '';
+}
 </script>
 
 <template>
@@ -138,6 +155,12 @@ function kindLabel(k: string) {
           <option value="">全部项目</option>
           <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
+        <select v-model.number="minAgeDays" :disabled="loading" title="资产新鲜度过滤">
+          <option :value="0">全部新鲜度</option>
+          <option :value="7">≥ 7 天未扫</option>
+          <option :value="30">≥ 30 天未扫</option>
+          <option :value="90">≥ 90 天未扫</option>
+        </select>
         <button :disabled="loading" @click="applyFilters">查询</button>
       </div>
     </div>
@@ -155,7 +178,7 @@ function kindLabel(k: string) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="a in assets" :key="a.id">
+          <tr v-for="a in assets" :key="a.id" :class="staleLevel(a.lastSeen)">
             <td><span class="chip">{{ kindLabel(a.kind) }}</span></td>
             <td>
               <router-link :to="`/assets/${a.id}`" class="link">
@@ -166,6 +189,9 @@ function kindLabel(k: string) {
             <td>{{ a.resultCount }}</td>
             <td class="muted" :title="formatAbsoluteTime(a.lastSeen)">
               {{ formatRelativeTime(a.lastSeen, nowTick) }}
+              <span v-if="staleLevel(a.lastSeen)" class="stale-badge" :class="staleLevel(a.lastSeen)">
+                {{ daysSinceLastSeen(a.lastSeen) }}d
+              </span>
             </td>
             <td class="muted" :title="formatAbsoluteTime(a.firstSeen)">
               {{ formatRelativeTime(a.firstSeen, nowTick) }}
@@ -235,4 +261,17 @@ function kindLabel(k: string) {
   text-decoration: none;
 }
 .link:hover { text-decoration: underline; }
+/* PR-S31 freshness 染色 */
+tr.stale { background: rgba(245, 158, 11, 0.06); }
+tr.very-stale { background: rgba(239, 68, 68, 0.08); }
+.stale-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  margin-left: 6px;
+}
+.stale-badge.stale { background: rgba(245, 158, 11, 0.18); color: #92400e; }
+.stale-badge.very-stale { background: rgba(239, 68, 68, 0.18); color: #991b1b; }
 </style>

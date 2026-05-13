@@ -31,6 +31,8 @@ message ListAssetsRequest {
   optional string keyword = 3; // value ILIKE %kw%
   int32 page = 4;
   int32 page_size = 5;
+  // PR-S31 freshness：> 0 时仅返 last_seen ≤ now - 此天数 的资产。
+  int32 min_age_days = 6;
 }
 message ListAssetsResponse {
   repeated Asset assets = 1;

@@ -125,6 +125,13 @@ export class ListAssetsRequest extends Message<ListAssetsRequest> {
    */
   pageSize = 0;
 
+  /**
+   * PR-S31 freshness：> 0 时仅返 last_seen ≤ now - 此天数 的资产。
+   *
+   * @generated from field: int32 min_age_days = 6;
+   */
+  minAgeDays = 0;
+
   constructor(data?: PartialMessage<ListAssetsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -138,6 +145,7 @@ export class ListAssetsRequest extends Message<ListAssetsRequest> {
     { no: 3, name: "keyword", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 4, name: "page", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 5, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 6, name: "min_age_days", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAssetsRequest {

@@ -60,11 +60,12 @@ func (h *Handler) ListAssets(
 	}
 
 	r := asset.ListRequest{
-		Kind:      domain.Kind(req.Msg.GetKind()),
-		ProjectID: req.Msg.GetProjectId(),
-		Keyword:   req.Msg.GetKeyword(),
-		Page:      int(req.Msg.GetPage()),
-		PageSize:  int(req.Msg.GetPageSize()),
+		Kind:       domain.Kind(req.Msg.GetKind()),
+		ProjectID:  req.Msg.GetProjectId(),
+		Keyword:    req.Msg.GetKeyword(),
+		Page:       int(req.Msg.GetPage()),
+		PageSize:   int(req.Msg.GetPageSize()),
+		MinAgeDays: int(req.Msg.GetMinAgeDays()),
 	}
 
 	// RBAC（与 scan SearchResults 同形）

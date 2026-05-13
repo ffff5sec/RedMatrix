@@ -104,6 +104,10 @@ func (r *pgRepo) List(ctx context.Context, f Filter, p Page) ([]*domain.Asset, i
 		args = append(args, "%"+v+"%")
 		clauses = append(clauses, "value ILIKE $"+itoa(len(args)))
 	}
+	if f.LastSeenBefore != nil {
+		args = append(args, *f.LastSeenBefore)
+		clauses = append(clauses, "last_seen < $"+itoa(len(args)))
+	}
 	where := ""
 	if len(clauses) > 0 {
 		where = " WHERE " + strings.Join(clauses, " AND ")

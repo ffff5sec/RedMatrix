@@ -95,3 +95,19 @@ func NormalizeURL(s string) string {
 // ErrInvalidDerivation 当 scan_result 数据无法派生 asset（比如 host 字段缺失）
 // 时由派生函数返回；caller 通常静默跳过（result 仍入库，只是没派生 asset）。
 var ErrInvalidDerivation = errors.New("asset: cannot derive from scan_result")
+
+// IsStale 判定资产是否"老"：last_seen + threshold < now（PR-S31）。
+//
+// 用于 freshness UI：
+//   - threshold ≤ 0 → 永远不老（兜底）
+//   - last_seen 在 (now - threshold) 之前 → stale
+//
+// 与 PR-S30 套件 cron 增量模式配套：cron 每天扫的 suite 会让活资产
+// last_seen 滚动；停滚 = 资产消失，可能下线 / 入侵替换。
+func (a *Asset) IsStale(threshold time.Duration, now time.Time) bool {
+	if a == nil || threshold <= 0 {
+		return false
+	}
+	cutoff := now.Add(-threshold)
+	return a.LastSeen.Before(cutoff)
+}

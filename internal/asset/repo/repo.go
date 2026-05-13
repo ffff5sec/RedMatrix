@@ -3,6 +3,7 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	"github.com/ffff5sec/RedMatrix/internal/asset/domain"
 )
@@ -31,6 +32,9 @@ type Filter struct {
 	Keyword   string // value 模糊匹配（ILIKE %kw%）
 	// ProjectIDs PA 权限收紧：非 nil 时用 ANY 过滤。空切片 caller 应短路。
 	ProjectIDs []string
+	// LastSeenBefore（PR-S31 freshness）：非 nil → SQL last_seen < $X；
+	// 用于过滤"多久未扫到的资产"。nil = 不过滤。
+	LastSeenBefore *time.Time
 }
 
 // Page 分页。

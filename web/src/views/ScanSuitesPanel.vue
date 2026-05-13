@@ -154,6 +154,42 @@ function openRun(s: ScanSuite) {
   showRun.value = true;
 }
 
+// PR-S32 Webhook curl 示例 modal
+const showWebhook = ref(false);
+const webhookSuite = ref<{ id: string; name: string; projectId: string } | null>(null);
+
+function openWebhook(s: ScanSuite) {
+  webhookSuite.value = {
+    id: s.id,
+    name: s.name,
+    projectId: s.projectId || '<your-project-id>',
+  };
+  showWebhook.value = true;
+}
+
+const webhookCurl = computed(() => {
+  if (!webhookSuite.value) return '';
+  const origin = window.location.origin;
+  return `curl -X POST '${origin}/api/v1/webhook/run-suite' \\
+  -H 'X-RedMatrix-API-Key: rmk_<your_api_key>' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "suite_id": "${webhookSuite.value.id}",
+    "project_id": "${webhookSuite.value.projectId}",
+    "targets": ["example.com"]
+  }'`;
+});
+
+async function copyWebhookCurl() {
+  if (!webhookCurl.value) return;
+  try {
+    await navigator.clipboard.writeText(webhookCurl.value);
+    toast.success('curl 已复制到剪贴板');
+  } catch {
+    toast.error('复制失败，请手动选择');
+  }
+}
+
 function parseTargets(raw: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -287,6 +323,7 @@ function kindLabel(k: string) {
             <td>
               <div class="row" style="gap: 4px">
                 <button class="primary" @click="openRun(s)">运行</button>
+                <button @click="openWebhook(s)" title="显示外部触发 curl 示例">Webhook</button>
                 <button class="danger" @click="delSuite(s)">删除</button>
               </div>
             </td>
@@ -412,10 +449,30 @@ function kindLabel(k: string) {
 
           <div class="row">
             <button class="primary" :disabled="submitting || !canRun" @click="runSuite">
-              {{ submitting ? '触发中…' : '运行套件' }}
+              {{ submitting ? '触发中…' : '运行套件'}}
             </button>
             <button :disabled="submitting" @click="showRun = false">取消</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PR-S32 Webhook 触发 curl 示例 modal -->
+    <div v-if="showWebhook && webhookSuite" class="modal-mask">
+      <div class="card modal" style="width: min(720px, calc(100vw - 32px))">
+        <h2>Webhook 入站触发 ✦ {{ webhookSuite.name }}</h2>
+        <p class="muted" style="margin: 4px 0 12px">
+          外部 CI/CD / 巡检脚本 用 API Key 直接 POST 触发本套件运行。
+          创建 API Key：<a href="/#/api-keys" class="link">API Keys</a> 页面。
+        </p>
+        <pre class="curl-block">{{ webhookCurl }}</pre>
+        <p class="muted" style="font-size: 12px; margin-top: 8px">
+          注：targets 字段可省略；省略时套件 default_targets 生效（仅 cron 套件）。
+          API Key 关联的用户必须是该项目成员（PA）或有跨项目权限（SA/TA）。
+        </p>
+        <div class="row" style="margin-top: 12px; justify-content: flex-end; gap: 8px">
+          <button class="primary" @click="copyWebhookCurl">复制 curl</button>
+          <button @click="showWebhook = false">关闭</button>
         </div>
       </div>
     </div>
@@ -471,4 +528,21 @@ function kindLabel(k: string) {
 .expand-err { color: #b91c1c; }
 .expand-warn { color: #b45309; }
 .cron-chip { background: rgba(124, 58, 237, 0.12); color: #6d28d9; font-family: ui-monospace, SFMono-Regular, monospace; }
+.curl-block {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+.link {
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+}
+.link:hover { text-decoration: underline; }
 </style>

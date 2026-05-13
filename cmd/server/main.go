@@ -45,11 +45,13 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/scan/artifact"
 	"github.com/ffff5sec/RedMatrix/internal/scan/metricsscan"
 	"github.com/ffff5sec/RedMatrix/internal/scan/sweeper"
+	"github.com/ffff5sec/RedMatrix/internal/scan/webhookhandler"
 	"github.com/ffff5sec/RedMatrix/internal/storage/es"
 	"github.com/ffff5sec/RedMatrix/internal/storage/migrate"
 	rmminio "github.com/ffff5sec/RedMatrix/internal/storage/minio"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	"github.com/ffff5sec/RedMatrix/internal/storage/redis"
+	tenancyrepo "github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
 	"github.com/ffff5sec/RedMatrix/internal/version"
 )
 
@@ -437,6 +439,16 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			return failExitCode(err)
 		}
 		mux.Handle(scMount.path, scMount.handler)
+
+		// === 8a₃-post. Webhook 入站（PR-S32 外部触发扫描）===
+		webhookH, err := webhookhandler.New(authSvc, scanSvc, tenancyrepo.NewProjectMemberPG(pool.App), logger)
+		if err != nil {
+			logger.LogError(ctx, "webhook handler init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(webhookhandler.Path(), webhookH)
+		logger.Info("webhook endpoint mounted", "path", webhookhandler.Path())
 
 		// PR-S25 retry sweeper：goroutine 每 30s 拉一批 due delivery 发送。
 		notifySweeperDone := make(chan struct{})

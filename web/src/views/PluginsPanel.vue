@@ -9,6 +9,7 @@ import { ref, computed, onMounted } from 'vue';
 
 import { pluginPackageClient } from '@/api/transport';
 import { useToast } from '@/composables/useToast';
+import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
 import { formatRelativeTime, formatAbsoluteTime } from '@/util/relativeTime';
 import type { PluginPackage, SigningKey } from '@/gen/proto/redmatrix/pluginpkg/v1/pluginpkg_pb';
@@ -46,8 +47,9 @@ async function loadKeys() {
   try {
     const r = await pluginPackageClient.listSigningKeys({});
     keys.value = r.keys;
-  } catch {
-    // 忽略
+  } catch (e) {
+    // PR-S43: 不再静默；签名 key 拉取失败影响插件信任视图，需告知用户
+    toast.warning('签名密钥加载失败：' + errorMessage(e));
   }
 }
 
@@ -148,7 +150,8 @@ function formatSize(b: bigint | number): string {
     <div class="card">
       <div class="row" style="justify-content: space-between; align-items: baseline">
         <h2>插件库</h2>
-        <button class="primary" @click="openUpload">上传新版本</button>
+        <!-- PR-S43: 与后端 saOnly 对齐；Auditor 看到但点击会 PERMISSION_DENIED -->
+        <button v-if="authStore.isSuperAdmin()" class="primary" @click="openUpload">上传新版本</button>
       </div>
       <p class="muted">
         SA 上传插件二进制（agent 拉取 + ed25519 签名校验）。同 slug/version/platform 唯一。
@@ -197,11 +200,12 @@ function formatSize(b: bigint | number): string {
             </td>
             <td>
               <div class="row" style="gap: 4px">
-                <button v-if="!p.deprecatedAt" @click="toggleActive(p)">
+                <!-- PR-S43: SA-only 写操作 -->
+                <button v-if="authStore.isSuperAdmin() && !p.deprecatedAt" @click="toggleActive(p)">
                   {{ p.isActive ? '禁用' : '启用' }}
                 </button>
-                <button class="danger" v-if="!p.deprecatedAt" @click="doDeprecate(p)">废弃</button>
-                <span v-else class="muted" style="font-size: 12px">已废弃</span>
+                <button v-if="authStore.isSuperAdmin() && !p.deprecatedAt" class="danger" @click="doDeprecate(p)">废弃</button>
+                <span v-if="p.deprecatedAt" class="muted" style="font-size: 12px">已废弃</span>
               </div>
             </td>
           </tr>

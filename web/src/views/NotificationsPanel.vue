@@ -9,6 +9,7 @@ import { Struct } from '@bufbuild/protobuf';
 
 import { notifyClient, tenancyClient } from '@/api/transport';
 import { useToast } from '@/composables/useToast';
+import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
 import { formatRelativeTime, formatAbsoluteTime } from '@/util/relativeTime';
 import type {
@@ -41,8 +42,9 @@ async function loadProjects() {
   try {
     const r = await tenancyClient.listProjects({ tenantId: DEFAULT_TENANT_ID, page: 1, pageSize: 100 });
     projects.value = r.projects;
-  } catch {
-    // 忽略
+  } catch (e) {
+    // PR-S43: 不再静默；项目列表失败影响订阅 project 名称展示
+    toast.warning('项目列表加载失败：' + errorMessage(e));
   }
 }
 
@@ -241,7 +243,8 @@ function kindLabel(k: string) {
 
       <!-- 订阅 tab -->
       <template v-if="tab === 'subs'">
-        <div class="row" style="margin-bottom: 8px">
+        <!-- PR-S43: 后端 notify writers=SA+PA；Auditor 隐藏写按钮避免点击后才看到 PERMISSION_DENIED -->
+        <div v-if="authStore.isWriter()" class="row" style="margin-bottom: 8px">
           <button class="primary" @click="openCreate">新建订阅</button>
         </div>
         <table v-if="subs.length > 0">
@@ -274,11 +277,13 @@ function kindLabel(k: string) {
                 {{ formatRelativeTime(s.createdAt, nowTick) }}
               </td>
               <td>
-                <div class="row" style="gap: 4px">
+                <!-- PR-S43: 测试 / 编辑 / 删除均为写路径，Auditor 隐藏 -->
+                <div v-if="authStore.isWriter()" class="row" style="gap: 4px">
                   <button class="primary" @click="testSub(s)">测试</button>
                   <button @click="openEdit(s)">编辑</button>
                   <button class="danger" @click="del(s)">删除</button>
                 </div>
+                <span v-else class="muted" style="font-size: 12px">只读</span>
               </td>
             </tr>
           </tbody>

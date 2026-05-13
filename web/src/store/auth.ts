@@ -36,8 +36,17 @@ export const authStore = reactive({
   isSuperAdmin(): boolean {
     return this.role === 'SUPER_ADMIN';
   },
+  isProjectAdmin(): boolean {
+    return this.role === 'PROJECT_ADMIN';
+  },
   isAuditor(): boolean {
     return this.role === 'TENANT_AUDITOR' || this.role === 'PLATFORM_AUDITOR';
+  },
+  // PR-S43: 写操作可见性 helper —— 与后端 writers (SA+PA) 对齐 (HLD §4.3
+  // Auditor 只读)。UI 写按钮全部用 isWriter() 隐藏 Auditor 视图，避免点击后才
+  // 看到 PERMISSION_DENIED toast。
+  isWriter(): boolean {
+    return this.role === 'SUPER_ADMIN' || this.role === 'PROJECT_ADMIN';
   },
   set(p: Persisted) {
     this.token = p.token;

@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import { findingClient } from '@/api/transport';
 import { useToast } from '@/composables/useToast';
+import { authStore } from '@/store/auth';
 import { errorMessage } from '@/util/error';
 import { formatRelativeTime, formatAbsoluteTime } from '@/util/relativeTime';
 import type { Finding, FindingEvent } from '@/gen/proto/redmatrix/finding/v1/finding_pb';
@@ -200,12 +201,15 @@ function eventLabel(e: FindingEvent): string {
             <span class="kv-k">指派</span>
             <span v-if="finding.assigneeId">
               <code>{{ finding.assigneeId.slice(0, 8) }}…</code>
-              <button class="link-btn" style="margin-left: 8px" @click="openAssign">改派</button>
-              <button class="link-btn" style="margin-left: 4px" @click="clearAssign">取消指派</button>
+              <!-- PR-S43: 改派 / 取消指派为写操作，仅 SA + PA 可见 -->
+              <template v-if="authStore.isWriter()">
+                <button class="link-btn" style="margin-left: 8px" @click="openAssign">改派</button>
+                <button class="link-btn" style="margin-left: 4px" @click="clearAssign">取消指派</button>
+              </template>
             </span>
             <span v-else>
               <span class="muted">未指派</span>
-              <button class="link-btn" style="margin-left: 8px" @click="openAssign">指派给…</button>
+              <button v-if="authStore.isWriter()" class="link-btn" style="margin-left: 8px" @click="openAssign">指派给…</button>
             </span>
           </div>
           <div class="kv-row" v-if="finding.firstSeenAt">
@@ -231,7 +235,8 @@ function eventLabel(e: FindingEvent): string {
           <pre class="ref">{{ finding.reference }}</pre>
         </div>
 
-        <div class="section">
+        <!-- PR-S43: 状态转移为写操作，仅 SA + PA 可见；Auditor 隐藏整个 section -->
+        <div v-if="authStore.isWriter()" class="section">
           <h3>转移状态</h3>
           <div class="row" style="gap: 6px; flex-wrap: wrap">
             <button v-for="t in availableTransitions" :key="t" class="primary" @click="showTransition = { to: t }">
@@ -244,7 +249,8 @@ function eventLabel(e: FindingEvent): string {
 
       <div class="card">
         <h3>评论 / 操作流水</h3>
-        <div class="comment-form">
+        <!-- PR-S43: Comment 为写操作，Auditor 隐藏评论表单 -->
+        <div v-if="authStore.isWriter()" class="comment-form">
           <textarea v-model="commentBody" placeholder="添加评论…" :disabled="submitting" rows="3" style="width: 100%" />
           <div class="row" style="margin-top: 6px; justify-content: flex-end">
             <button class="primary" :disabled="submitting || !commentBody.trim()" @click="submitComment">

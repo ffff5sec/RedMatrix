@@ -318,12 +318,14 @@ function targetKindLabel(k: string) {
             </td>
             <td>
               <div class="row" style="gap: 4px">
+                <!-- PR-S43: Cancel 后端 writers (SA+PA)；Auditor 隐藏 -->
                 <button
-                  v-if="t.status === 'pending' || t.status === 'running'"
+                  v-if="authStore.isWriter() && (t.status === 'pending' || t.status === 'running')"
                   @click="cancel(t.id, t.name)"
                 >取消</button>
+                <!-- PR-S43: Delete 后端 PR-S40 收紧到 saOnly -->
                 <button
-                  v-if="authStore.isSuperAdmin() || authStore.role === 'TENANT_AUDITOR'"
+                  v-if="authStore.isSuperAdmin()"
                   class="danger"
                   @click="del(t.id, t.name)"
                 >删除</button>

@@ -10,10 +10,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	scanv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1"
+	auditdomain "github.com/ffff5sec/RedMatrix/internal/audit/domain"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	identityhandler "github.com/ffff5sec/RedMatrix/internal/identity/handler"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/scan"
 	scandomain "github.com/ffff5sec/RedMatrix/internal/scan/domain"
 )
@@ -185,6 +187,21 @@ func (h *Handler) RunScanSuite(
 	})
 	if err != nil {
 		return nil, toConnectError(err)
+	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionSuiteRun),
+			ResourceKind:  "suite_run",
+			ResourceID:    run.ID,
+			TenantID:      run.TenantID,
+			ProjectID:     run.ProjectID,
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			Payload: map[string]any{
+				"suite_id":     in.GetSuiteId(),
+				"target_count": len(in.GetTargets()),
+			},
+		})
 	}
 	return connect.NewResponse(&scanv1.RunScanSuiteResponse{Run: suiteRunToProto(run)}), nil
 }

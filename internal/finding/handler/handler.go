@@ -15,12 +15,14 @@ import (
 
 	findingv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/finding/v1"
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/finding/v1/findingv1connect"
+	auditdomain "github.com/ffff5sec/RedMatrix/internal/audit/domain"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/finding"
 	findingdomain "github.com/ffff5sec/RedMatrix/internal/finding/domain"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	identityhandler "github.com/ffff5sec/RedMatrix/internal/identity/handler"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 )
 
 // MembershipLookup PA 路径专用。
@@ -33,6 +35,7 @@ type Handler struct {
 	svc      finding.Service
 	authSvc  auth.Service
 	memberDB MembershipLookup
+	audit    audithook.Hook // PR-S35 可空
 }
 
 var _ findingv1connect.FindingServiceHandler = (*Handler)(nil)
@@ -50,6 +53,12 @@ func New(svc finding.Service, authSvc auth.Service, memberDB MembershipLookup) (
 		return nil, errx.New(errx.ErrInternal, "finding.handler.New: 依赖不能为 nil")
 	}
 	return &Handler{svc: svc, authSvc: authSvc, memberDB: memberDB}, nil
+}
+
+// WithAudit 注入审计钩子（PR-S35）。
+func (h *Handler) WithAudit(a audithook.Hook) *Handler {
+	h.audit = a
+	return h
 }
 
 func (h *Handler) ListFindings(
@@ -200,6 +209,21 @@ func (h *Handler) Transition(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionFindingTransition),
+			ResourceKind:  "finding",
+			ResourceID:    f.ID,
+			TenantID:      f.TenantID,
+			ProjectID:     f.ProjectID,
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			Payload: map[string]any{
+				"to_status": string(f.Status),
+				"comment":   req.Msg.GetComment(),
+			},
+		})
+	}
 	return connect.NewResponse(&findingv1.TransitionResponse{Finding: findingToProto(f)}), nil
 }
 
@@ -214,7 +238,8 @@ func (h *Handler) Comment(
 	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
 		return nil, toConnectError(err)
 	}
-	if _, err := h.assertFindingVisible(ctx, p, req.Msg.GetFindingId()); err != nil {
+	f, err := h.assertFindingVisible(ctx, p, req.Msg.GetFindingId())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	ev, err := h.svc.Comment(ctx, finding.CommentRequest{
@@ -224,6 +249,18 @@ func (h *Handler) Comment(
 	})
 	if err != nil {
 		return nil, toConnectError(err)
+	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionFindingComment),
+			ResourceKind:  "finding",
+			ResourceID:    f.ID,
+			TenantID:      f.TenantID,
+			ProjectID:     f.ProjectID,
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			Payload:       map[string]any{"event_id": ev.ID, "body_len": len(req.Msg.GetBody())},
+		})
 	}
 	return connect.NewResponse(&findingv1.CommentResponse{Event: eventToProto(ev)}), nil
 }

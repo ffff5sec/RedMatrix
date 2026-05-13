@@ -11,6 +11,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/pluginpkg/v1/pluginpkgv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/pluginpkg"
 	pluginhandler "github.com/ffff5sec/RedMatrix/internal/pluginpkg/handler"
@@ -35,6 +36,7 @@ func buildPluginPkgMount(
 	mc *minio.Client,
 	authSvc auth.Service,
 	logger *log.Logger,
+	auditHook audithook.Hook, // PR-S35 可空
 ) (*pluginpkgMount, pluginpkg.Service, error) {
 	if pool == nil || pool.App == nil {
 		return nil, nil, errx.New(errx.ErrInternal, "buildPluginPkgMount: pg.Pool.App 不能为 nil")
@@ -93,6 +95,9 @@ func buildPluginPkgMount(
 	h, err := pluginhandler.New(svc, authSvc)
 	if err != nil {
 		return nil, nil, err
+	}
+	if auditHook != nil {
+		h.WithAudit(auditHook)
 	}
 	path, hh := pluginpkgv1connect.NewPluginPackageServiceHandler(h)
 	return &pluginpkgMount{path: path, handler: hh}, svc, nil

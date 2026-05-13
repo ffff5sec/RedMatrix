@@ -356,7 +356,8 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		mux.Handle(auditMnt.path, auditMnt.handler)
 		// 把 audit hook 注入 identity handler（login 成功后写 audit 行）
-		idHandler.WithAudit(newIdentityAuditAdapter(auditSvc))
+		auditHook := newAuditHook(auditSvc)
+		idHandler.WithAudit(auditHook)
 		logger.Info("audit service mounted", "path", auditMnt.path)
 
 		// === 8a₁. TenancyService（ConnectRPC）===
@@ -417,7 +418,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle(notifyMount.path, notifyMount.handler)
 
 		// === 8a₃-pre2. FindingService（PR-S26 漏洞工作流）===
-		findingMnt, findingSvc, err := buildFindingMount(pool, authSvc)
+		findingMnt, findingSvc, err := buildFindingMount(pool, authSvc, auditHook)
 		if err != nil {
 			logger.LogError(ctx, "finding stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -426,7 +427,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle(findingMnt.path, findingMnt.handler)
 
 		// === 8a₃-pre3. PluginPackageService（PR-S28 插件包分发）===
-		pluginMnt, pluginPkgSvc, err := buildPluginPkgMount(ctx, pool, mio, authSvc, logger)
+		pluginMnt, pluginPkgSvc, err := buildPluginPkgMount(ctx, pool, mio, authSvc, logger, auditHook)
 		if err != nil {
 			logger.LogError(ctx, "pluginpkg stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -444,7 +445,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		// === 8a₃. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。同时返回 scheduler 让 main 控生命周期（PR-S12）。
-		scMount, scanSvc, scanSched, suiteSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, assetReader, artifactStore, scanMetrics, eventBus, eventRegistry, logger, scanHook)
+		scMount, scanSvc, scanSched, suiteSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, assetReader, artifactStore, scanMetrics, eventBus, eventRegistry, logger, scanHook, auditHook)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

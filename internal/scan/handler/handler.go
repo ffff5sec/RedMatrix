@@ -16,10 +16,12 @@ import (
 
 	scanv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1"
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1/scanv1connect"
+	auditdomain "github.com/ffff5sec/RedMatrix/internal/audit/domain"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	identityhandler "github.com/ffff5sec/RedMatrix/internal/identity/handler"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/scan"
 	scandomain "github.com/ffff5sec/RedMatrix/internal/scan/domain"
 )
@@ -29,6 +31,7 @@ type Handler struct {
 	svc      scan.Service
 	authSvc  auth.Service
 	memberDB MembershipLookup // PR-S7：PA SearchResults 权限收紧用
+	audit    audithook.Hook   // PR-S35：可空（无审计时不写）
 }
 
 // MembershipLookup PA 路径专用：查用户加入的项目 ID 列表。
@@ -54,6 +57,12 @@ func New(svc scan.Service, authSvc auth.Service, memberDB MembershipLookup) (*Ha
 		return nil, errx.New(errx.ErrInternal, "scan.handler.New: 依赖不能为 nil")
 	}
 	return &Handler{svc: svc, authSvc: authSvc, memberDB: memberDB}, nil
+}
+
+// WithAudit 注入审计日志钩子（PR-S35）。fire-and-forget。
+func (h *Handler) WithAudit(a audithook.Hook) *Handler {
+	h.audit = a
+	return h
 }
 
 // assertTaskAccess（PR-S17 BOLA 收紧）—— 取 task 并校 caller 是否有权访问。
@@ -160,6 +169,24 @@ func (h *Handler) CreateScanTask(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionTaskCreate),
+			ResourceKind:  "task",
+			ResourceID:    t.ID,
+			TenantID:      t.TenantID,
+			ProjectID:     t.ProjectID,
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			Payload: map[string]any{
+				"name":          t.Name,
+				"kind":          string(t.Kind),
+				"target_kind":   string(t.TargetKind),
+				"schedule_kind": string(t.ScheduleKind),
+				"target_count":  len(t.Targets),
+			},
+		})
+	}
 	return connect.NewResponse(&scanv1.CreateScanTaskResponse{Task: taskToProto(t)}), nil
 }
 
@@ -225,11 +252,24 @@ func (h *Handler) CancelScanTask(
 	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
 		return nil, toConnectError(err)
 	}
-	if _, err := h.assertTaskAccess(ctx, p, req.Msg.GetId()); err != nil {
+	t, err := h.assertTaskAccess(ctx, p, req.Msg.GetId())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.CancelTask(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
+	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionTaskCancel),
+			ResourceKind:  "task",
+			ResourceID:    t.ID,
+			TenantID:      t.TenantID,
+			ProjectID:     t.ProjectID,
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			Payload:       map[string]any{"name": t.Name, "kind": string(t.Kind)},
+		})
 	}
 	return connect.NewResponse(&scanv1.CancelScanTaskResponse{}), nil
 }
@@ -247,11 +287,24 @@ func (h *Handler) DeleteScanTask(
 		identitydomain.RoleSuperAdmin, identitydomain.RoleTenantAuditor); err != nil {
 		return nil, toConnectError(err)
 	}
-	if _, err := h.assertTaskAccess(ctx, p, req.Msg.GetId()); err != nil {
+	t, err := h.assertTaskAccess(ctx, p, req.Msg.GetId())
+	if err != nil {
 		return nil, toConnectError(err)
 	}
 	if err := h.svc.DeleteTask(ctx, req.Msg.GetId()); err != nil {
 		return nil, toConnectError(err)
+	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionTaskDelete),
+			ResourceKind:  "task",
+			ResourceID:    t.ID,
+			TenantID:      t.TenantID,
+			ProjectID:     t.ProjectID,
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			Payload:       map[string]any{"name": t.Name, "kind": string(t.Kind)},
+		})
 	}
 	return connect.NewResponse(&scanv1.DeleteScanTaskResponse{}), nil
 }

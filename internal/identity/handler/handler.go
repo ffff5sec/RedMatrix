@@ -26,33 +26,14 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	"github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	"github.com/ffff5sec/RedMatrix/internal/identity/policy"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 )
-
-// AuditLogger 是 identity handler 用于 fire-and-forget 写审计的最小接口（PR-S33）。
-// 与 audit.Service 鸭子兼容；可空（nil 时不写）。
-type AuditLogger interface {
-	Log(ctx context.Context, ev AuditEvent) error
-}
-
-// AuditEvent 与 audit.LogEvent 字段同形；本地复制避免反向依赖 audit 包。
-type AuditEvent struct {
-	Action        auditdomain.ActionKind
-	ResourceKind  string
-	ResourceID    string
-	TenantID      string
-	ProjectID     string
-	ActorUserID   string
-	ActorUsername string
-	ActorIP       string
-	UserAgent     string
-	Payload       map[string]any
-}
 
 // Handler 实现 identityv1connect.IdentityServiceHandler。
 type Handler struct {
 	svc     auth.Service
 	captcha policy.Captcha // 可空（GetCaptcha 时返 NOT_IMPLEMENTED）
-	audit   AuditLogger    // 可空（无审计时不写）
+	audit   audithook.Hook // 可空（无审计时不写）
 }
 
 // 编译期断言：实现 IdentityServiceHandler 接口
@@ -67,7 +48,7 @@ func New(svc auth.Service, captcha policy.Captcha) (*Handler, error) {
 }
 
 // WithAudit 注入审计日志钩子（PR-S33）；登录等关键操作 fire-and-forget 写 audit_logs。
-func (h *Handler) WithAudit(a AuditLogger) *Handler {
+func (h *Handler) WithAudit(a audithook.Hook) *Handler {
 	h.audit = a
 	return h
 }
@@ -119,8 +100,8 @@ func (h *Handler) Login(
 
 	// PR-S33 审计：登录成功写一条 audit_logs（失败仅 log，不影响登录）
 	if h.audit != nil && res.User != nil {
-		_ = h.audit.Log(ctx, AuditEvent{
-			Action:        auditdomain.ActionLogin,
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionLogin),
 			ResourceKind:  "session",
 			ResourceID:    res.SessionID,
 			TenantID:      res.User.TenantID,

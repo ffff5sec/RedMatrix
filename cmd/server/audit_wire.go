@@ -7,11 +7,12 @@ import (
 
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/audit/v1/auditv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/audit"
+	auditdomain "github.com/ffff5sec/RedMatrix/internal/audit/domain"
 	audithandler "github.com/ffff5sec/RedMatrix/internal/audit/handler"
 	auditrepo "github.com/ffff5sec/RedMatrix/internal/audit/repo"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
-	identityhandler "github.com/ffff5sec/RedMatrix/internal/identity/handler"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 )
@@ -42,15 +43,15 @@ func buildAuditMount(pool *pg.Pool, authSvc auth.Service, logger *log.Logger) (*
 	return &auditMount{path: path, handler: hh}, svc, nil
 }
 
-// identityAuditAdapter 适配 audit.Service → identityhandler.AuditLogger。
-// 把 identityhandler.AuditEvent（避反向依赖的本地类型）转 audit.LogEvent。
-type identityAuditAdapter struct {
+// auditHookAdapter 适配 audit.Service → audithook.Hook（公共审计接口，PR-S35）。
+// 上游 handler 用 audithook.Hook 接口，本适配器把 Event → audit.LogEvent。
+type auditHookAdapter struct {
 	svc audit.Service
 }
 
-func (a *identityAuditAdapter) Log(ctx context.Context, ev identityhandler.AuditEvent) error {
+func (a *auditHookAdapter) Log(ctx context.Context, ev audithook.Event) error {
 	return a.svc.Log(ctx, audit.LogEvent{
-		Action:        ev.Action,
+		Action:        auditdomain.ActionKind(ev.Action),
 		ResourceKind:  ev.ResourceKind,
 		ResourceID:    ev.ResourceID,
 		TenantID:      ev.TenantID,
@@ -63,7 +64,7 @@ func (a *identityAuditAdapter) Log(ctx context.Context, ev identityhandler.Audit
 	})
 }
 
-// newIdentityAuditAdapter 工厂。
-func newIdentityAuditAdapter(svc audit.Service) identityhandler.AuditLogger {
-	return &identityAuditAdapter{svc: svc}
+// newAuditHook 工厂。
+func newAuditHook(svc audit.Service) audithook.Hook {
+	return &auditHookAdapter{svc: svc}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1/scanv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/platform/eventbus"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 	"github.com/ffff5sec/RedMatrix/internal/scan"
@@ -48,6 +49,7 @@ func buildScanMount(
 	eventRegistry *eventbus.Registry,
 	logger *log.Logger,
 	notifier scan.TaskNotifier, // PR-S25 可空
+	auditHook audithook.Hook, // PR-S35 可空
 ) (*scanMount, scan.Service, *scheduler.Scheduler, *scheduler.Scheduler, error) {
 	if pool == nil || pool.App == nil {
 		return nil, nil, nil, nil, errx.New(errx.ErrInternal, "buildScanMount: pg.Pool.App 不能为 nil")
@@ -146,6 +148,9 @@ func buildScanMount(
 	h, err := scanhandler.New(svc, authSvc, memberDB)
 	if err != nil {
 		return nil, nil, nil, nil, err
+	}
+	if auditHook != nil {
+		h.WithAudit(auditHook)
 	}
 	path, hh := scanv1connect.NewScanServiceHandler(h)
 	return &scanMount{path: path, handler: hh}, svc, sched, suiteSched, nil

@@ -15,10 +15,12 @@ import (
 
 	pluginv1 "github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/pluginpkg/v1"
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/pluginpkg/v1/pluginpkgv1connect"
+	auditdomain "github.com/ffff5sec/RedMatrix/internal/audit/domain"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
 	identityhandler "github.com/ffff5sec/RedMatrix/internal/identity/handler"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/pluginpkg"
 	plugindomain "github.com/ffff5sec/RedMatrix/internal/pluginpkg/domain"
 )
@@ -27,6 +29,7 @@ import (
 type Handler struct {
 	svc     pluginpkg.Service
 	authSvc auth.Service
+	audit   audithook.Hook // PR-S35 可空
 }
 
 var _ pluginpkgv1connect.PluginPackageServiceHandler = (*Handler)(nil)
@@ -45,6 +48,12 @@ func New(svc pluginpkg.Service, authSvc auth.Service) (*Handler, error) {
 		return nil, errx.New(errx.ErrInternal, "pluginpkg.handler.New: 依赖不能为 nil")
 	}
 	return &Handler{svc: svc, authSvc: authSvc}, nil
+}
+
+// WithAudit 注入审计钩子（PR-S35）。
+func (h *Handler) WithAudit(a audithook.Hook) *Handler {
+	h.audit = a
+	return h
 }
 
 // === 包管理（SA only）===
@@ -70,6 +79,23 @@ func (h *Handler) UploadPackage(
 	})
 	if err != nil {
 		return nil, toConnectError(err)
+	}
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionPluginUploaded),
+			ResourceKind:  "plugin_package",
+			ResourceID:    pkg.ID,
+			TenantID:      p.TenantID,
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			Payload: map[string]any{
+				"slug":     pkg.Slug,
+				"version":  pkg.Version,
+				"platform": string(pkg.Platform),
+				"size":     pkg.SizeBytes,
+				"sha256":   pkg.SHA256,
+			},
+		})
 	}
 	return connect.NewResponse(&pluginv1.UploadPackageResponse{Package: pkgToProto(pkg)}), nil
 }

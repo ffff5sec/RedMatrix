@@ -10,6 +10,7 @@ import (
 	findinghandler "github.com/ffff5sec/RedMatrix/internal/finding/handler"
 	findingrepo "github.com/ffff5sec/RedMatrix/internal/finding/repo"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
+	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/storage/pg"
 	tenancyrepo "github.com/ffff5sec/RedMatrix/internal/tenancy/repo"
 )
@@ -20,7 +21,7 @@ type findingMount struct {
 }
 
 // buildFindingMount 装配 FindingService。返回 mount + svc（供 scan hook composite 用）。
-func buildFindingMount(pool *pg.Pool, authSvc auth.Service) (*findingMount, finding.Service, error) {
+func buildFindingMount(pool *pg.Pool, authSvc auth.Service, auditHook audithook.Hook) (*findingMount, finding.Service, error) {
 	if pool == nil || pool.App == nil {
 		return nil, nil, errx.New(errx.ErrInternal, "buildFindingMount: pg.Pool.App 不能为 nil")
 	}
@@ -39,6 +40,9 @@ func buildFindingMount(pool *pg.Pool, authSvc auth.Service) (*findingMount, find
 	h, err := findinghandler.New(svc, authSvc, memberDB)
 	if err != nil {
 		return nil, nil, err
+	}
+	if auditHook != nil {
+		h.WithAudit(auditHook)
 	}
 	path, hh := findingv1connect.NewFindingServiceHandler(h)
 	return &findingMount{path: path, handler: hh}, svc, nil

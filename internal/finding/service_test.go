@@ -139,7 +139,7 @@ func TestCanTransition(t *testing.T) {
 		// confirmed
 		{domain.FindingConfirmed, domain.FindingFixed, true},
 		{domain.FindingConfirmed, domain.FindingFalsePositive, true},
-		{domain.FindingConfirmed, domain.FindingOpen, false}, // 必须经 reopen 间接
+		{domain.FindingConfirmed, domain.FindingOpen, true}, // PR-S38: 直接 reopen 已支持
 
 		// reopen
 		{domain.FindingFixed, domain.FindingOpen, true},

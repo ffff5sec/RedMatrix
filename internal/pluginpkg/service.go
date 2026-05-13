@@ -216,7 +216,31 @@ func (s *service) GetLatestVersion(ctx context.Context, slug, platform string) (
 		return nil, errx.New(errx.ErrPluginPlatformMismatch, "platform 不合法").
 			WithFields("got", platform)
 	}
-	return s.packages.GetLatestActive(ctx, slug, platform)
+	// PR-S38: 按版本号语义排序（CompareVersion 处理 SemVer-lite + v 前缀），
+	// 不再单纯按 uploaded_at；防止 SA 补传旧版本后 agent 拉到旧版本。
+	active := true
+	out, _, err := s.packages.List(ctx, repo.PluginFilter{
+		Slug:     slug,
+		Platform: platform,
+		Active:   &active,
+	}, repo.Page{Page: 1, PageSize: 200})
+	if err != nil {
+		return nil, err
+	}
+	var best *domain.PluginPackage
+	for _, p := range out {
+		if p.IsDeprecated() {
+			continue
+		}
+		if best == nil || domain.CompareVersion(p.Version, best.Version) > 0 {
+			best = p
+		}
+	}
+	if best == nil {
+		return nil, errx.New(errx.ErrPluginNotFound, "无可用插件版本").
+			WithFields("slug", slug, "platform", platform)
+	}
+	return best, nil
 }
 
 // GetDownloadURL 生成 presigned GET URL（TTL 15min）。

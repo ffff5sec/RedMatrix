@@ -291,6 +291,24 @@ func (h *Handler) Assign(
 	if err != nil {
 		return nil, toConnectError(err)
 	}
+	if h.audit != nil {
+		payload := map[string]any{}
+		if assignee != nil {
+			payload["to_assignee"] = *assignee
+		} else {
+			payload["to_assignee"] = nil
+		}
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        string(auditdomain.ActionFindingAssign),
+			ResourceKind:  "finding",
+			ResourceID:    f.ID,
+			TenantID:      f.TenantID,
+			ProjectID:     f.ProjectID,
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			Payload:       payload,
+		})
+	}
 	return connect.NewResponse(&findingv1.AssignResponse{Finding: findingToProto(f)}), nil
 }
 

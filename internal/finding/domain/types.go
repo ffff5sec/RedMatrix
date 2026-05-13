@@ -54,6 +54,7 @@ var allowedTransitions = map[FindingStatus]map[FindingStatus]bool{
 	FindingConfirmed: {
 		FindingFixed:         true,
 		FindingFalsePositive: true,
+		FindingOpen:          true, // PR-S38: 允许直接 reopen（撤回确认 / 重新分类）
 	},
 	FindingFalsePositive: {
 		FindingOpen: true,

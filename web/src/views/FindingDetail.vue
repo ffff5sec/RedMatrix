@@ -103,6 +103,42 @@ async function submitComment() {
   }
 }
 
+// PR-S38: Assign 操作
+const showAssign = ref(false);
+const assignInput = ref('');
+function openAssign() {
+  assignInput.value = finding.value?.assigneeId || '';
+  showAssign.value = true;
+}
+async function doAssign() {
+  if (!finding.value || submitting.value) return;
+  submitting.value = true;
+  try {
+    await findingClient.assign({ id: finding.value.id, assigneeId: assignInput.value.trim() });
+    toast.success('指派已更新');
+    showAssign.value = false;
+    await refresh();
+  } catch (e) {
+    toast.error(errorMessage(e));
+  } finally {
+    submitting.value = false;
+  }
+}
+async function clearAssign() {
+  if (!finding.value || submitting.value) return;
+  if (!confirm('取消当前指派？')) return;
+  submitting.value = true;
+  try {
+    await findingClient.assign({ id: finding.value.id, assigneeId: '' });
+    toast.success('已取消指派');
+    await refresh();
+  } catch (e) {
+    toast.error(errorMessage(e));
+  } finally {
+    submitting.value = false;
+  }
+}
+
 function severityBadge(s: string) {
   switch (s) {
     case 'critical': return 'red';
@@ -160,6 +196,18 @@ function eventLabel(e: FindingEvent): string {
         <div class="kv">
           <div class="kv-row"><span class="kv-k">Template</span><code>{{ finding.templateId }}</code></div>
           <div class="kv-row"><span class="kv-k">Host</span><code>{{ finding.host }}</code></div>
+          <div class="kv-row">
+            <span class="kv-k">指派</span>
+            <span v-if="finding.assigneeId">
+              <code>{{ finding.assigneeId.slice(0, 8) }}…</code>
+              <button class="link-btn" style="margin-left: 8px" @click="openAssign">改派</button>
+              <button class="link-btn" style="margin-left: 4px" @click="clearAssign">取消指派</button>
+            </span>
+            <span v-else>
+              <span class="muted">未指派</span>
+              <button class="link-btn" style="margin-left: 8px" @click="openAssign">指派给…</button>
+            </span>
+          </div>
           <div class="kv-row" v-if="finding.firstSeenAt">
             <span class="kv-k">首次发现</span>
             <span :title="formatAbsoluteTime(finding.firstSeenAt)">
@@ -235,6 +283,23 @@ function eventLabel(e: FindingEvent): string {
         </div>
       </div>
     </div>
+
+    <!-- PR-S38: 指派 modal -->
+    <div v-if="showAssign" class="modal-mask">
+      <div class="card modal">
+        <h3>指派 finding</h3>
+        <p class="muted" style="margin: 4px 0 8px; font-size: 12px">
+          输入用户 UUID（后续 PR 改为搜索下拉）。留空则取消指派。
+        </p>
+        <input v-model="assignInput" placeholder="user_id (UUID)" style="width: 100%; padding: 6px" />
+        <div class="row" style="margin-top: 12px; justify-content: flex-end; gap: 8px">
+          <button :disabled="submitting" @click="showAssign = false">取消</button>
+          <button class="primary" :disabled="submitting" @click="doAssign">
+            {{ submitting ? '提交中…' : '确认指派' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -284,4 +349,9 @@ function eventLabel(e: FindingEvent): string {
   max-height: calc(100vh - 32px);
   overflow: auto;
 }
+.link-btn {
+  background: transparent; border: none; color: var(--accent, #2563eb);
+  cursor: pointer; font-size: 12px; padding: 0;
+}
+.link-btn:hover { text-decoration: underline; }
 </style>

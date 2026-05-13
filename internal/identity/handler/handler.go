@@ -95,6 +95,23 @@ func (h *Handler) Login(
 
 	res, err := h.svc.Login(ctx, loginReq)
 	if err != nil {
+		// PR-S38: 失败登录也写审计（暴力尝试 / 锁定 / 密码错；安全运营所需）。
+		// tenant_id 未知 → 落 DefaultAccountID 哨兵；payload 带尝试的 username + errx code。
+		if h.audit != nil {
+			code, _ := errx.GetCode(err)
+			_ = h.audit.Log(ctx, audithook.Event{
+				Action:        string(auditdomain.ActionLogin),
+				ResourceKind:  "session",
+				TenantID:      auditDefaultTenant,
+				ActorUsername: in.GetUsername(),
+				ActorIP:       loginReq.ClientIP.String(),
+				UserAgent:     loginReq.UserAgent,
+				Payload: map[string]any{
+					"result":     "failed",
+					"error_code": string(code),
+				},
+			})
+		}
 		return nil, toConnectError(err)
 	}
 
@@ -109,6 +126,7 @@ func (h *Handler) Login(
 			ActorUsername: res.User.Username,
 			ActorIP:       loginReq.ClientIP.String(),
 			UserAgent:     loginReq.UserAgent,
+			Payload:       map[string]any{"result": "success"},
 		})
 	}
 
@@ -270,8 +288,18 @@ func (h *Handler) RevokeAPIKey(
 // adminOnly 列出 SA-only RPC 的允许角色（即只有 SuperAdmin）。
 var adminOnly = []domain.Role{domain.RoleSuperAdmin}
 
-// adminAndAuditor 是 SA + TenantAuditor 可调（只读 / 列表场景）。
-var adminAndAuditor = []domain.Role{domain.RoleSuperAdmin, domain.RoleTenantAuditor}
+// auditDefaultTenant 失败登录 / 无用户上下文时 audit 行的 tenant_id 兜底。
+// 与 tenancy.DefaultAccountID 一致；避免 audit_logs.tenant_id REFERENCES accounts 约束失败。
+const auditDefaultTenant = "00000000-0000-0000-0000-000000000001"
+
+// adminAndAuditor 是 SA + TenantAuditor + PlatformAuditor 可调（只读 / 列表场景）。
+// PR-S38: PlatformAuditor 加入；router 已允许 PA-Audit 访问 /users 但后端原漏，
+// 导致 PA-Audit 进 UsersPanel 后 listUsers 一律 403。
+var adminAndAuditor = []domain.Role{
+	domain.RoleSuperAdmin,
+	domain.RoleTenantAuditor,
+	domain.RolePlatformAuditor,
+}
 
 func (h *Handler) CreateUser(
 	ctx context.Context,

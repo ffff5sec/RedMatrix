@@ -37,6 +37,7 @@ const (
 	// finding
 	ActionFindingTransition ActionKind = "finding_transition"
 	ActionFindingComment    ActionKind = "finding_comment"
+	ActionFindingAssign     ActionKind = "finding_assign" // PR-S38
 
 	// pluginpkg / notify （后续可扩）
 	ActionPluginUploaded   ActionKind = "plugin_uploaded"
@@ -49,7 +50,7 @@ func (a ActionKind) Valid() bool {
 	case ActionLogin, ActionLogout, ActionPasswordChanged,
 		ActionAPIKeyCreated, ActionAPIKeyRevoked,
 		ActionTaskCreate, ActionTaskCancel, ActionTaskDelete, ActionSuiteRun,
-		ActionFindingTransition, ActionFindingComment,
+		ActionFindingTransition, ActionFindingComment, ActionFindingAssign,
 		ActionPluginUploaded, ActionNotifySubCreated:
 		return true
 	}

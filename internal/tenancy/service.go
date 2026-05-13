@@ -874,6 +874,15 @@ func (s *service) Heartbeat(ctx context.Context, req HeartbeatRequest) (*Heartbe
 	if strings.TrimSpace(req.NodeID) == "" {
 		return nil, errx.New(errx.ErrInvalidInput, "heartbeat 缺 node_id")
 	}
+	// PR-S38: 拒绝 disabled / 软删节点的心跳；防止 Disable 后仍能上线。
+	n, err := s.nodes.GetByID(ctx, req.NodeID)
+	if err != nil {
+		return nil, err
+	}
+	if n.IsDeleted() || n.Status == domain.NodeDisabled {
+		return nil, errx.New(errx.ErrNodeOffline, "节点不可用（已禁用或已删除）").
+			WithFields("node_id", req.NodeID, "status", string(n.Status))
+	}
 	now := s.now().UTC()
 	if err := s.nodes.TouchLastSeen(ctx, req.NodeID, now); err != nil {
 		return nil, err

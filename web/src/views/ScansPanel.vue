@@ -323,7 +323,7 @@ function targetKindLabel(k: string) {
                   @click="cancel(t.id, t.name)"
                 >取消</button>
                 <button
-                  v-if="authStore.isSuperAdmin() || authStore.isAuditor()"
+                  v-if="authStore.isSuperAdmin() || authStore.role === 'TENANT_AUDITOR'"
                   class="danger"
                   @click="del(t.id, t.name)"
                 >删除</button>

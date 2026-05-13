@@ -1278,7 +1278,8 @@ func TestHeartbeat_DisabledRejected(t *testing.T) {
 	_, err := svc.Heartbeat(context.Background(), HeartbeatRequest{NodeID: n.ID})
 	require.Error(t, err)
 	c, _ := errx.GetCode(err)
-	assert.Equal(t, errx.ErrNodeNotFound, c, "disabled 节点不能被 heartbeat 复活")
+	// PR-S38: 改为 ErrNodeOffline（语义更准；显式表达"已禁用/不可用"而非"不存在"）
+	assert.Equal(t, errx.ErrNodeOffline, c, "disabled 节点不能被 heartbeat 复活")
 	assert.Equal(t, domain.NodeDisabled, nr.rows[n.ID].Status)
 }
 

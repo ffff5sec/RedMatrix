@@ -3,6 +3,7 @@
 //
 // 表格 + filter + JSON 展开 + 链完整性校验按钮。
 import { ref, computed, onMounted } from 'vue';
+import { Timestamp } from '@bufbuild/protobuf';
 
 import { auditClient } from '@/api/transport';
 import { useToast } from '@/composables/useToast';
@@ -19,6 +20,8 @@ const nowTick = ref(Date.now());
 const filterAction = ref('');
 const filterResourceKind = ref('');
 const filterActorUserID = ref('');
+const filterTimeFrom = ref(''); // datetime-local 字符串
+const filterTimeTo = ref('');
 const expanded = ref<Record<string, boolean>>({});
 
 const ACTION_OPTIONS = [
@@ -43,6 +46,12 @@ async function refresh() {
       action: filterAction.value || undefined,
       resourceKind: filterResourceKind.value || undefined,
       actorUserId: filterActorUserID.value || undefined,
+      timeFrom: filterTimeFrom.value
+        ? Timestamp.fromDate(new Date(filterTimeFrom.value))
+        : undefined,
+      timeTo: filterTimeTo.value
+        ? Timestamp.fromDate(new Date(filterTimeTo.value))
+        : undefined,
       page: 1,
       pageSize: 100,
     });
@@ -133,6 +142,12 @@ function actionBadge(a: string): string {
         <input v-model="filterResourceKind" placeholder="resource_kind（task / suite / ...）"
                :disabled="loading" style="width: 200px" />
         <input v-model="filterActorUserID" placeholder="actor user_id" :disabled="loading" style="width: 240px" />
+        <label class="muted" style="font-size: 12px">起：
+          <input v-model="filterTimeFrom" type="datetime-local" :disabled="loading" />
+        </label>
+        <label class="muted" style="font-size: 12px">止：
+          <input v-model="filterTimeTo" type="datetime-local" :disabled="loading" />
+        </label>
         <button :disabled="loading" @click="refresh()">查询</button>
         <span class="muted" style="margin-left: auto">{{ total }} 条</span>
       </div>

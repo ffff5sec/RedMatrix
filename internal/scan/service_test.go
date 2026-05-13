@@ -813,6 +813,55 @@ func TestSweepStaleAssignments_ListErrPropagates(t *testing.T) {
 
 // === Tests: aggregateTaskStatus (直接调，覆盖各状态转移) =======================
 
+// TestCancelTask_NonActiveStates_Rejected PR-S44：CancelTask 仅 pending/running 可。
+// 表驱动覆盖所有终态 → 必返 ErrTaskInvalidState；不调 CAS（updateCall=0 → 0）。
+func TestCancelTask_NonActiveStates_Rejected(t *testing.T) {
+	cases := []domain.TaskStatus{
+		domain.TaskCompleted,
+		domain.TaskFailed,
+		domain.TaskCanceled,
+	}
+	for _, st := range cases {
+		t.Run(string(st), func(t *testing.T) {
+			h := newHarness(t)
+			h.tasks.put(&domain.ScanTask{
+				ID: "tk-1", TenantID: "ten-1", ProjectID: "p-1",
+				Name: "x", Kind: domain.KindPortScan, Target: "x", TargetKind: domain.TargetIP,
+				Status: st, ScheduleKind: domain.ScheduleImmediate,
+			})
+			err := h.svc.CancelTask(context.Background(), "tk-1")
+			require.Error(t, err)
+			code, ok := errx.GetCode(err)
+			require.True(t, ok)
+			assert.Equal(t, errx.ErrTaskInvalidState, code)
+			assert.Equal(t, 0, h.tasks.updateCall, "终态不应触发 CAS")
+		})
+	}
+}
+
+// TestCancelTask_NotFound PR-S44：不存在的 task 返 ErrTaskNotFound（不暴露存在性）。
+func TestCancelTask_NotFound(t *testing.T) {
+	h := newHarness(t)
+	err := h.svc.CancelTask(context.Background(), "tk-missing")
+	require.Error(t, err)
+	code, ok := errx.GetCode(err)
+	require.True(t, ok)
+	assert.Equal(t, errx.ErrTaskNotFound, code)
+}
+
+// TestCancelTask_EmptyID PR-S44：空 ID 输入校验。
+func TestCancelTask_EmptyID(t *testing.T) {
+	h := newHarness(t)
+	err := h.svc.CancelTask(context.Background(), "")
+	require.Error(t, err)
+	code, ok := errx.GetCode(err)
+	require.True(t, ok)
+	// service.CancelTask 直接走 GetByID("") — repo 层校或 service 校；
+	// 当前实现走 repo NotFound（空字符串没 row）。
+	assert.True(t, code == errx.ErrTaskNotFound || code == errx.ErrInvalidInput,
+		"empty id 应返 NotFound 或 InvalidInput，实得 %s", code)
+}
+
 // TestCancelTask_CASLost_AlreadyTerminal PR-S42：模拟并发 — service.GetByID
 // 看到 running，但 aggregateTaskStatus 在 CAS 之前已把任务推到 completed。
 // CAS 期望 status ∈ {pending, running}，实际是 completed → matched=false →

@@ -1,4 +1,4 @@
-.PHONY: all build server node test test-race test-integration lint vet vuln tidy fmt clean run-server run-node proto proto-lint proto-check tools
+.PHONY: all build server node test test-fast test-race test-integration lint vet vuln tidy fmt clean run-server run-node proto proto-lint proto-check tools
 
 # 让 Makefile 子 shell 能找到 go install 出来的 buf / protoc-gen-* 等
 GOBIN   := $(shell go env GOPATH)/bin
@@ -31,7 +31,12 @@ node:
 	$(GO_BUILD) -o bin/redmatrix-node ./cmd/node
 
 # ============= 测试 =============
+# PR-S44: 默认 test 加 -race。CAS / 锁 / channel 类 bug 必须在本地就能抓到。
+# 跑慢约 1.3x → 用 test-fast 跳过 race（仅用于"边写边跑"循环；提交前必须 test）。
 test:
+	go test -race ./...
+
+test-fast:
 	go test ./...
 
 test-race:

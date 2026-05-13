@@ -47,12 +47,12 @@ type identityHandlerMount struct {
 //  5. AuthService（组合 1-4）
 //  6. handler.Handler（适配 ConnectRPC）
 //  7. identityv1connect.NewIdentityServiceHandler 产出 (path, http.Handler)
-func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*identityHandlerMount, auth.Service, error) {
+func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*identityHandlerMount, auth.Service, *handler.Handler, error) {
 	if pool == nil || pool.App == nil {
-		return nil, nil, errx.New(errx.ErrInternal, "buildIdentityMount: pg.Pool.App 不能为 nil")
+		return nil, nil, nil, errx.New(errx.ErrInternal, "buildIdentityMount: pg.Pool.App 不能为 nil")
 	}
 	if rds == nil || rds.Client == nil {
-		return nil, nil, errx.New(errx.ErrInternal, "buildIdentityMount: redis client 不能为 nil")
+		return nil, nil, nil, errx.New(errx.ErrInternal, "buildIdentityMount: redis client 不能为 nil")
 	}
 
 	users := repo.NewPG(pool.App)
@@ -61,31 +61,31 @@ func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*
 
 	jwtSvc, err := crypto.NewService(jwtSecret, 0) // 0 = 默认 12h
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	lockout, err := policy.NewRedis(rds.Client, policy.DefaultConfig())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	captcha, err := policy.NewRedisCaptcha(rds.Client, policy.DefaultCaptchaConfig())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	authSvc, err := auth.New(users, sessions, keys, jwtSvc, lockout, captcha)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	idHandler, err := handler.New(authSvc, captcha)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	path, h := identityv1connect.NewIdentityServiceHandler(idHandler)
-	return &identityHandlerMount{path: path, handler: h}, authSvc, nil
+	return &identityHandlerMount{path: path, handler: h}, authSvc, idHandler, nil
 }
 
 // buildTenancyMount 装配 tenancy 模块（Project CRUD + Node + Token + Cert），

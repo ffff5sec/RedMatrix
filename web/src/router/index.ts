@@ -39,6 +39,7 @@ import NotificationsPanel from '@/views/NotificationsPanel.vue';
 import FindingsPanel from '@/views/FindingsPanel.vue';
 import FindingDetail from '@/views/FindingDetail.vue';
 import PluginsPanel from '@/views/PluginsPanel.vue';
+import AuditPanel from '@/views/AuditPanel.vue';
 import AssetsPanel from '@/views/AssetsPanel.vue';
 import AssetDetail from '@/views/AssetDetail.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
@@ -159,6 +160,12 @@ const routes: RouteRecordRaw[] = [
         name: 'plugins',
         component: PluginsPanel,
         meta: { requiresAuth: true, requiresRoles: [ROLE_SA], title: '插件库' },
+      },
+      {
+        path: 'audit',
+        name: 'audit',
+        component: AuditPanel,
+        meta: { requiresAuth: true, requiresRoles: adminAndAuditors, title: '审计日志' },
       },
       {
         path: 'assets/:id',

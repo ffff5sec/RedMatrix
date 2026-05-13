@@ -47,6 +47,7 @@ const navItems = computed<NavItem[]>(() => [
   { name: 'plugins', label: '插件库', visible: authStore.isSuperAdmin() },
   { name: 'nodes', label: '节点', visible: authStore.isSuperAdmin() || authStore.isAuditor() },
   { name: 'users', label: '用户管理', visible: authStore.isSuperAdmin() || authStore.isAuditor() },
+  { name: 'audit', label: '审计', visible: authStore.isSuperAdmin() || authStore.isAuditor() },
 ]);
 
 function logout() {

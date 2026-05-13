@@ -38,7 +38,7 @@ function navLabels(wrapper: ReturnType<typeof mountAppShell>): string[] {
 }
 
 describe('AppShell 导航 role gating', () => {
-  it('SA 看到所有 13 个 nav（含 节点 + 用户管理 + 套件 + 通知 + 漏洞 + 插件库）', () => {
+  it('SA 看到所有 14 个 nav（含 节点 + 用户管理 + 套件 + 通知 + 漏洞 + 插件库 + 审计）', () => {
     authStore.set({ token: 't', username: 'admin', role: 'SUPER_ADMIN', userId: 'u' });
     const w = mountAppShell();
     const labels = navLabels(w);
@@ -49,7 +49,8 @@ describe('AppShell 导航 role gating', () => {
     expect(labels).toContain('通知');
     expect(labels).toContain('漏洞');
     expect(labels).toContain('插件库');
-    expect(labels.length).toBe(13);
+    expect(labels).toContain('审计');
+    expect(labels.length).toBe(14);
   });
 
   it('TenantAuditor 看到 节点 + 用户管理', () => {

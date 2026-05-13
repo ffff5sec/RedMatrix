@@ -338,7 +338,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		mux.Handle("/metrics", metricsReg.Handler())
 
 		// === 8a. IdentityService（ConnectRPC）===
-		idMount, authSvc, err := buildIdentityMount(pool, rds, cfg.Crypto.JWTSecret)
+		idMount, authSvc, idHandler, err := buildIdentityMount(pool, rds, cfg.Crypto.JWTSecret)
 		if err != nil {
 			logger.LogError(ctx, "identity stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
@@ -346,6 +346,18 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		}
 		mux.Handle(idMount.path, idMount.handler)
 		logger.Info("identity service mounted", "path", idMount.path)
+
+		// === 8a₀. AuditService（PR-S33；先于其它业务挂以便注入 hook）===
+		auditMnt, auditSvc, err := buildAuditMount(pool, authSvc, logger)
+		if err != nil {
+			logger.LogError(ctx, "audit stack init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(auditMnt.path, auditMnt.handler)
+		// 把 audit hook 注入 identity handler（login 成功后写 audit 行）
+		idHandler.WithAudit(newIdentityAuditAdapter(auditSvc))
+		logger.Info("audit service mounted", "path", auditMnt.path)
 
 		// === 8a₁. TenancyService（ConnectRPC）===
 		// 启动期 ensure CA：缺则生成；用于 RegistrationToken Redeem 签节点 cert。

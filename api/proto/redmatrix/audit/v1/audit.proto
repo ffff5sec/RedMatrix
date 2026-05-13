@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+// AuditService（PR-S33）—— SA only：审计日志查看 + 链完整性校验。
+//
+// 路径：/redmatrix.audit.v1.AuditService
+package redmatrix.audit.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service AuditService {
+  rpc ListLogs(ListLogsRequest) returns (ListLogsResponse);
+  rpc GetLog(GetLogRequest) returns (GetLogResponse);
+  // VerifyChain 抽样校验一段连续 audit 行的 hash 链。SA only。
+  rpc VerifyChain(VerifyChainRequest) returns (VerifyChainResponse);
+}
+
+message AuditLog {
+  string id = 1;
+  string actor_user_id = 2;
+  string actor_username = 3;
+  string actor_ip = 4;
+  string user_agent = 5;
+  string action = 6;
+  string resource_kind = 7;
+  string resource_id = 8;
+  string tenant_id = 9;
+  string project_id = 10;
+  google.protobuf.Struct payload = 11;
+  string prev_hash = 12;
+  string hash = 13;
+  google.protobuf.Timestamp created_at = 14;
+}
+
+message ListLogsRequest {
+  string project_id = 1;
+  string actor_user_id = 2;
+  string action = 3;
+  string resource_kind = 4;
+  string resource_id = 5;
+  optional google.protobuf.Timestamp time_from = 6;
+  optional google.protobuf.Timestamp time_to = 7;
+  int32 page = 8;
+  int32 page_size = 9;
+}
+message ListLogsResponse {
+  repeated AuditLog logs = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetLogRequest {
+  string id = 1;
+}
+message GetLogResponse {
+  AuditLog log = 1;
+}
+
+message VerifyChainRequest {
+  // time_from / time_to 默认最近 30 天
+  optional google.protobuf.Timestamp time_from = 1;
+  optional google.protobuf.Timestamp time_to = 2;
+  // limit 最大行数（≤ 1000；缺省 500）
+  int32 limit = 3;
+}
+message VerifyChainResponse {
+  bool ok = 1;
+  int32 total = 2;
+  // ok=false 时：break_at_index 是 ASC 切片中第一个不连续的 index，break_at_id 是其 ID。
+  int32 break_at_index = 3;
+  string break_at_id = 4;
+}

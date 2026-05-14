@@ -65,7 +65,7 @@ this-is-not-json
 		t.Fatalf("ParseJSONLines: %v", err)
 	}
 	if len(rows) != 2 {
-		t.Errorf("want 2 (skip bad), got %d", len(rows), )
+		t.Errorf("want 2 (skip bad), got %d", len(rows))
 	}
 }
 
@@ -132,9 +132,9 @@ func TestParseJSONLines_Empty(t *testing.T) {
 
 func TestSplitHostPort(t *testing.T) {
 	cases := []struct {
-		in        string
-		wantHost  string
-		wantPort  string
+		in       string
+		wantHost string
+		wantPort string
 	}{
 		{"example.com", "example.com", ""},
 		{"example.com:443", "example.com", "443"},

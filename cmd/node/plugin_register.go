@@ -22,6 +22,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/katana"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/ksubdomain"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/quake"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/rustscan"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/wayback"
@@ -72,6 +73,7 @@ func registerPortScanPlugin(registry *plugin.Registry, logger *log.Logger) {
 //   - "crtsh"（L1 适配器，CT 日志 API）
 //   - "fofa"（L1 适配器，需 env FOFA_EMAIL + FOFA_KEY）
 //   - "hunter"（L1 适配器，需 env HUNTER_KEY）
+//   - "quake"（L1 适配器，需 env QUAKE_KEY）
 func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
 	choice := envOrDefault("SUBDOMAIN_PLUGIN", "subfinder")
 	switch choice {
@@ -127,6 +129,17 @@ func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
 		}
 		logger.Info("L1 adapter init failed (env HUNTER_KEY required); falling back to mock",
 			"kind", "subdomain", "tool", "hunter", "err", err.Error())
+		return
+	case "quake":
+		// L1 适配器：需 env QUAKE_KEY
+		p, err := quake.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "subdomain", "impl", "quake", "layer", "L1")
+			return
+		}
+		logger.Info("L1 adapter init failed (env QUAKE_KEY required); falling back to mock",
+			"kind", "subdomain", "tool", "quake", "err", err.Error())
 		return
 	}
 	p, err := subfinder.New()

@@ -14,12 +14,14 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/amass"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/fingerprintx"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/gospider"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/katana"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/ksubdomain"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/rustscan"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/wayback"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 )
 
@@ -122,10 +124,12 @@ func registerFingerprintPlugin(registry *plugin.Registry, logger *log.Logger) {
 }
 
 // registerWebCrawlPlugin 按 WEB_CRAWL_PLUGIN env 注册 web_crawl 真插件。
-// 支持值："httpx"（default）/ "katana"。katana 真爬虫；httpx 仅 URL 探活。
+// 支持值："httpx"（default，仅 URL 探活）/ "katana"（DOM + JS 主动爬）/
+// "gospider"（sitemap + robots + linkfinder 主动爬）/ "wayback"（被动归档）。
 func registerWebCrawlPlugin(registry *plugin.Registry, logger *log.Logger) {
 	choice := envOrDefault("WEB_CRAWL_PLUGIN", "httpx")
-	if choice == "katana" {
+	switch choice {
+	case "katana":
 		p, err := katana.New()
 		if err == nil {
 			registry.Register(p)
@@ -134,6 +138,26 @@ func registerWebCrawlPlugin(registry *plugin.Registry, logger *log.Logger) {
 		}
 		logger.Info("plugin not installed; falling back to mock",
 			"kind", "web_crawl", "tool", "katana", "err", err.Error())
+		return
+	case "gospider":
+		p, err := gospider.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "web_crawl", "impl", "gospider")
+			return
+		}
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "web_crawl", "tool", "gospider", "err", err.Error())
+		return
+	case "wayback":
+		p, err := wayback.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "web_crawl", "impl", "wayback")
+			return
+		}
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "web_crawl", "tool", "waybackurls", "err", err.Error())
 		return
 	}
 	p, err := httpx.NewWebCrawl()

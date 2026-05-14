@@ -40,7 +40,10 @@ func buildAssetMount(
 		return nil, nil, nil, errx.New(errx.ErrInternal, "buildAssetMount: authSvc 不能为 nil")
 	}
 	r := assetrepo.NewPG(pool.App)
-	svc, err := asset.NewService(r, logger)
+	// PR-S58: 注入 EventRepository 让 UpsertFromResults 派生 asset_events
+	// （SPEC §2.7 资产变更事件流 MVP 一期）。
+	er := assetrepo.NewEventPG(pool.App)
+	svc, err := asset.NewServiceWithEvents(r, er, logger)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -49,6 +52,8 @@ func buildAssetMount(
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	// PR-S58: handler 注入 EventRepository 提供 ListAssetEvents / GetAssetEvent RPC
+	h = h.WithEvents(er)
 	path, hh := assetv1connect.NewAssetServiceHandler(h)
 	return &assetMount{path: path, handler: hh}, &scanAssetAdapter{svc: svc}, &scanAssetReader{assets: svc}, nil
 }

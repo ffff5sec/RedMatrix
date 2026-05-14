@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"connectrpc.com/connect"
@@ -12,6 +13,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/asset/v1/assetv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/asset"
 	"github.com/ffff5sec/RedMatrix/internal/asset/domain"
+	assetrepo "github.com/ffff5sec/RedMatrix/internal/asset/repo"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	identitydomain "github.com/ffff5sec/RedMatrix/internal/identity/domain"
@@ -28,9 +30,16 @@ type Handler struct {
 	svc      asset.Service
 	authSvc  auth.Service
 	memberDB MembershipLookup
+	events   assetrepo.EventRepository // PR-S58: 可空（不注入则 ListAssetEvents 返 Unimplemented）
 }
 
 var _ assetv1connect.AssetServiceHandler = (*Handler)(nil)
+
+// WithEvents PR-S58：注入 EventRepository 让 ListAssetEvents / GetAssetEvent 可用。
+func (h *Handler) WithEvents(er assetrepo.EventRepository) *Handler {
+	h.events = er
+	return h
+}
 
 var allRoles = []identitydomain.Role{
 	identitydomain.RoleSuperAdmin,
@@ -152,6 +161,156 @@ func (h *Handler) GetAsset(
 		// SA / PlatformAuditor 不限
 	}
 	return connect.NewResponse(&assetv1.GetAssetResponse{Asset: assetToProto(a)}), nil
+}
+
+// ListAssetEvents PR-S58 资产变更事件流（SPEC §2.7）。
+// RBAC scope 注入与 ListAssets 同形（SA/PA-Audit 不限；TA 注 tenant；PA 注
+// tenant + 项目列表）。
+func (h *Handler) ListAssetEvents(
+	ctx context.Context,
+	req *connect.Request[assetv1.ListAssetEventsRequest],
+) (*connect.Response[assetv1.ListAssetEventsResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	if h.events == nil {
+		return nil, toConnectError(errx.New(errx.ErrNotImplemented,
+			"asset_events 未启用（cmd/server 未注入 EventRepository）"))
+	}
+
+	f := assetrepo.EventFilter{
+		Kind:      domain.EventKind(req.Msg.GetEventKind()),
+		AssetID:   req.Msg.GetAssetId(),
+		ProjectID: req.Msg.GetProjectId(),
+	}
+	if t := req.Msg.GetTimeFrom(); t != nil {
+		x := t.AsTime()
+		f.TimeFrom = &x
+	}
+	if t := req.Msg.GetTimeTo(); t != nil {
+		x := t.AsTime()
+		f.TimeTo = &x
+	}
+
+	// RBAC scope（与 ListAssets 同模式）
+	switch p.Role {
+	case identitydomain.RoleSuperAdmin, identitydomain.RolePlatformAuditor:
+		// 不限
+	case identitydomain.RoleTenantAuditor:
+		f.TenantID = p.TenantID
+	case identitydomain.RoleProjectAdmin:
+		f.TenantID = p.TenantID
+		if h.memberDB == nil {
+			return nil, toConnectError(errx.New(errx.ErrInternal,
+				"asset.ListAssetEvents: PA 模式需 memberDB"))
+		}
+		ids, err := h.memberDB.ListProjectIDsByUser(ctx, p.UserID)
+		if err != nil {
+			return nil, toConnectError(err)
+		}
+		if ids == nil {
+			ids = []string{}
+		}
+		f.ProjectIDs = ids
+	}
+
+	page := assetrepo.Page{Page: int(req.Msg.GetPage()), PageSize: int(req.Msg.GetPageSize())}
+	events, total, err := h.events.List(ctx, f, page)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	pb := make([]*assetv1.AssetEvent, 0, len(events))
+	for _, e := range events {
+		pb = append(pb, eventToProto(e))
+	}
+	//nolint:gosec // total/page/page_size 受 service normalize；不溢出 int32
+	return connect.NewResponse(&assetv1.ListAssetEventsResponse{
+		Events:   pb,
+		Total:    int32(total),
+		Page:     int32(page.Page),
+		PageSize: int32(page.PageSize),
+	}), nil
+}
+
+// GetAssetEvent PR-S58 单条事件详情。
+func (h *Handler) GetAssetEvent(
+	ctx context.Context,
+	req *connect.Request[assetv1.GetAssetEventRequest],
+) (*connect.Response[assetv1.GetAssetEventResponse], error) {
+	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, allRoles...); err != nil {
+		return nil, toConnectError(err)
+	}
+	if h.events == nil {
+		return nil, toConnectError(errx.New(errx.ErrNotImplemented,
+			"asset_events 未启用（cmd/server 未注入 EventRepository）"))
+	}
+	e, err := h.events.GetByID(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	// BOLA: TA 跨租户 → AssetNotFound；PA 不在项目 → 同
+	switch p.Role {
+	case identitydomain.RoleTenantAuditor:
+		if e.TenantID != p.TenantID {
+			return nil, toConnectError(errx.New(errx.ErrAssetNotFound, "asset_event 不存在"))
+		}
+	case identitydomain.RoleProjectAdmin:
+		if e.TenantID != p.TenantID {
+			return nil, toConnectError(errx.New(errx.ErrAssetNotFound, "asset_event 不存在"))
+		}
+		if h.memberDB != nil {
+			ids, err := h.memberDB.ListProjectIDsByUser(ctx, p.UserID)
+			if err != nil {
+				return nil, toConnectError(err)
+			}
+			ok := false
+			for _, pid := range ids {
+				if pid == e.ProjectID {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				return nil, toConnectError(errx.New(errx.ErrAssetNotFound, "asset_event 不存在"))
+			}
+		}
+	default:
+		// SA / PlatformAuditor 不限
+	}
+	return connect.NewResponse(&assetv1.GetAssetEventResponse{Event: eventToProto(e)}), nil
+}
+
+// eventToProto 转 proto；payload 序列化成 JSON 字符串。
+func eventToProto(e *domain.Event) *assetv1.AssetEvent {
+	if e == nil {
+		return nil
+	}
+	payloadJSON := "{}"
+	if e.Payload != nil {
+		if b, err := json.Marshal(e.Payload); err == nil {
+			payloadJSON = string(b)
+		}
+	}
+	out := &assetv1.AssetEvent{
+		Id:          e.ID,
+		TenantId:    e.TenantID,
+		ProjectId:   e.ProjectID,
+		EventKind:   string(e.Kind),
+		PayloadJson: payloadJSON,
+		CreatedAt:   timestamppb.New(e.CreatedAt),
+	}
+	if e.AssetID != nil {
+		out.AssetId = *e.AssetID
+	}
+	return out
 }
 
 func assetToProto(a *domain.Asset) *assetv1.Asset {

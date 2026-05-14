@@ -294,3 +294,288 @@ export class GetAssetResponse extends Message<GetAssetResponse> {
   }
 }
 
+/**
+ * AssetEvent PR-S58 资产变更事件。
+ *
+ * @generated from message redmatrix.asset.v1.AssetEvent
+ */
+export class AssetEvent extends Message<AssetEvent> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string tenant_id = 2;
+   */
+  tenantId = "";
+
+  /**
+   * @generated from field: string project_id = 3;
+   */
+  projectId = "";
+
+  /**
+   * asset_id 可空：消失类事件 / 资产已删事件保留。
+   *
+   * @generated from field: string asset_id = 4;
+   */
+  assetId = "";
+
+  /**
+   * event_kind: asset_new_subdomain / asset_new_port / asset_new_service /
+   *             asset_disappeared / cert_expiring_soon
+   *
+   * @generated from field: string event_kind = 5;
+   */
+  eventKind = "";
+
+  /**
+   * payload JSON 字符串（含 asset_kind / asset_value 等）；前端 JSON.parse。
+   * 选 string 而非 google.protobuf.Struct 让 connect-web 客户端反序列化更简单。
+   *
+   * @generated from field: string payload_json = 6;
+   */
+  payloadJson = "";
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 7;
+   */
+  createdAt?: Timestamp;
+
+  constructor(data?: PartialMessage<AssetEvent>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.asset.v1.AssetEvent";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "tenant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "asset_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "event_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "payload_json", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "created_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AssetEvent {
+    return new AssetEvent().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AssetEvent {
+    return new AssetEvent().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AssetEvent {
+    return new AssetEvent().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AssetEvent | PlainMessage<AssetEvent> | undefined, b: AssetEvent | PlainMessage<AssetEvent> | undefined): boolean {
+    return proto3.util.equals(AssetEvent, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.asset.v1.ListAssetEventsRequest
+ */
+export class ListAssetEventsRequest extends Message<ListAssetEventsRequest> {
+  /**
+   * @generated from field: optional string project_id = 1;
+   */
+  projectId?: string;
+
+  /**
+   * @generated from field: optional string event_kind = 2;
+   */
+  eventKind?: string;
+
+  /**
+   * @generated from field: optional string asset_id = 3;
+   */
+  assetId?: string;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp time_from = 4;
+   */
+  timeFrom?: Timestamp;
+
+  /**
+   * @generated from field: optional google.protobuf.Timestamp time_to = 5;
+   */
+  timeTo?: Timestamp;
+
+  /**
+   * @generated from field: int32 page = 6;
+   */
+  page = 0;
+
+  /**
+   * @generated from field: int32 page_size = 7;
+   */
+  pageSize = 0;
+
+  constructor(data?: PartialMessage<ListAssetEventsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.asset.v1.ListAssetEventsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "project_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 2, name: "event_kind", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "asset_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "time_from", kind: "message", T: Timestamp, opt: true },
+    { no: 5, name: "time_to", kind: "message", T: Timestamp, opt: true },
+    { no: 6, name: "page", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 7, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAssetEventsRequest {
+    return new ListAssetEventsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListAssetEventsRequest {
+    return new ListAssetEventsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListAssetEventsRequest {
+    return new ListAssetEventsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListAssetEventsRequest | PlainMessage<ListAssetEventsRequest> | undefined, b: ListAssetEventsRequest | PlainMessage<ListAssetEventsRequest> | undefined): boolean {
+    return proto3.util.equals(ListAssetEventsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.asset.v1.ListAssetEventsResponse
+ */
+export class ListAssetEventsResponse extends Message<ListAssetEventsResponse> {
+  /**
+   * @generated from field: repeated redmatrix.asset.v1.AssetEvent events = 1;
+   */
+  events: AssetEvent[] = [];
+
+  /**
+   * @generated from field: int32 total = 2;
+   */
+  total = 0;
+
+  /**
+   * @generated from field: int32 page = 3;
+   */
+  page = 0;
+
+  /**
+   * @generated from field: int32 page_size = 4;
+   */
+  pageSize = 0;
+
+  constructor(data?: PartialMessage<ListAssetEventsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.asset.v1.ListAssetEventsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "events", kind: "message", T: AssetEvent, repeated: true },
+    { no: 2, name: "total", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "page", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAssetEventsResponse {
+    return new ListAssetEventsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListAssetEventsResponse {
+    return new ListAssetEventsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListAssetEventsResponse {
+    return new ListAssetEventsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListAssetEventsResponse | PlainMessage<ListAssetEventsResponse> | undefined, b: ListAssetEventsResponse | PlainMessage<ListAssetEventsResponse> | undefined): boolean {
+    return proto3.util.equals(ListAssetEventsResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.asset.v1.GetAssetEventRequest
+ */
+export class GetAssetEventRequest extends Message<GetAssetEventRequest> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<GetAssetEventRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.asset.v1.GetAssetEventRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetAssetEventRequest {
+    return new GetAssetEventRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetAssetEventRequest {
+    return new GetAssetEventRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetAssetEventRequest {
+    return new GetAssetEventRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetAssetEventRequest | PlainMessage<GetAssetEventRequest> | undefined, b: GetAssetEventRequest | PlainMessage<GetAssetEventRequest> | undefined): boolean {
+    return proto3.util.equals(GetAssetEventRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.asset.v1.GetAssetEventResponse
+ */
+export class GetAssetEventResponse extends Message<GetAssetEventResponse> {
+  /**
+   * @generated from field: redmatrix.asset.v1.AssetEvent event = 1;
+   */
+  event?: AssetEvent;
+
+  constructor(data?: PartialMessage<GetAssetEventResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.asset.v1.GetAssetEventResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "event", kind: "message", T: AssetEvent },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetAssetEventResponse {
+    return new GetAssetEventResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetAssetEventResponse {
+    return new GetAssetEventResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetAssetEventResponse {
+    return new GetAssetEventResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetAssetEventResponse | PlainMessage<GetAssetEventResponse> | undefined, b: GetAssetEventResponse | PlainMessage<GetAssetEventResponse> | undefined): boolean {
+    return proto3.util.equals(GetAssetEventResponse, a, b);
+  }
+}
+

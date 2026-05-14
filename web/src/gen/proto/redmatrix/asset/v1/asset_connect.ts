@@ -8,7 +8,7 @@
 //
 // 路径：/redmatrix.asset.v1.AssetService
 
-import { GetAssetRequest, GetAssetResponse, ListAssetsRequest, ListAssetsResponse } from "./asset_pb.js";
+import { GetAssetEventRequest, GetAssetEventResponse, GetAssetRequest, GetAssetResponse, ListAssetEventsRequest, ListAssetEventsResponse, ListAssetsRequest, ListAssetsResponse } from "./asset_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -33,6 +33,26 @@ export const AssetService = {
       name: "GetAsset",
       I: GetAssetRequest,
       O: GetAssetResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * PR-S58: 资产变更事件流（SPEC §2.7 MVP）。
+     *
+     * @generated from rpc redmatrix.asset.v1.AssetService.ListAssetEvents
+     */
+    listAssetEvents: {
+      name: "ListAssetEvents",
+      I: ListAssetEventsRequest,
+      O: ListAssetEventsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc redmatrix.asset.v1.AssetService.GetAssetEvent
+     */
+    getAssetEvent: {
+      name: "GetAssetEvent",
+      I: GetAssetEventRequest,
+      O: GetAssetEventResponse,
       kind: MethodKind.Unary,
     },
   }

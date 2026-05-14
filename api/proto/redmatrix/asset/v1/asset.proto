@@ -11,6 +11,10 @@ import "google/protobuf/timestamp.proto";
 service AssetService {
   rpc ListAssets(ListAssetsRequest) returns (ListAssetsResponse);
   rpc GetAsset(GetAssetRequest) returns (GetAssetResponse);
+
+  // PR-S58: 资产变更事件流（SPEC §2.7 MVP）。
+  rpc ListAssetEvents(ListAssetEventsRequest) returns (ListAssetEventsResponse);
+  rpc GetAssetEvent(GetAssetEventRequest) returns (GetAssetEventResponse);
 }
 
 // Asset 资产实体。
@@ -46,4 +50,43 @@ message GetAssetRequest {
 }
 message GetAssetResponse {
   Asset asset = 1;
+}
+
+// AssetEvent PR-S58 资产变更事件。
+message AssetEvent {
+  string id = 1;
+  string tenant_id = 2;
+  string project_id = 3;
+  // asset_id 可空：消失类事件 / 资产已删事件保留。
+  string asset_id = 4;
+  // event_kind: asset_new_subdomain / asset_new_port / asset_new_service /
+  //             asset_disappeared / cert_expiring_soon
+  string event_kind = 5;
+  // payload JSON 字符串（含 asset_kind / asset_value 等）；前端 JSON.parse。
+  // 选 string 而非 google.protobuf.Struct 让 connect-web 客户端反序列化更简单。
+  string payload_json = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message ListAssetEventsRequest {
+  optional string project_id = 1;
+  optional string event_kind = 2;
+  optional string asset_id = 3;
+  optional google.protobuf.Timestamp time_from = 4;
+  optional google.protobuf.Timestamp time_to = 5;
+  int32 page = 6;
+  int32 page_size = 7;
+}
+message ListAssetEventsResponse {
+  repeated AssetEvent events = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetAssetEventRequest {
+  string id = 1;
+}
+message GetAssetEventResponse {
+  AssetEvent event = 1;
 }

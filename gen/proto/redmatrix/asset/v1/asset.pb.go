@@ -369,6 +369,353 @@ func (x *GetAssetResponse) GetAsset() *Asset {
 	return nil
 }
 
+// AssetEvent PR-S58 资产变更事件。
+type AssetEvent struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TenantId  string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	ProjectId string                 `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	// asset_id 可空：消失类事件 / 资产已删事件保留。
+	AssetId string `protobuf:"bytes,4,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	// event_kind: asset_new_subdomain / asset_new_port / asset_new_service /
+	//
+	//	asset_disappeared / cert_expiring_soon
+	EventKind string `protobuf:"bytes,5,opt,name=event_kind,json=eventKind,proto3" json:"event_kind,omitempty"`
+	// payload JSON 字符串（含 asset_kind / asset_value 等）；前端 JSON.parse。
+	// 选 string 而非 google.protobuf.Struct 让 connect-web 客户端反序列化更简单。
+	PayloadJson   string                 `protobuf:"bytes,6,opt,name=payload_json,json=payloadJson,proto3" json:"payload_json,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AssetEvent) Reset() {
+	*x = AssetEvent{}
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AssetEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AssetEvent) ProtoMessage() {}
+
+func (x *AssetEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssetEvent.ProtoReflect.Descriptor instead.
+func (*AssetEvent) Descriptor() ([]byte, []int) {
+	return file_redmatrix_asset_v1_asset_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AssetEvent) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AssetEvent) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *AssetEvent) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *AssetEvent) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+func (x *AssetEvent) GetEventKind() string {
+	if x != nil {
+		return x.EventKind
+	}
+	return ""
+}
+
+func (x *AssetEvent) GetPayloadJson() string {
+	if x != nil {
+		return x.PayloadJson
+	}
+	return ""
+}
+
+func (x *AssetEvent) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type ListAssetEventsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     *string                `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3,oneof" json:"project_id,omitempty"`
+	EventKind     *string                `protobuf:"bytes,2,opt,name=event_kind,json=eventKind,proto3,oneof" json:"event_kind,omitempty"`
+	AssetId       *string                `protobuf:"bytes,3,opt,name=asset_id,json=assetId,proto3,oneof" json:"asset_id,omitempty"`
+	TimeFrom      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=time_from,json=timeFrom,proto3,oneof" json:"time_from,omitempty"`
+	TimeTo        *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=time_to,json=timeTo,proto3,oneof" json:"time_to,omitempty"`
+	Page          int32                  `protobuf:"varint,6,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,7,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAssetEventsRequest) Reset() {
+	*x = ListAssetEventsRequest{}
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAssetEventsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAssetEventsRequest) ProtoMessage() {}
+
+func (x *ListAssetEventsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAssetEventsRequest.ProtoReflect.Descriptor instead.
+func (*ListAssetEventsRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_asset_v1_asset_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListAssetEventsRequest) GetProjectId() string {
+	if x != nil && x.ProjectId != nil {
+		return *x.ProjectId
+	}
+	return ""
+}
+
+func (x *ListAssetEventsRequest) GetEventKind() string {
+	if x != nil && x.EventKind != nil {
+		return *x.EventKind
+	}
+	return ""
+}
+
+func (x *ListAssetEventsRequest) GetAssetId() string {
+	if x != nil && x.AssetId != nil {
+		return *x.AssetId
+	}
+	return ""
+}
+
+func (x *ListAssetEventsRequest) GetTimeFrom() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TimeFrom
+	}
+	return nil
+}
+
+func (x *ListAssetEventsRequest) GetTimeTo() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TimeTo
+	}
+	return nil
+}
+
+func (x *ListAssetEventsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListAssetEventsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListAssetEventsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*AssetEvent          `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAssetEventsResponse) Reset() {
+	*x = ListAssetEventsResponse{}
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAssetEventsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAssetEventsResponse) ProtoMessage() {}
+
+func (x *ListAssetEventsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAssetEventsResponse.ProtoReflect.Descriptor instead.
+func (*ListAssetEventsResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_asset_v1_asset_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListAssetEventsResponse) GetEvents() []*AssetEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *ListAssetEventsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListAssetEventsResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListAssetEventsResponse) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type GetAssetEventRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAssetEventRequest) Reset() {
+	*x = GetAssetEventRequest{}
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAssetEventRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAssetEventRequest) ProtoMessage() {}
+
+func (x *GetAssetEventRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAssetEventRequest.ProtoReflect.Descriptor instead.
+func (*GetAssetEventRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_asset_v1_asset_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetAssetEventRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetAssetEventResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Event         *AssetEvent            `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAssetEventResponse) Reset() {
+	*x = GetAssetEventResponse{}
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAssetEventResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAssetEventResponse) ProtoMessage() {}
+
+func (x *GetAssetEventResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_asset_v1_asset_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAssetEventResponse.ProtoReflect.Descriptor instead.
+func (*GetAssetEventResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_asset_v1_asset_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetAssetEventResponse) GetEvent() *AssetEvent {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
 var File_redmatrix_asset_v1_asset_proto protoreflect.FileDescriptor
 
 const file_redmatrix_asset_v1_asset_proto_rawDesc = "" +
@@ -406,11 +753,51 @@ const file_redmatrix_asset_v1_asset_proto_rawDesc = "" +
 	"\x0fGetAssetRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"C\n" +
 	"\x10GetAssetResponse\x12/\n" +
-	"\x05asset\x18\x01 \x01(\v2\x19.redmatrix.asset.v1.AssetR\x05asset2\xc2\x01\n" +
+	"\x05asset\x18\x01 \x01(\v2\x19.redmatrix.asset.v1.AssetR\x05asset\"\xf0\x01\n" +
+	"\n" +
+	"AssetEvent\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x03 \x01(\tR\tprojectId\x12\x19\n" +
+	"\basset_id\x18\x04 \x01(\tR\aassetId\x12\x1d\n" +
+	"\n" +
+	"event_kind\x18\x05 \x01(\tR\teventKind\x12!\n" +
+	"\fpayload_json\x18\x06 \x01(\tR\vpayloadJson\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xee\x02\n" +
+	"\x16ListAssetEventsRequest\x12\"\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tH\x00R\tprojectId\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"event_kind\x18\x02 \x01(\tH\x01R\teventKind\x88\x01\x01\x12\x1e\n" +
+	"\basset_id\x18\x03 \x01(\tH\x02R\aassetId\x88\x01\x01\x12<\n" +
+	"\ttime_from\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampH\x03R\btimeFrom\x88\x01\x01\x128\n" +
+	"\atime_to\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampH\x04R\x06timeTo\x88\x01\x01\x12\x12\n" +
+	"\x04page\x18\x06 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\a \x01(\x05R\bpageSizeB\r\n" +
+	"\v_project_idB\r\n" +
+	"\v_event_kindB\v\n" +
+	"\t_asset_idB\f\n" +
+	"\n" +
+	"_time_fromB\n" +
+	"\n" +
+	"\b_time_to\"\x98\x01\n" +
+	"\x17ListAssetEventsResponse\x126\n" +
+	"\x06events\x18\x01 \x03(\v2\x1e.redmatrix.asset.v1.AssetEventR\x06events\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\"&\n" +
+	"\x14GetAssetEventRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"M\n" +
+	"\x15GetAssetEventResponse\x124\n" +
+	"\x05event\x18\x01 \x01(\v2\x1e.redmatrix.asset.v1.AssetEventR\x05event2\x94\x03\n" +
 	"\fAssetService\x12[\n" +
 	"\n" +
 	"ListAssets\x12%.redmatrix.asset.v1.ListAssetsRequest\x1a&.redmatrix.asset.v1.ListAssetsResponse\x12U\n" +
-	"\bGetAsset\x12#.redmatrix.asset.v1.GetAssetRequest\x1a$.redmatrix.asset.v1.GetAssetResponseB\xd2\x01\n" +
+	"\bGetAsset\x12#.redmatrix.asset.v1.GetAssetRequest\x1a$.redmatrix.asset.v1.GetAssetResponse\x12j\n" +
+	"\x0fListAssetEvents\x12*.redmatrix.asset.v1.ListAssetEventsRequest\x1a+.redmatrix.asset.v1.ListAssetEventsResponse\x12d\n" +
+	"\rGetAssetEvent\x12(.redmatrix.asset.v1.GetAssetEventRequest\x1a).redmatrix.asset.v1.GetAssetEventResponseB\xd2\x01\n" +
 	"\x16com.redmatrix.asset.v1B\n" +
 	"AssetProtoP\x01ZBgithub.com/ffff5sec/RedMatrix/gen/proto/redmatrix/asset/v1;assetv1\xa2\x02\x03RAX\xaa\x02\x12Redmatrix.Asset.V1\xca\x02\x12Redmatrix\\Asset\\V1\xe2\x02\x1eRedmatrix\\Asset\\V1\\GPBMetadata\xea\x02\x14Redmatrix::Asset::V1b\x06proto3"
 
@@ -426,29 +813,43 @@ func file_redmatrix_asset_v1_asset_proto_rawDescGZIP() []byte {
 	return file_redmatrix_asset_v1_asset_proto_rawDescData
 }
 
-var file_redmatrix_asset_v1_asset_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_redmatrix_asset_v1_asset_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_redmatrix_asset_v1_asset_proto_goTypes = []any{
-	(*Asset)(nil),                 // 0: redmatrix.asset.v1.Asset
-	(*ListAssetsRequest)(nil),     // 1: redmatrix.asset.v1.ListAssetsRequest
-	(*ListAssetsResponse)(nil),    // 2: redmatrix.asset.v1.ListAssetsResponse
-	(*GetAssetRequest)(nil),       // 3: redmatrix.asset.v1.GetAssetRequest
-	(*GetAssetResponse)(nil),      // 4: redmatrix.asset.v1.GetAssetResponse
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*Asset)(nil),                   // 0: redmatrix.asset.v1.Asset
+	(*ListAssetsRequest)(nil),       // 1: redmatrix.asset.v1.ListAssetsRequest
+	(*ListAssetsResponse)(nil),      // 2: redmatrix.asset.v1.ListAssetsResponse
+	(*GetAssetRequest)(nil),         // 3: redmatrix.asset.v1.GetAssetRequest
+	(*GetAssetResponse)(nil),        // 4: redmatrix.asset.v1.GetAssetResponse
+	(*AssetEvent)(nil),              // 5: redmatrix.asset.v1.AssetEvent
+	(*ListAssetEventsRequest)(nil),  // 6: redmatrix.asset.v1.ListAssetEventsRequest
+	(*ListAssetEventsResponse)(nil), // 7: redmatrix.asset.v1.ListAssetEventsResponse
+	(*GetAssetEventRequest)(nil),    // 8: redmatrix.asset.v1.GetAssetEventRequest
+	(*GetAssetEventResponse)(nil),   // 9: redmatrix.asset.v1.GetAssetEventResponse
+	(*timestamppb.Timestamp)(nil),   // 10: google.protobuf.Timestamp
 }
 var file_redmatrix_asset_v1_asset_proto_depIdxs = []int32{
-	5, // 0: redmatrix.asset.v1.Asset.first_seen:type_name -> google.protobuf.Timestamp
-	5, // 1: redmatrix.asset.v1.Asset.last_seen:type_name -> google.protobuf.Timestamp
-	0, // 2: redmatrix.asset.v1.ListAssetsResponse.assets:type_name -> redmatrix.asset.v1.Asset
-	0, // 3: redmatrix.asset.v1.GetAssetResponse.asset:type_name -> redmatrix.asset.v1.Asset
-	1, // 4: redmatrix.asset.v1.AssetService.ListAssets:input_type -> redmatrix.asset.v1.ListAssetsRequest
-	3, // 5: redmatrix.asset.v1.AssetService.GetAsset:input_type -> redmatrix.asset.v1.GetAssetRequest
-	2, // 6: redmatrix.asset.v1.AssetService.ListAssets:output_type -> redmatrix.asset.v1.ListAssetsResponse
-	4, // 7: redmatrix.asset.v1.AssetService.GetAsset:output_type -> redmatrix.asset.v1.GetAssetResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	10, // 0: redmatrix.asset.v1.Asset.first_seen:type_name -> google.protobuf.Timestamp
+	10, // 1: redmatrix.asset.v1.Asset.last_seen:type_name -> google.protobuf.Timestamp
+	0,  // 2: redmatrix.asset.v1.ListAssetsResponse.assets:type_name -> redmatrix.asset.v1.Asset
+	0,  // 3: redmatrix.asset.v1.GetAssetResponse.asset:type_name -> redmatrix.asset.v1.Asset
+	10, // 4: redmatrix.asset.v1.AssetEvent.created_at:type_name -> google.protobuf.Timestamp
+	10, // 5: redmatrix.asset.v1.ListAssetEventsRequest.time_from:type_name -> google.protobuf.Timestamp
+	10, // 6: redmatrix.asset.v1.ListAssetEventsRequest.time_to:type_name -> google.protobuf.Timestamp
+	5,  // 7: redmatrix.asset.v1.ListAssetEventsResponse.events:type_name -> redmatrix.asset.v1.AssetEvent
+	5,  // 8: redmatrix.asset.v1.GetAssetEventResponse.event:type_name -> redmatrix.asset.v1.AssetEvent
+	1,  // 9: redmatrix.asset.v1.AssetService.ListAssets:input_type -> redmatrix.asset.v1.ListAssetsRequest
+	3,  // 10: redmatrix.asset.v1.AssetService.GetAsset:input_type -> redmatrix.asset.v1.GetAssetRequest
+	6,  // 11: redmatrix.asset.v1.AssetService.ListAssetEvents:input_type -> redmatrix.asset.v1.ListAssetEventsRequest
+	8,  // 12: redmatrix.asset.v1.AssetService.GetAssetEvent:input_type -> redmatrix.asset.v1.GetAssetEventRequest
+	2,  // 13: redmatrix.asset.v1.AssetService.ListAssets:output_type -> redmatrix.asset.v1.ListAssetsResponse
+	4,  // 14: redmatrix.asset.v1.AssetService.GetAsset:output_type -> redmatrix.asset.v1.GetAssetResponse
+	7,  // 15: redmatrix.asset.v1.AssetService.ListAssetEvents:output_type -> redmatrix.asset.v1.ListAssetEventsResponse
+	9,  // 16: redmatrix.asset.v1.AssetService.GetAssetEvent:output_type -> redmatrix.asset.v1.GetAssetEventResponse
+	13, // [13:17] is the sub-list for method output_type
+	9,  // [9:13] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_redmatrix_asset_v1_asset_proto_init() }
@@ -457,13 +858,14 @@ func file_redmatrix_asset_v1_asset_proto_init() {
 		return
 	}
 	file_redmatrix_asset_v1_asset_proto_msgTypes[1].OneofWrappers = []any{}
+	file_redmatrix_asset_v1_asset_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redmatrix_asset_v1_asset_proto_rawDesc), len(file_redmatrix_asset_v1_asset_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

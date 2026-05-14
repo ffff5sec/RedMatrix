@@ -42,6 +42,7 @@ const navItems = computed<NavItem[]>(() => [
   { name: 'scan-suites', label: '套件', visible: true },
   { name: 'scan-results', label: '结果搜索', visible: true },
   { name: 'assets', label: '资产', visible: true },
+  { name: 'asset-events', label: '资产事件', visible: true },
   { name: 'findings', label: '漏洞', visible: true },
   { name: 'notifications', label: '通知', visible: true },
   { name: 'plugins', label: '插件库', visible: authStore.isSuperAdmin() },

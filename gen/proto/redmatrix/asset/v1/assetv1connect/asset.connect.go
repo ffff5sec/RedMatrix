@@ -41,12 +41,21 @@ const (
 	AssetServiceListAssetsProcedure = "/redmatrix.asset.v1.AssetService/ListAssets"
 	// AssetServiceGetAssetProcedure is the fully-qualified name of the AssetService's GetAsset RPC.
 	AssetServiceGetAssetProcedure = "/redmatrix.asset.v1.AssetService/GetAsset"
+	// AssetServiceListAssetEventsProcedure is the fully-qualified name of the AssetService's
+	// ListAssetEvents RPC.
+	AssetServiceListAssetEventsProcedure = "/redmatrix.asset.v1.AssetService/ListAssetEvents"
+	// AssetServiceGetAssetEventProcedure is the fully-qualified name of the AssetService's
+	// GetAssetEvent RPC.
+	AssetServiceGetAssetEventProcedure = "/redmatrix.asset.v1.AssetService/GetAssetEvent"
 )
 
 // AssetServiceClient is a client for the redmatrix.asset.v1.AssetService service.
 type AssetServiceClient interface {
 	ListAssets(context.Context, *connect.Request[v1.ListAssetsRequest]) (*connect.Response[v1.ListAssetsResponse], error)
 	GetAsset(context.Context, *connect.Request[v1.GetAssetRequest]) (*connect.Response[v1.GetAssetResponse], error)
+	// PR-S58: 资产变更事件流（SPEC §2.7 MVP）。
+	ListAssetEvents(context.Context, *connect.Request[v1.ListAssetEventsRequest]) (*connect.Response[v1.ListAssetEventsResponse], error)
+	GetAssetEvent(context.Context, *connect.Request[v1.GetAssetEventRequest]) (*connect.Response[v1.GetAssetEventResponse], error)
 }
 
 // NewAssetServiceClient constructs a client for the redmatrix.asset.v1.AssetService service. By
@@ -72,13 +81,27 @@ func NewAssetServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(assetServiceMethods.ByName("GetAsset")),
 			connect.WithClientOptions(opts...),
 		),
+		listAssetEvents: connect.NewClient[v1.ListAssetEventsRequest, v1.ListAssetEventsResponse](
+			httpClient,
+			baseURL+AssetServiceListAssetEventsProcedure,
+			connect.WithSchema(assetServiceMethods.ByName("ListAssetEvents")),
+			connect.WithClientOptions(opts...),
+		),
+		getAssetEvent: connect.NewClient[v1.GetAssetEventRequest, v1.GetAssetEventResponse](
+			httpClient,
+			baseURL+AssetServiceGetAssetEventProcedure,
+			connect.WithSchema(assetServiceMethods.ByName("GetAssetEvent")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // assetServiceClient implements AssetServiceClient.
 type assetServiceClient struct {
-	listAssets *connect.Client[v1.ListAssetsRequest, v1.ListAssetsResponse]
-	getAsset   *connect.Client[v1.GetAssetRequest, v1.GetAssetResponse]
+	listAssets      *connect.Client[v1.ListAssetsRequest, v1.ListAssetsResponse]
+	getAsset        *connect.Client[v1.GetAssetRequest, v1.GetAssetResponse]
+	listAssetEvents *connect.Client[v1.ListAssetEventsRequest, v1.ListAssetEventsResponse]
+	getAssetEvent   *connect.Client[v1.GetAssetEventRequest, v1.GetAssetEventResponse]
 }
 
 // ListAssets calls redmatrix.asset.v1.AssetService.ListAssets.
@@ -91,10 +114,23 @@ func (c *assetServiceClient) GetAsset(ctx context.Context, req *connect.Request[
 	return c.getAsset.CallUnary(ctx, req)
 }
 
+// ListAssetEvents calls redmatrix.asset.v1.AssetService.ListAssetEvents.
+func (c *assetServiceClient) ListAssetEvents(ctx context.Context, req *connect.Request[v1.ListAssetEventsRequest]) (*connect.Response[v1.ListAssetEventsResponse], error) {
+	return c.listAssetEvents.CallUnary(ctx, req)
+}
+
+// GetAssetEvent calls redmatrix.asset.v1.AssetService.GetAssetEvent.
+func (c *assetServiceClient) GetAssetEvent(ctx context.Context, req *connect.Request[v1.GetAssetEventRequest]) (*connect.Response[v1.GetAssetEventResponse], error) {
+	return c.getAssetEvent.CallUnary(ctx, req)
+}
+
 // AssetServiceHandler is an implementation of the redmatrix.asset.v1.AssetService service.
 type AssetServiceHandler interface {
 	ListAssets(context.Context, *connect.Request[v1.ListAssetsRequest]) (*connect.Response[v1.ListAssetsResponse], error)
 	GetAsset(context.Context, *connect.Request[v1.GetAssetRequest]) (*connect.Response[v1.GetAssetResponse], error)
+	// PR-S58: 资产变更事件流（SPEC §2.7 MVP）。
+	ListAssetEvents(context.Context, *connect.Request[v1.ListAssetEventsRequest]) (*connect.Response[v1.ListAssetEventsResponse], error)
+	GetAssetEvent(context.Context, *connect.Request[v1.GetAssetEventRequest]) (*connect.Response[v1.GetAssetEventResponse], error)
 }
 
 // NewAssetServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -116,12 +152,28 @@ func NewAssetServiceHandler(svc AssetServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(assetServiceMethods.ByName("GetAsset")),
 		connect.WithHandlerOptions(opts...),
 	)
+	assetServiceListAssetEventsHandler := connect.NewUnaryHandler(
+		AssetServiceListAssetEventsProcedure,
+		svc.ListAssetEvents,
+		connect.WithSchema(assetServiceMethods.ByName("ListAssetEvents")),
+		connect.WithHandlerOptions(opts...),
+	)
+	assetServiceGetAssetEventHandler := connect.NewUnaryHandler(
+		AssetServiceGetAssetEventProcedure,
+		svc.GetAssetEvent,
+		connect.WithSchema(assetServiceMethods.ByName("GetAssetEvent")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.asset.v1.AssetService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AssetServiceListAssetsProcedure:
 			assetServiceListAssetsHandler.ServeHTTP(w, r)
 		case AssetServiceGetAssetProcedure:
 			assetServiceGetAssetHandler.ServeHTTP(w, r)
+		case AssetServiceListAssetEventsProcedure:
+			assetServiceListAssetEventsHandler.ServeHTTP(w, r)
+		case AssetServiceGetAssetEventProcedure:
+			assetServiceGetAssetEventHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -137,4 +189,12 @@ func (UnimplementedAssetServiceHandler) ListAssets(context.Context, *connect.Req
 
 func (UnimplementedAssetServiceHandler) GetAsset(context.Context, *connect.Request[v1.GetAssetRequest]) (*connect.Response[v1.GetAssetResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.asset.v1.AssetService.GetAsset is not implemented"))
+}
+
+func (UnimplementedAssetServiceHandler) ListAssetEvents(context.Context, *connect.Request[v1.ListAssetEventsRequest]) (*connect.Response[v1.ListAssetEventsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.asset.v1.AssetService.ListAssetEvents is not implemented"))
+}
+
+func (UnimplementedAssetServiceHandler) GetAssetEvent(context.Context, *connect.Request[v1.GetAssetEventRequest]) (*connect.Response[v1.GetAssetEventResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.asset.v1.AssetService.GetAssetEvent is not implemented"))
 }

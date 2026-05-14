@@ -42,6 +42,7 @@ import PluginsPanel from '@/views/PluginsPanel.vue';
 import AuditPanel from '@/views/AuditPanel.vue';
 import AssetsPanel from '@/views/AssetsPanel.vue';
 import AssetDetail from '@/views/AssetDetail.vue';
+import AssetEventsPanel from '@/views/AssetEventsPanel.vue';
 import APIKeysPanel from '@/views/APIKeysPanel.vue';
 import ProjectsPanel from '@/views/ProjectsPanel.vue';
 import NodesPanel from '@/views/NodesPanel.vue';
@@ -172,6 +173,12 @@ const routes: RouteRecordRaw[] = [
         name: 'asset-detail',
         component: AssetDetail,
         meta: { requiresAuth: true, title: '资产详情' },
+      },
+      {
+        path: 'asset-events',
+        name: 'asset-events',
+        component: AssetEventsPanel,
+        meta: { requiresAuth: true, title: '资产变更时间线' },
       },
       {
         path: 'nodes',

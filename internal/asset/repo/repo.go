@@ -17,11 +17,25 @@ type Repository interface {
 	// 不存在则插入；first_seen / last_seen 初始化为 now()。
 	UpsertBulk(ctx context.Context, items []*domain.Asset) error
 
+	// UpsertBulkReturning PR-S57：UPSERT + 返回真正新插入的 asset（带 ID）。
+	// SQL 用 RETURNING id, (xmax = 0) AS is_new 区分插入 vs 更新；service 层
+	// 据 is_new=true 派生 asset_events。空切片返 nil/nil。
+	//
+	// 返回的 asset 顺序与输入一致；非新插入的位置返 nil（caller filter nil 取
+	// 真新增列表）。
+	UpsertBulkReturning(ctx context.Context, items []*domain.Asset) ([]*UpsertResult, error)
+
 	// List 按过滤条件分页列资产。
 	List(ctx context.Context, f Filter, p Page) ([]*domain.Asset, int, error)
 
 	// GetByID 单条；不存在返 ErrAssetNotFound。
 	GetByID(ctx context.Context, id string) (*domain.Asset, error)
+}
+
+// UpsertResult UpsertBulkReturning 单条结果。
+type UpsertResult struct {
+	Asset *domain.Asset // 含真正的 ID（新插入或既有）
+	IsNew bool          // true = 本次 INSERT；false = 已存在 UPDATE
 }
 
 // Filter List 过滤条件。

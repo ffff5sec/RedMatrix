@@ -25,6 +25,12 @@ import (
 // === stub Repository ===
 
 type stubRepo struct {
+	// markExistingOnUpsert true 时 UpsertBulkReturning 返 IsNew=false（已存在）
+	markExistingOnUpsert bool
+	stubRepoFields
+}
+
+type stubRepoFields struct {
 	upserted [][]*domain.Asset // 每次 UpsertBulk 的 batch
 	rows     []*domain.Asset
 	byID     map[string]*domain.Asset
@@ -35,7 +41,7 @@ type stubRepo struct {
 }
 
 func newStubRepo() *stubRepo {
-	return &stubRepo{byID: map[string]*domain.Asset{}}
+	return &stubRepo{stubRepoFields: stubRepoFields{byID: map[string]*domain.Asset{}}}
 }
 
 func (r *stubRepo) UpsertBulk(_ context.Context, items []*domain.Asset) error {
@@ -48,6 +54,19 @@ func (r *stubRepo) UpsertBulk(_ context.Context, items []*domain.Asset) error {
 		r.byID[a.ID] = a
 	}
 	return nil
+}
+
+// UpsertBulkReturning PR-S57 stub：把全部 item 视作新插入（is_new=true）；
+// 真 PG 实现按冲突区分。测试用 stub 简单返一一对应结果。
+func (r *stubRepo) UpsertBulkReturning(ctx context.Context, items []*domain.Asset) ([]*repo.UpsertResult, error) {
+	if err := r.UpsertBulk(ctx, items); err != nil {
+		return nil, err
+	}
+	out := make([]*repo.UpsertResult, len(items))
+	for i, it := range items {
+		out[i] = &repo.UpsertResult{Asset: it, IsNew: !r.markExistingOnUpsert}
+	}
+	return out, nil
 }
 func (r *stubRepo) List(_ context.Context, f repo.Filter, p repo.Page) ([]*domain.Asset, int, error) {
 	r.lastFilter = f
@@ -263,6 +282,90 @@ func TestListAssets_PaginationNormalization(t *testing.T) {
 }
 
 // === GetAsset ===
+
+// === PR-S57 资产事件触发 ===
+
+// stubEventRepo 收集所有 InsertBulk 的事件。
+type stubEventRepo struct {
+	inserted   []*domain.Event
+	insertBulk []*domain.Event
+	err        error
+}
+
+func (s *stubEventRepo) Insert(_ context.Context, e *domain.Event) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.inserted = append(s.inserted, e)
+	return nil
+}
+func (s *stubEventRepo) InsertBulk(_ context.Context, events []*domain.Event) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.insertBulk = append(s.insertBulk, events...)
+	return nil
+}
+func (s *stubEventRepo) List(_ context.Context, _ repo.EventFilter, _ repo.Page) ([]*domain.Event, int, error) {
+	return nil, 0, nil
+}
+func (s *stubEventRepo) GetByID(_ context.Context, _ string) (*domain.Event, error) {
+	return nil, nil
+}
+
+// TestUpsertFromResults_TriggersNewAssetEvents：新插入 subdomain / host / url
+// 三种资产，每种派生对应事件 kind。
+func TestUpsertFromResults_TriggersNewAssetEvents(t *testing.T) {
+	r := newStubRepo()
+	ev := &stubEventRepo{}
+	svc, err := NewServiceWithEvents(r, ev, nil)
+	require.NoError(t, err)
+	require.NoError(t, svc.UpsertFromResults(context.Background(), []ResultInput{
+		{TenantID: "t1", ProjectID: "p1", Kind: "subdomain", Data: map[string]any{"name": "sub.example.com"}},
+		{TenantID: "t1", ProjectID: "p1", Kind: "port_scan", Data: map[string]any{"host": "10.0.0.1"}},
+		{TenantID: "t1", ProjectID: "p1", Kind: "web_crawl", Data: map[string]any{"url": "https://example.com/login"}},
+	}))
+	if len(ev.insertBulk) != 3 {
+		t.Fatalf("want 3 events, got %d: %+v", len(ev.insertBulk), ev.insertBulk)
+	}
+	// 验证 kind 映射
+	kinds := map[domain.EventKind]bool{}
+	for _, e := range ev.insertBulk {
+		kinds[e.Kind] = true
+	}
+	for _, want := range []domain.EventKind{
+		domain.EventNewSubdomain, domain.EventNewPort, domain.EventNewService,
+	} {
+		if !kinds[want] {
+			t.Errorf("missing event kind: %s", want)
+		}
+	}
+}
+
+// TestUpsertFromResults_ExistingAssetsNoEvent：is_new=false 的 asset 不派事件。
+func TestUpsertFromResults_ExistingAssetsNoEvent(t *testing.T) {
+	r := newStubRepo()
+	r.markExistingOnUpsert = true // stub 把全部当 update
+	ev := &stubEventRepo{}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+	_ = svc.UpsertFromResults(context.Background(), []ResultInput{
+		{TenantID: "t1", ProjectID: "p1", Kind: "subdomain", Data: map[string]any{"name": "sub.example.com"}},
+	})
+	if len(ev.insertBulk) != 0 {
+		t.Errorf("已存在的资产不应派事件，got %d", len(ev.insertBulk))
+	}
+}
+
+// TestUpsertFromResults_NilEventRepo_NoEventNoError：未注入 EventRepository
+// 时走旧 UpsertBulk 路径，无事件无错误。
+func TestUpsertFromResults_NilEventRepo_NoEventNoError(t *testing.T) {
+	r := newStubRepo()
+	svc, _ := NewService(r, nil) // events 不注入
+	err := svc.UpsertFromResults(context.Background(), []ResultInput{
+		{TenantID: "t1", ProjectID: "p1", Kind: "subdomain", Data: map[string]any{"name": "x.example.com"}},
+	})
+	require.NoError(t, err)
+}
 
 func TestGetAsset_EmptyID_Rejected(t *testing.T) {
 	svc, _ := newSvc(t)

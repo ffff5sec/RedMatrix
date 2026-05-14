@@ -34,6 +34,76 @@ SELECT id::text,
 FROM assets
 `
 
+// UpsertBulkReturning PR-S57：UPSERT 后返每条 asset 的 ID + is_new 标记。
+// 用 PostgreSQL 的 (xmax = 0) 表达式区分本次 INSERT 与 UPDATE：
+//   - 新插入行：xmax=0
+//   - 冲突 UPDATE 行：xmax 是事务 ID（非 0）
+//
+// 注：RETURNING 行顺序与 VALUES 不保证一致；用 (tenant,project,kind,value)
+// 做匹配映射回输入位置。
+func (r *pgRepo) UpsertBulkReturning(ctx context.Context, items []*domain.Asset) ([]*UpsertResult, error) {
+	if r == nil || r.pool == nil {
+		return nil, errx.New(errx.ErrInternal, "asset.repo: nil pool")
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+	values := ""
+	args := []any{}
+	for i, it := range items {
+		if err := it.ValidateForCreate(); err != nil {
+			return nil, err
+		}
+		if i > 0 {
+			values += ", "
+		}
+		base := i*5 + 1
+		values += `($` + itoa(base) + `::uuid, $` + itoa(base+1) + `::uuid, $` +
+			itoa(base+2) + `, $` + itoa(base+3) + `, $` + itoa(base+4) + `::int)`
+		delta := it.ResultCount
+		if delta <= 0 {
+			delta = 1
+		}
+		args = append(args, it.TenantID, it.ProjectID, string(it.Kind), it.Value, delta)
+	}
+	q := `INSERT INTO assets (tenant_id, project_id, kind, value, result_count) VALUES ` +
+		values + `
+		ON CONFLICT (tenant_id, project_id, kind, value_sha256)
+		DO UPDATE SET
+			last_seen = now(),
+			result_count = assets.result_count + EXCLUDED.result_count
+		RETURNING id::text, tenant_id::text, project_id::text, kind, value,
+		          first_seen, last_seen, result_count, (xmax = 0) AS is_new`
+	rows, err := r.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "asset.repo: upsert returning")
+	}
+	defer rows.Close()
+
+	type rkey struct{ t, p, k, v string }
+	idx := make(map[rkey]int, len(items))
+	for i, it := range items {
+		idx[rkey{it.TenantID, it.ProjectID, string(it.Kind), it.Value}] = i
+	}
+	out := make([]*UpsertResult, len(items))
+	for rows.Next() {
+		a := &domain.Asset{}
+		var isNew bool
+		if err := rows.Scan(&a.ID, &a.TenantID, &a.ProjectID, &a.Kind, &a.Value,
+			&a.FirstSeen, &a.LastSeen, &a.ResultCount, &isNew); err != nil {
+			return nil, errx.Wrap(errx.ErrDatabase, err, "asset.repo: scan upsert returning")
+		}
+		key := rkey{a.TenantID, a.ProjectID, string(a.Kind), a.Value}
+		if i, ok := idx[key]; ok {
+			out[i] = &UpsertResult{Asset: a, IsNew: isNew}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "asset.repo: upsert returning rows iter")
+	}
+	return out, nil
+}
+
 func (r *pgRepo) UpsertBulk(ctx context.Context, items []*domain.Asset) error {
 	if r == nil || r.pool == nil {
 		return errx.New(errx.ErrInternal, "asset.repo: nil pool")

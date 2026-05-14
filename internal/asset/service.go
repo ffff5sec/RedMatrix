@@ -69,16 +69,26 @@ type ListResponse struct {
 
 type service struct {
 	repo   repo.Repository
+	events repo.EventRepository // PR-S57：可空（不传则不派事件，向后兼容）
 	logger *log.Logger
 	now    func() time.Time
 }
 
-// NewService 构造。
+// NewService 构造（events 可传 nil）。
 func NewService(r repo.Repository, logger *log.Logger) (Service, error) {
 	if r == nil {
 		return nil, errx.New(errx.ErrInternal, "asset.NewService: repo 不能为 nil")
 	}
 	return &service{repo: r, logger: logger, now: time.Now}, nil
+}
+
+// NewServiceWithEvents PR-S57：构造时同时注入 EventRepository，UpsertFromResults
+// 会对新插入资产派生 asset_events 事件（SPEC §2.7 一期）。
+func NewServiceWithEvents(r repo.Repository, ev repo.EventRepository, logger *log.Logger) (Service, error) {
+	if r == nil {
+		return nil, errx.New(errx.ErrInternal, "asset.NewServiceWithEvents: repo 不能为 nil")
+	}
+	return &service{repo: r, events: ev, logger: logger, now: time.Now}, nil
 }
 
 // UpsertFromResults：把若干 ResultInput 派生为 Asset 后 UpsertBulk。
@@ -122,7 +132,47 @@ func (s *service) UpsertFromResults(ctx context.Context, items []ResultInput) er
 	for _, a := range merged {
 		rows = append(rows, a)
 	}
-	return s.repo.UpsertBulk(ctx, rows)
+	// PR-S57：注入了 EventRepository 时走 UpsertBulkReturning 路径，对新插入
+	// 资产派生 asset_new_* 事件。
+	if s.events == nil {
+		return s.repo.UpsertBulk(ctx, rows)
+	}
+	results, err := s.repo.UpsertBulkReturning(ctx, rows)
+	if err != nil {
+		return err
+	}
+	events := make([]*domain.Event, 0, len(results))
+	for _, r := range results {
+		if r == nil || !r.IsNew {
+			continue
+		}
+		kind, ok := domain.DeriveEventKindForNewAsset(r.Asset.Kind)
+		if !ok {
+			continue
+		}
+		assetID := r.Asset.ID
+		events = append(events, &domain.Event{
+			TenantID:  r.Asset.TenantID,
+			ProjectID: r.Asset.ProjectID,
+			AssetID:   &assetID,
+			Kind:      kind,
+			Payload: map[string]any{
+				"asset_kind":  string(r.Asset.Kind),
+				"asset_value": r.Asset.Value,
+			},
+		})
+	}
+	if len(events) == 0 {
+		return nil
+	}
+	// 事件 insert 失败不阻断 UpsertBulkReturning 已经成功；仅 log
+	if err := s.events.InsertBulk(ctx, events); err != nil {
+		if s.logger != nil {
+			s.logger.LogError(ctx, "asset.UpsertFromResults: events insert failed", err,
+				"new_count", len(events))
+		}
+	}
+	return nil
 }
 
 // derive 从一条 ResultInput 派生 asset 的 (kind, value)。

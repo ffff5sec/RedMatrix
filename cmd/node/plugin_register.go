@@ -15,8 +15,10 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/amass"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/crtsh"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/fingerprintx"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/fofa"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/gospider"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/hunter"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/katana"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/ksubdomain"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
@@ -68,6 +70,8 @@ func registerPortScanPlugin(registry *plugin.Registry, logger *log.Logger) {
 //   - "amass"（L2 被动 + 主动 DNS 推导）
 //   - "ksubdomain"（L2 字典爆破）
 //   - "crtsh"（L1 适配器，CT 日志 API）
+//   - "fofa"（L1 适配器，需 env FOFA_EMAIL + FOFA_KEY）
+//   - "hunter"（L1 适配器，需 env HUNTER_KEY）
 func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
 	choice := envOrDefault("SUBDOMAIN_PLUGIN", "subfinder")
 	switch choice {
@@ -101,6 +105,28 @@ func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
 		}
 		logger.Info("L1 adapter init failed; falling back to mock",
 			"kind", "subdomain", "tool", "crtsh", "err", err.Error())
+		return
+	case "fofa":
+		// L1 适配器：需 env FOFA_EMAIL + FOFA_KEY
+		p, err := fofa.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "subdomain", "impl", "fofa", "layer", "L1")
+			return
+		}
+		logger.Info("L1 adapter init failed (env FOFA_EMAIL + FOFA_KEY required); falling back to mock",
+			"kind", "subdomain", "tool", "fofa", "err", err.Error())
+		return
+	case "hunter":
+		// L1 适配器：需 env HUNTER_KEY
+		p, err := hunter.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "subdomain", "impl", "hunter", "layer", "L1")
+			return
+		}
+		logger.Info("L1 adapter init failed (env HUNTER_KEY required); falling back to mock",
+			"kind", "subdomain", "tool", "hunter", "err", err.Error())
 		return
 	}
 	p, err := subfinder.New()

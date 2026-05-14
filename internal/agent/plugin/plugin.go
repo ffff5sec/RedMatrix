@@ -23,6 +23,11 @@ type Plugin interface {
 	// Kind 返回该插件服务的任务类型（与 scan_tasks.kind 一致）。
 	Kind() string
 
+	// IsMock 是否 mock 插件。tasks.Loop 用此走 sleep 节奏（mock 跑得快需限流），
+	// group 用此判断聚合粒度。所有现有真插件 + mock 已实现此方法（PR-S56 起
+	// 提升到 interface level）。
+	IsMock() bool
+
 	// Run 执行扫描；返若干"结果行"（schema-less map，与 ReportTaskResults
 	// items 字段同形）。
 	//
@@ -35,6 +40,9 @@ type Plugin interface {
 var ErrNotInstalled = errors.New("plugin: required tool binary not installed")
 
 // Registry kind → Plugin 路由表。线程安全（仅启动期写）。
+//
+// PR-S56：同 kind 多次注册时自动包成 group 聚合（SPEC §2.5 多源覆盖）；
+// 外部接口（Get / Plugin interface）完全不变。
 type Registry struct {
 	plugins map[string]Plugin
 }
@@ -44,18 +52,51 @@ func NewRegistry() *Registry {
 	return &Registry{plugins: make(map[string]Plugin)}
 }
 
-// Register 注册（同 kind 重复注册后写覆盖前）。
+// Register 注册 plugin。同 kind 已有时自动聚合到 group（PR-S56）：
+//   - 首次 Register：单 plugin 直存
+//   - 第二次 Register：把已有 + 新的包成 *group
+//   - 第 N 次 Register：append 到现有 group
 func (r *Registry) Register(p Plugin) {
 	if r == nil || p == nil {
 		return
 	}
-	r.plugins[p.Kind()] = p
+	kind := p.Kind()
+	existing, has := r.plugins[kind]
+	if !has {
+		r.plugins[kind] = p
+		return
+	}
+	// 已有：检查是否已是 group
+	if g := asGroup(existing); g != nil {
+		g.plugins = append(g.plugins, p)
+		return
+	}
+	// 首次冲突：包 group
+	r.plugins[kind] = newGroup([]Plugin{existing, p})
 }
 
-// Get 取插件；不存在返 nil。
+// Get 取插件；不存在返 nil。可能返单个 plugin 或 *group（均实现 Plugin interface）。
 func (r *Registry) Get(kind string) Plugin {
 	if r == nil {
 		return nil
 	}
 	return r.plugins[kind]
+}
+
+// GetAll 返某 kind 下底层全部 plugins（解包 group 若存在）。
+// 测试 / 调试 / 监控用；运行时仍用 Get。
+func (r *Registry) GetAll(kind string) []Plugin {
+	if r == nil {
+		return nil
+	}
+	p, ok := r.plugins[kind]
+	if !ok {
+		return nil
+	}
+	if g := asGroup(p); g != nil {
+		out := make([]Plugin, len(g.plugins))
+		copy(out, g.plugins)
+		return out
+	}
+	return []Plugin{p}
 }

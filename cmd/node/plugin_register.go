@@ -1,10 +1,15 @@
-// plugin_register.go PR-S49 —— plugin 注册按 env 切换实现。
+// plugin_register.go PR-S49/S56 —— plugin 注册按 env 切换 + 多选聚合。
 //
-// 引入背景：SPEC §2.5 资产发现矩阵列出多个工具（nmap / rustscan / subfinder /
-// amass / httpx / katana），但 plugin.Registry 当前是 kind → Plugin 1:1 映射。
-// 引入 env 让 ops 自主选实现，不改架构。
+// PR-S49：引入 env 让 ops 选实现，但 Registry 仍 kind→Plugin 1:1。
+// PR-S56：Registry.Register 自动聚合到 group；env 改逗号分隔多选语义。
 //
-// 后续 PR-S5x 计划改 Registry 为 kind → []Plugin 聚合多源，env 转为白名单。
+// SUBDOMAIN_PLUGIN=subfinder         → 仅 subfinder
+// SUBDOMAIN_PLUGIN=subfinder,amass   → 两个并跑结果合并
+// SUBDOMAIN_PLUGIN=crtsh,fofa,hunter → 3 个 L1 一起跑
+//
+// 任一 plugin 构造失败（如 binary 缺 / env 缺 key）→ 跳过该项继续下一个；
+// 全部 plugin 失败 → fallback mock（由 RegisterAllMock 兜底，Run 时 group
+// 解空后 Get 返 mock）。
 package main
 
 import (
@@ -29,198 +34,119 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
 )
 
-// envOrDefault 读 env 并归一为小写；空 / 未设返 def。
-func envOrDefault(key, def string) string {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" {
-		return def
-	}
-	return strings.ToLower(v)
-}
+// pluginFactory 把"名字 → New()"包成统一签名，供 register loop 调用。
+type pluginFactory func() (plugin.Plugin, error)
 
-// registerPortScanPlugin 按 PORT_SCAN_PLUGIN env 注册 port_scan 真插件。
-// 支持值："nmap"（default）/ "rustscan"。未识别 → 用 default。
-// 真工具未安装 → 静默回落 mock（已由 RegisterAllMock 兜底）。
-func registerPortScanPlugin(registry *plugin.Registry, logger *log.Logger) {
-	choice := envOrDefault("PORT_SCAN_PLUGIN", "nmap")
-	if choice == "rustscan" {
-		p, err := rustscan.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "port_scan", "impl", "rustscan")
-			return
+// parseChoices 解析 env 值：逗号分 + 小写 + 去空 + 去重；空 / 未设返 [default]。
+// 例：" Subfinder, , AMASS "  →  ["subfinder", "amass"]
+func parseChoices(envKey, def string) []string {
+	raw := strings.TrimSpace(os.Getenv(envKey))
+	if raw == "" {
+		return []string{def}
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, 4)
+	for _, part := range strings.Split(raw, ",") {
+		s := strings.ToLower(strings.TrimSpace(part))
+		if s == "" {
+			continue
 		}
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "port_scan", "tool", "rustscan", "err", err.Error())
-		return
+		if _, dup := seen[s]; dup {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
 	}
-	// nmap 或未识别值
-	p, err := nmap.New()
-	if err == nil {
-		registry.Register(p)
-		logger.Info("plugin registered", "kind", "port_scan", "impl", "nmap")
-		return
+	if len(out) == 0 {
+		return []string{def}
 	}
-	logger.Info("plugin not installed; falling back to mock",
-		"kind", "port_scan", "tool", "nmap", "err", err.Error())
+	return out
 }
 
-// registerSubdomainPlugin 按 SUBDOMAIN_PLUGIN env 注册 subdomain 真插件。
-// 支持值：
+// registerChoices 通用 register loop：按 choices 顺序构造 + 注册；
+// 构造失败 log 但不阻塞下一个。返实际成功注册的数量（供日志 / 测试用）。
+func registerChoices(
+	registry *plugin.Registry,
+	logger *log.Logger,
+	kind string,
+	choices []string,
+	factories map[string]pluginFactory,
+) int {
+	registered := 0
+	for _, name := range choices {
+		fac, ok := factories[name]
+		if !ok {
+			logger.Info("plugin choice not recognized; ignored",
+				"kind", kind, "choice", name)
+			continue
+		}
+		p, err := fac()
+		if err != nil {
+			logger.Info("plugin init failed; skipped",
+				"kind", kind, "impl", name, "err", err.Error())
+			continue
+		}
+		registry.Register(p)
+		registered++
+		logger.Info("plugin registered", "kind", kind, "impl", name)
+	}
+	return registered
+}
+
+// registerPortScanPlugin 按 PORT_SCAN_PLUGIN env 注册（多选用逗号分）。
+// 支持："nmap"（default）/ "rustscan"。多选聚合到 group。
+func registerPortScanPlugin(registry *plugin.Registry, logger *log.Logger) {
+	choices := parseChoices("PORT_SCAN_PLUGIN", "nmap")
+	registerChoices(registry, logger, "port_scan", choices, map[string]pluginFactory{
+		"nmap":     func() (plugin.Plugin, error) { return nmap.New() },
+		"rustscan": func() (plugin.Plugin, error) { return rustscan.New() },
+	})
+}
+
+// registerSubdomainPlugin 按 SUBDOMAIN_PLUGIN env 注册（多选用逗号分）。
+// 支持：
 //   - "subfinder"（default，L2 被动情报源聚合）
 //   - "amass"（L2 被动 + 主动 DNS 推导）
 //   - "ksubdomain"（L2 字典爆破）
-//   - "crtsh"（L1 适配器，CT 日志 API）
+//   - "crtsh"（L1 适配器，CT 日志 API，无 key）
 //   - "fofa"（L1 适配器，需 env FOFA_EMAIL + FOFA_KEY）
 //   - "hunter"（L1 适配器，需 env HUNTER_KEY）
 //   - "quake"（L1 适配器，需 env QUAKE_KEY）
+//
+// 多选示例：SUBDOMAIN_PLUGIN=subfinder,crtsh,fofa → 3 个并跑结果合并。
 func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
-	choice := envOrDefault("SUBDOMAIN_PLUGIN", "subfinder")
-	switch choice {
-	case "amass":
-		p, err := amass.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "subdomain", "impl", "amass")
-			return
-		}
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "subdomain", "tool", "amass", "err", err.Error())
-		return
-	case "ksubdomain":
-		p, err := ksubdomain.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "subdomain", "impl", "ksubdomain")
-			return
-		}
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "subdomain", "tool", "ksubdomain", "err", err.Error())
-		return
-	case "crtsh":
-		// L1 适配器：HTTP API，无 binary 依赖，几乎不会 fail
-		p, err := crtsh.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "subdomain", "impl", "crtsh", "layer", "L1")
-			return
-		}
-		logger.Info("L1 adapter init failed; falling back to mock",
-			"kind", "subdomain", "tool", "crtsh", "err", err.Error())
-		return
-	case "fofa":
-		// L1 适配器：需 env FOFA_EMAIL + FOFA_KEY
-		p, err := fofa.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "subdomain", "impl", "fofa", "layer", "L1")
-			return
-		}
-		logger.Info("L1 adapter init failed (env FOFA_EMAIL + FOFA_KEY required); falling back to mock",
-			"kind", "subdomain", "tool", "fofa", "err", err.Error())
-		return
-	case "hunter":
-		// L1 适配器：需 env HUNTER_KEY
-		p, err := hunter.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "subdomain", "impl", "hunter", "layer", "L1")
-			return
-		}
-		logger.Info("L1 adapter init failed (env HUNTER_KEY required); falling back to mock",
-			"kind", "subdomain", "tool", "hunter", "err", err.Error())
-		return
-	case "quake":
-		// L1 适配器：需 env QUAKE_KEY
-		p, err := quake.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "subdomain", "impl", "quake", "layer", "L1")
-			return
-		}
-		logger.Info("L1 adapter init failed (env QUAKE_KEY required); falling back to mock",
-			"kind", "subdomain", "tool", "quake", "err", err.Error())
-		return
-	}
-	p, err := subfinder.New()
-	if err == nil {
-		registry.Register(p)
-		logger.Info("plugin registered", "kind", "subdomain", "impl", "subfinder")
-		return
-	}
-	logger.Info("plugin not installed; falling back to mock",
-		"kind", "subdomain", "tool", "subfinder", "err", err.Error())
+	choices := parseChoices("SUBDOMAIN_PLUGIN", "subfinder")
+	registerChoices(registry, logger, "subdomain", choices, map[string]pluginFactory{
+		"subfinder":  func() (plugin.Plugin, error) { return subfinder.New() },
+		"amass":      func() (plugin.Plugin, error) { return amass.New() },
+		"ksubdomain": func() (plugin.Plugin, error) { return ksubdomain.New() },
+		"crtsh":      func() (plugin.Plugin, error) { return crtsh.New() },
+		"fofa":       func() (plugin.Plugin, error) { return fofa.New() },
+		"hunter":     func() (plugin.Plugin, error) { return hunter.New() },
+		"quake":      func() (plugin.Plugin, error) { return quake.New() },
+	})
 }
 
-// registerFingerprintPlugin 按 FINGERPRINT_PLUGIN env 注册 fingerprint 真插件。
-// 支持值："httpx"（default，仅 HTTP/HTTPS）/ "fingerprintx"（30+ TCP/UDP 服务）。
-// 多 agent 部署时一组装 httpx 走 Web，一组装 fingerprintx 走非 Web 服务。
+// registerFingerprintPlugin 按 FINGERPRINT_PLUGIN env 注册。
+// 支持："httpx"（default，仅 HTTP/HTTPS）/ "fingerprintx"（30+ TCP/UDP 服务）。
+// 多选示例：FINGERPRINT_PLUGIN=httpx,fingerprintx → Web + 非 Web 服务并跑。
 func registerFingerprintPlugin(registry *plugin.Registry, logger *log.Logger) {
-	choice := envOrDefault("FINGERPRINT_PLUGIN", "httpx")
-	if choice == "fingerprintx" {
-		p, err := fingerprintx.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "fingerprint", "impl", "fingerprintx")
-			return
-		}
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "fingerprint", "tool", "fingerprintx", "err", err.Error())
-		return
-	}
-	p, err := httpx.NewFingerprint()
-	if err == nil {
-		registry.Register(p)
-		logger.Info("plugin registered", "kind", "fingerprint", "impl", "httpx")
-		return
-	}
-	logger.Info("plugin not installed; falling back to mock",
-		"kind", "fingerprint", "tool", "httpx", "err", err.Error())
+	choices := parseChoices("FINGERPRINT_PLUGIN", "httpx")
+	registerChoices(registry, logger, "fingerprint", choices, map[string]pluginFactory{
+		"httpx":        func() (plugin.Plugin, error) { return httpx.NewFingerprint() },
+		"fingerprintx": func() (plugin.Plugin, error) { return fingerprintx.New() },
+	})
 }
 
-// registerWebCrawlPlugin 按 WEB_CRAWL_PLUGIN env 注册 web_crawl 真插件。
-// 支持值："httpx"（default，仅 URL 探活）/ "katana"（DOM + JS 主动爬）/
-// "gospider"（sitemap + robots + linkfinder 主动爬）/ "wayback"（被动归档）。
+// registerWebCrawlPlugin 按 WEB_CRAWL_PLUGIN env 注册。
+// 支持："httpx"（default）/ "katana" / "gospider" / "wayback"。
+// 多选示例：WEB_CRAWL_PLUGIN=katana,wayback → 主动爬 + 被动归档并跑。
 func registerWebCrawlPlugin(registry *plugin.Registry, logger *log.Logger) {
-	choice := envOrDefault("WEB_CRAWL_PLUGIN", "httpx")
-	switch choice {
-	case "katana":
-		p, err := katana.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "web_crawl", "impl", "katana")
-			return
-		}
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "web_crawl", "tool", "katana", "err", err.Error())
-		return
-	case "gospider":
-		p, err := gospider.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "web_crawl", "impl", "gospider")
-			return
-		}
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "web_crawl", "tool", "gospider", "err", err.Error())
-		return
-	case "wayback":
-		p, err := wayback.New()
-		if err == nil {
-			registry.Register(p)
-			logger.Info("plugin registered", "kind", "web_crawl", "impl", "wayback")
-			return
-		}
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "web_crawl", "tool", "waybackurls", "err", err.Error())
-		return
-	}
-	p, err := httpx.NewWebCrawl()
-	if err == nil {
-		registry.Register(p)
-		logger.Info("plugin registered", "kind", "web_crawl", "impl", "httpx")
-		return
-	}
-	logger.Info("plugin not installed; falling back to mock",
-		"kind", "web_crawl", "tool", "httpx", "err", err.Error())
+	choices := parseChoices("WEB_CRAWL_PLUGIN", "httpx")
+	registerChoices(registry, logger, "web_crawl", choices, map[string]pluginFactory{
+		"httpx":    func() (plugin.Plugin, error) { return httpx.NewWebCrawl() },
+		"katana":   func() (plugin.Plugin, error) { return katana.New() },
+		"gospider": func() (plugin.Plugin, error) { return gospider.New() },
+		"wayback":  func() (plugin.Plugin, error) { return wayback.New() },
+	})
 }

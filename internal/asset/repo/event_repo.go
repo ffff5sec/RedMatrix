@@ -41,6 +41,6 @@ type EventRepository interface {
 	//
 	// 幂等：跳过 dedupeWindow 内已派过同 fingerprint 的事件。
 	// asset_id 设为 NULL（证书不是 asset 实体）。
-	// 返回派出的事件数。
-	SweepCertsExpiring(ctx context.Context, window, dedupeWindow time.Duration) (int, error)
+	// 返回实际新插入的事件（PR-S61 改返列表，让 service 能驱动 notify）。
+	SweepCertsExpiring(ctx context.Context, window, dedupeWindow time.Duration) ([]*domain.Event, error)
 }

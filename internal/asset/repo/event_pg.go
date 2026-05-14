@@ -221,13 +221,13 @@ func (r *pgEventRepo) GetByID(ctx context.Context, id string) (*domain.Event, er
 //  3. NOT EXISTS 排除 dedupeWindow 内已有 cert_expiring_soon 事件命中同 fingerprint
 //  4. payload 取 host / port / subject_cn / issuer_cn / not_after / fingerprint
 //
-// 写入失败任一行整体 rollback。返 affected rows 数。
-func (r *pgEventRepo) SweepCertsExpiring(ctx context.Context, window, dedupeWindow time.Duration) (int, error) {
+// 写入失败任一行整体 rollback；返新插入的 *Event 列表（PR-S61 供 notify driver）。
+func (r *pgEventRepo) SweepCertsExpiring(ctx context.Context, window, dedupeWindow time.Duration) ([]*domain.Event, error) {
 	if r == nil || r.pool == nil {
-		return 0, errx.New(errx.ErrInternal, "asset.event_repo: nil pool")
+		return nil, errx.New(errx.ErrInternal, "asset.event_repo: nil pool")
 	}
 	if window <= 0 || dedupeWindow <= 0 {
-		return 0, nil
+		return nil, nil
 	}
 	q := `
 INSERT INTO asset_events (tenant_id, project_id, asset_id, event_kind, payload)
@@ -253,12 +253,32 @@ WHERE r.kind = 'tls_scan'
       AND e.payload->>'fingerprint' = r.data->>'sha256_fingerprint'
       AND e.created_at > now() - $2::interval
   )
-ORDER BY r.tenant_id, r.project_id, r.data->>'sha256_fingerprint', r.created_at DESC`
-	tag, err := r.pool.Exec(ctx, q, intervalArg(window), intervalArg(dedupeWindow))
+ORDER BY r.tenant_id, r.project_id, r.data->>'sha256_fingerprint', r.created_at DESC
+RETURNING id::text, tenant_id::text, project_id::text, event_kind, payload, created_at`
+	rows, err := r.pool.Query(ctx, q, intervalArg(window), intervalArg(dedupeWindow))
 	if err != nil {
-		return 0, errx.Wrap(errx.ErrDatabase, err, "asset.event_repo: sweep certs expiring")
+		return nil, errx.Wrap(errx.ErrDatabase, err, "asset.event_repo: sweep certs expiring")
 	}
-	return int(tag.RowsAffected()), nil
+	defer rows.Close()
+	out := []*domain.Event{}
+	for rows.Next() {
+		e := &domain.Event{}
+		var payloadJSON []byte
+		if err := rows.Scan(&e.ID, &e.TenantID, &e.ProjectID, &e.Kind, &payloadJSON, &e.CreatedAt); err != nil {
+			return nil, errx.Wrap(errx.ErrDatabase, err, "asset.event_repo: scan sweep certs")
+		}
+		if len(payloadJSON) > 0 {
+			_ = json.Unmarshal(payloadJSON, &e.Payload)
+		}
+		if e.Payload == nil {
+			e.Payload = map[string]any{}
+		}
+		out = append(out, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "asset.event_repo: sweep certs iter")
+	}
+	return out, nil
 }
 
 // intervalArg 把 Go Duration 转成 PG INTERVAL 可接受的字符串（秒数）。

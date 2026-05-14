@@ -78,11 +78,18 @@ type ListResponse struct {
 	PageSize int
 }
 
+// AssetEventNotifier PR-S61：asset 事件写库后再投通知；可空 = 不发通知。
+// service 写完事件 InsertBulk 后调；失败仅 log，不阻断事件流。
+type AssetEventNotifier interface {
+	OnAssetEvents(ctx context.Context, events []*domain.Event)
+}
+
 type service struct {
-	repo   repo.Repository
-	events repo.EventRepository // PR-S57：可空（不传则不派事件，向后兼容）
-	logger *log.Logger
-	now    func() time.Time
+	repo     repo.Repository
+	events   repo.EventRepository // PR-S57：可空（不传则不派事件，向后兼容）
+	notifier AssetEventNotifier   // PR-S61：可空
+	logger   *log.Logger
+	now      func() time.Time
 }
 
 // NewService 构造（events 可传 nil）。
@@ -100,6 +107,15 @@ func NewServiceWithEvents(r repo.Repository, ev repo.EventRepository, logger *lo
 		return nil, errx.New(errx.ErrInternal, "asset.NewServiceWithEvents: repo 不能为 nil")
 	}
 	return &service{repo: r, events: ev, logger: logger, now: time.Now}, nil
+}
+
+// WithNotifier PR-S61：链式注入 AssetEventNotifier；只对 *service 实现生效。
+// 不返 error；caller 装配时清楚自己拿到的是 *service。
+func WithNotifier(s Service, n AssetEventNotifier) Service {
+	if impl, ok := s.(*service); ok && impl != nil {
+		impl.notifier = n
+	}
+	return s
 }
 
 // UpsertFromResults：把若干 ResultInput 派生为 Asset 后 UpsertBulk。
@@ -182,6 +198,11 @@ func (s *service) UpsertFromResults(ctx context.Context, items []ResultInput) er
 			s.logger.LogError(ctx, "asset.UpsertFromResults: events insert failed", err,
 				"new_count", len(events))
 		}
+		return nil
+	}
+	// PR-S61：事件已落库，再驱动 notify（best-effort，notifier 内部 swallow err）
+	if s.notifier != nil {
+		s.notifier.OnAssetEvents(ctx, events)
 	}
 	return nil
 }
@@ -316,6 +337,9 @@ func (s *service) SweepDisappeared(ctx context.Context, threshold time.Duration)
 		}
 		return 0, err
 	}
+	if s.notifier != nil {
+		s.notifier.OnAssetEvents(ctx, events)
+	}
 	return len(events), nil
 }
 
@@ -327,14 +351,17 @@ func (s *service) SweepCertsExpiring(ctx context.Context, window, dedupeWindow t
 	if window <= 0 || dedupeWindow <= 0 {
 		return 0, nil
 	}
-	n, err := s.events.SweepCertsExpiring(ctx, window, dedupeWindow)
+	events, err := s.events.SweepCertsExpiring(ctx, window, dedupeWindow)
 	if err != nil {
 		if s.logger != nil {
 			s.logger.LogError(ctx, "asset.SweepCertsExpiring failed", err)
 		}
 		return 0, err
 	}
-	return n, nil
+	if len(events) > 0 && s.notifier != nil {
+		s.notifier.OnAssetEvents(ctx, events)
+	}
+	return len(events), nil
 }
 
 func normalizePage(page, size int) (int, int) {

@@ -35,8 +35,10 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib" // database/sql 驱动注册（goose 用）
 
+	"github.com/ffff5sec/RedMatrix/internal/asset"
 	"github.com/ffff5sec/RedMatrix/internal/config"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/notify"
 	"github.com/ffff5sec/RedMatrix/internal/platform/bootstrapcheck"
 	"github.com/ffff5sec/RedMatrix/internal/platform/eventbus"
 	"github.com/ffff5sec/RedMatrix/internal/platform/health"
@@ -416,6 +418,11 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			return failExitCode(err)
 		}
 		mux.Handle(notifyMount.path, notifyMount.handler)
+
+		// PR-S61：asset 模块写完事件后通过 AssetHook 投递到 notify。
+		// 把 hook 链入 asset.Service；订阅了 asset_new_*/disappeared/cert_expiring 的
+		// notification_subscriptions 会收到事件。
+		asset.WithNotifier(asMount.svc, notify.NewAssetHook(notifySvc, logger))
 
 		// === 8a₃-pre2. FindingService（PR-S26 漏洞工作流）===
 		findingMnt, findingSvc, err := buildFindingMount(pool, authSvc, auditHook)

@@ -302,7 +302,7 @@ type stubEventRepo struct {
 	inserted          []*domain.Event
 	insertBulk        []*domain.Event
 	err               error
-	sweepCertsResult  int
+	sweepCertsResult  []*domain.Event
 	sweepCertsCalls   int
 	lastCertWindow    time.Duration
 	lastCertDedupeWin time.Duration
@@ -328,12 +328,12 @@ func (s *stubEventRepo) List(_ context.Context, _ repo.EventFilter, _ repo.Page)
 func (s *stubEventRepo) GetByID(_ context.Context, _ string) (*domain.Event, error) {
 	return nil, nil
 }
-func (s *stubEventRepo) SweepCertsExpiring(_ context.Context, window, dedupeWindow time.Duration) (int, error) {
+func (s *stubEventRepo) SweepCertsExpiring(_ context.Context, window, dedupeWindow time.Duration) ([]*domain.Event, error) {
 	s.sweepCertsCalls++
 	s.lastCertWindow = window
 	s.lastCertDedupeWin = dedupeWindow
 	if s.err != nil {
-		return 0, s.err
+		return nil, s.err
 	}
 	return s.sweepCertsResult, nil
 }
@@ -473,7 +473,11 @@ func TestSweepDisappeared_NonPositiveThreshold_NoOp(t *testing.T) {
 // TestSweepCertsExpiring_DelegatesToEventRepo：service 透传到 events 层。
 func TestSweepCertsExpiring_DelegatesToEventRepo(t *testing.T) {
 	r := newStubRepo()
-	ev := &stubEventRepo{sweepCertsResult: 7}
+	fakeEvents := make([]*domain.Event, 7)
+	for i := range fakeEvents {
+		fakeEvents[i] = &domain.Event{Kind: domain.EventCertExpiring}
+	}
+	ev := &stubEventRepo{sweepCertsResult: fakeEvents}
 	svc, _ := NewServiceWithEvents(r, ev, nil)
 
 	n, err := svc.SweepCertsExpiring(context.Background(), 30*24*time.Hour, 7*24*time.Hour)
@@ -502,4 +506,99 @@ func TestSweepCertsExpiring_NonPositiveWindow_NoOp(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 	assert.Zero(t, ev.sweepCertsCalls)
+}
+
+// === PR-S61 AssetEventNotifier ===
+
+type stubNotifier struct {
+	calls   int
+	batches [][]*domain.Event
+}
+
+func (n *stubNotifier) OnAssetEvents(_ context.Context, events []*domain.Event) {
+	n.calls++
+	n.batches = append(n.batches, events)
+}
+
+// TestNotifier_TriggeredOnUpsertNewAssets：UpsertFromResults 新插入 3 资产 →
+// notifier 收到 3 事件。
+func TestNotifier_TriggeredOnUpsertNewAssets(t *testing.T) {
+	r := newStubRepo()
+	ev := &stubEventRepo{}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+	notifier := &stubNotifier{}
+	WithNotifier(svc, notifier)
+
+	require.NoError(t, svc.UpsertFromResults(context.Background(), []ResultInput{
+		{TenantID: "t1", ProjectID: "p1", Kind: "subdomain", Data: map[string]any{"name": "x.example.com"}},
+		{TenantID: "t1", ProjectID: "p1", Kind: "port_scan", Data: map[string]any{"host": "10.0.0.1"}},
+		{TenantID: "t1", ProjectID: "p1", Kind: "web_crawl", Data: map[string]any{"url": "https://x.example.com/"}},
+	}))
+	require.Equal(t, 1, notifier.calls)
+	require.Len(t, notifier.batches[0], 3)
+}
+
+// TestNotifier_NotTriggeredOnExisting：UPDATE 路径（IsNew=false）notifier 不调。
+func TestNotifier_NotTriggeredOnExisting(t *testing.T) {
+	r := newStubRepo()
+	r.markExistingOnUpsert = true
+	ev := &stubEventRepo{}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+	notifier := &stubNotifier{}
+	WithNotifier(svc, notifier)
+
+	_ = svc.UpsertFromResults(context.Background(), []ResultInput{
+		{TenantID: "t1", ProjectID: "p1", Kind: "subdomain", Data: map[string]any{"name": "x.example.com"}},
+	})
+	assert.Zero(t, notifier.calls)
+}
+
+// TestNotifier_TriggeredOnSweepDisappeared。
+func TestNotifier_TriggeredOnSweepDisappeared(t *testing.T) {
+	r := newStubRepo()
+	r.markDisappearedReturn = []*domain.Asset{
+		{ID: "a-1", TenantID: "t1", ProjectID: "p1", Kind: domain.KindHost, Value: "10.0.0.99", LastSeen: time.Now().Add(-30 * 24 * time.Hour)},
+	}
+	ev := &stubEventRepo{}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+	notifier := &stubNotifier{}
+	WithNotifier(svc, notifier)
+
+	n, err := svc.SweepDisappeared(context.Background(), 14*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	require.Equal(t, 1, notifier.calls)
+	require.Len(t, notifier.batches[0], 1)
+	assert.Equal(t, domain.EventDisappeared, notifier.batches[0][0].Kind)
+}
+
+// TestNotifier_TriggeredOnSweepCertsExpiring。
+func TestNotifier_TriggeredOnSweepCertsExpiring(t *testing.T) {
+	r := newStubRepo()
+	fake := []*domain.Event{{Kind: domain.EventCertExpiring}, {Kind: domain.EventCertExpiring}}
+	ev := &stubEventRepo{sweepCertsResult: fake}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+	notifier := &stubNotifier{}
+	WithNotifier(svc, notifier)
+
+	n, err := svc.SweepCertsExpiring(context.Background(), 30*24*time.Hour, 7*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+	require.Equal(t, 1, notifier.calls)
+	assert.Len(t, notifier.batches[0], 2)
+}
+
+// TestNotifier_NotTriggeredWhenEventInsertFails：events.InsertBulk 失败时不应调 notifier
+// （未真正落库的事件不发通知）。
+func TestNotifier_NotTriggeredWhenEventInsertFails(t *testing.T) {
+	r := newStubRepo()
+	ev := &stubEventRepo{err: errx.New(errx.ErrDatabase, "fail")}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+	notifier := &stubNotifier{}
+	WithNotifier(svc, notifier)
+
+	_ = svc.UpsertFromResults(context.Background(), []ResultInput{
+		{TenantID: "t1", ProjectID: "p1", Kind: "subdomain", Data: map[string]any{"name": "x.example.com"}},
+	})
+	assert.Zero(t, notifier.calls, "事件未落库则不发通知")
 }

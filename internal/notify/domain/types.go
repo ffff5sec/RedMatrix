@@ -25,12 +25,21 @@ const (
 	EventTaskFailed EventKind = "task_failed"
 	// EventFindingHigh 高危漏洞发现（nuclei result severity ∈ high/critical）
 	EventFindingHigh EventKind = "finding_high"
+
+	// PR-S61：与 asset 模块 domain.EventKind 字面量同步。SPEC §2.7 一期 5 类。
+	EventAssetNewSubdomain EventKind = "asset_new_subdomain"
+	EventAssetNewPort      EventKind = "asset_new_port"
+	EventAssetNewService   EventKind = "asset_new_service"
+	EventAssetDisappeared  EventKind = "asset_disappeared"
+	EventCertExpiring      EventKind = "cert_expiring_soon"
 )
 
 // Valid 判定 EventKind 是否合法值。
 func (k EventKind) Valid() bool {
 	switch k {
-	case EventTaskCompleted, EventTaskFailed, EventFindingHigh:
+	case EventTaskCompleted, EventTaskFailed, EventFindingHigh,
+		EventAssetNewSubdomain, EventAssetNewPort, EventAssetNewService,
+		EventAssetDisappeared, EventCertExpiring:
 		return true
 	}
 	return false

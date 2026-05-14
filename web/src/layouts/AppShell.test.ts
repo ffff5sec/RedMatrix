@@ -38,7 +38,7 @@ function navLabels(wrapper: ReturnType<typeof mountAppShell>): string[] {
 }
 
 describe('AppShell 导航 role gating', () => {
-  it('SA 看到所有 14 个 nav（含 节点 + 用户管理 + 套件 + 通知 + 漏洞 + 插件库 + 审计）', () => {
+  it('SA 看到所有 15 个 nav（含 节点 + 用户管理 + 套件 + 通知 + 漏洞 + 插件库 + 审计 + 资产事件）', () => {
     authStore.set({ token: 't', username: 'admin', role: 'SUPER_ADMIN', userId: 'u' });
     const w = mountAppShell();
     const labels = navLabels(w);
@@ -50,7 +50,8 @@ describe('AppShell 导航 role gating', () => {
     expect(labels).toContain('漏洞');
     expect(labels).toContain('插件库');
     expect(labels).toContain('审计');
-    expect(labels.length).toBe(14);
+    expect(labels).toContain('资产事件');
+    expect(labels.length).toBe(15);
   });
 
   it('TenantAuditor 看到 节点 + 用户管理', () => {
@@ -69,7 +70,7 @@ describe('AppShell 导航 role gating', () => {
     expect(labels).toContain('用户管理');
   });
 
-  it('PA 看不到 节点 + 用户管理（仅 10 项，含套件 + 通知 + 漏洞）', () => {
+  it('PA 看不到 节点 + 用户管理（仅 11 项，含套件 + 通知 + 漏洞 + 资产事件）', () => {
     authStore.set({ token: 't', username: 'pa', role: 'PROJECT_ADMIN', userId: 'u' });
     const w = mountAppShell();
     const labels = navLabels(w);
@@ -81,7 +82,8 @@ describe('AppShell 导航 role gating', () => {
     expect(labels).toContain('结果搜索');
     expect(labels).toContain('通知');
     expect(labels).toContain('漏洞');
-    expect(labels.length).toBe(10);
+    expect(labels).toContain('资产事件');
+    expect(labels.length).toBe(11);
   });
 });
 

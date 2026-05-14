@@ -38,6 +38,9 @@ type stubRepoFields struct {
 	lastFilter repo.Filter
 	lastPage   repo.Page
 	listErr    error
+	// PR-S59 disappeared sweep
+	markDisappearedReturn []*domain.Asset
+	markDisappearedCalls  int
 }
 
 func newStubRepo() *stubRepo {
@@ -95,6 +98,15 @@ func (r *stubRepo) GetByID(_ context.Context, id string) (*domain.Asset, error) 
 		return nil, errx.New(errx.ErrAssetNotFound, "not found")
 	}
 	return a, nil
+}
+
+// MarkDisappeared PR-S59 stub：返 markDisappearedReturn 中的资产，并把它们的
+// LastSeen 视为已超 cutoff（测试 setup 已塞好）；二次调返空模拟幂等。
+func (r *stubRepo) MarkDisappeared(_ context.Context, _ time.Time) ([]*domain.Asset, error) {
+	out := r.markDisappearedReturn
+	r.markDisappearedCalls++
+	r.markDisappearedReturn = nil // 模拟幂等：再扫不再返
+	return out, nil
 }
 
 func newSvc(t *testing.T) (Service, *stubRepo) {
@@ -287,9 +299,13 @@ func TestListAssets_PaginationNormalization(t *testing.T) {
 
 // stubEventRepo 收集所有 InsertBulk 的事件。
 type stubEventRepo struct {
-	inserted   []*domain.Event
-	insertBulk []*domain.Event
-	err        error
+	inserted          []*domain.Event
+	insertBulk        []*domain.Event
+	err               error
+	sweepCertsResult  int
+	sweepCertsCalls   int
+	lastCertWindow    time.Duration
+	lastCertDedupeWin time.Duration
 }
 
 func (s *stubEventRepo) Insert(_ context.Context, e *domain.Event) error {
@@ -311,6 +327,15 @@ func (s *stubEventRepo) List(_ context.Context, _ repo.EventFilter, _ repo.Page)
 }
 func (s *stubEventRepo) GetByID(_ context.Context, _ string) (*domain.Event, error) {
 	return nil, nil
+}
+func (s *stubEventRepo) SweepCertsExpiring(_ context.Context, window, dedupeWindow time.Duration) (int, error) {
+	s.sweepCertsCalls++
+	s.lastCertWindow = window
+	s.lastCertDedupeWin = dedupeWindow
+	if s.err != nil {
+		return 0, s.err
+	}
+	return s.sweepCertsResult, nil
 }
 
 // TestUpsertFromResults_TriggersNewAssetEvents：新插入 subdomain / host / url
@@ -381,4 +406,100 @@ func TestGetAsset_PropagatesNotFound(t *testing.T) {
 	require.Error(t, err)
 	code, _ := errx.GetCode(err)
 	assert.Equal(t, errx.ErrAssetNotFound, code)
+}
+
+// === PR-S59 sweeper ===
+
+// TestSweepDisappeared_EmitsEventsForMarked：repo.MarkDisappeared 返几条，
+// service 就派同数 disappeared 事件。
+func TestSweepDisappeared_EmitsEventsForMarked(t *testing.T) {
+	r := newStubRepo()
+	r.markDisappearedReturn = []*domain.Asset{
+		{ID: "a-1", TenantID: "t1", ProjectID: "p1", Kind: domain.KindSubdomain, Value: "old.example.com", LastSeen: time.Now().Add(-30 * 24 * time.Hour)},
+		{ID: "a-2", TenantID: "t1", ProjectID: "p1", Kind: domain.KindHost, Value: "10.0.0.99", LastSeen: time.Now().Add(-20 * 24 * time.Hour)},
+	}
+	ev := &stubEventRepo{}
+	svc, err := NewServiceWithEvents(r, ev, nil)
+	require.NoError(t, err)
+
+	n, err := svc.SweepDisappeared(context.Background(), 14*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+	require.Len(t, ev.insertBulk, 2)
+	for _, e := range ev.insertBulk {
+		assert.Equal(t, domain.EventDisappeared, e.Kind)
+		assert.NotNil(t, e.AssetID)
+		assert.Contains(t, e.Payload, "asset_value")
+		assert.Contains(t, e.Payload, "last_seen")
+	}
+}
+
+// TestSweepDisappeared_NoneMarked_NoEvents：repo 返空，service 不调 events。
+func TestSweepDisappeared_NoneMarked_NoEvents(t *testing.T) {
+	r := newStubRepo() // markDisappearedReturn = nil
+	ev := &stubEventRepo{}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+
+	n, err := svc.SweepDisappeared(context.Background(), 14*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+	assert.Empty(t, ev.insertBulk)
+}
+
+// TestSweepDisappeared_NoEventsRepo_NoOp：未注入 EventRepository 时 sweep 应 no-op。
+func TestSweepDisappeared_NoEventsRepo_NoOp(t *testing.T) {
+	r := newStubRepo()
+	r.markDisappearedReturn = []*domain.Asset{
+		{ID: "a-1", TenantID: "t1", ProjectID: "p1", Kind: domain.KindHost, Value: "x"},
+	}
+	svc, _ := NewService(r, nil)
+	n, err := svc.SweepDisappeared(context.Background(), 14*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+	assert.Zero(t, r.markDisappearedCalls, "未注入 events 时 sweep 不应调 repo")
+}
+
+// TestSweepDisappeared_NonPositiveThreshold_NoOp：threshold ≤ 0 防误调。
+func TestSweepDisappeared_NonPositiveThreshold_NoOp(t *testing.T) {
+	r := newStubRepo()
+	ev := &stubEventRepo{}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+	n, err := svc.SweepDisappeared(context.Background(), 0)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+	assert.Zero(t, r.markDisappearedCalls)
+}
+
+// TestSweepCertsExpiring_DelegatesToEventRepo：service 透传到 events 层。
+func TestSweepCertsExpiring_DelegatesToEventRepo(t *testing.T) {
+	r := newStubRepo()
+	ev := &stubEventRepo{sweepCertsResult: 7}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+
+	n, err := svc.SweepCertsExpiring(context.Background(), 30*24*time.Hour, 7*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 7, n)
+	assert.Equal(t, 1, ev.sweepCertsCalls)
+	assert.Equal(t, 30*24*time.Hour, ev.lastCertWindow)
+	assert.Equal(t, 7*24*time.Hour, ev.lastCertDedupeWin)
+}
+
+// TestSweepCertsExpiring_NoEventsRepo_NoOp：未注入 events 时 no-op。
+func TestSweepCertsExpiring_NoEventsRepo_NoOp(t *testing.T) {
+	r := newStubRepo()
+	svc, _ := NewService(r, nil)
+	n, err := svc.SweepCertsExpiring(context.Background(), 30*24*time.Hour, 7*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+}
+
+// TestSweepCertsExpiring_NonPositiveWindow_NoOp。
+func TestSweepCertsExpiring_NonPositiveWindow_NoOp(t *testing.T) {
+	r := newStubRepo()
+	ev := &stubEventRepo{}
+	svc, _ := NewServiceWithEvents(r, ev, nil)
+	n, err := svc.SweepCertsExpiring(context.Background(), 0, 7*24*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+	assert.Zero(t, ev.sweepCertsCalls)
 }

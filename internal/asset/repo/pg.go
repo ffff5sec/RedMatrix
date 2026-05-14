@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -66,12 +67,14 @@ func (r *pgRepo) UpsertBulkReturning(ctx context.Context, items []*domain.Asset)
 		}
 		args = append(args, it.TenantID, it.ProjectID, string(it.Kind), it.Value, delta)
 	}
+	// PR-S59：UPDATE 时 reset disappeared_at = NULL —— 资产"回归"自动清消失态
 	q := `INSERT INTO assets (tenant_id, project_id, kind, value, result_count) VALUES ` +
 		values + `
 		ON CONFLICT (tenant_id, project_id, kind, value_sha256)
 		DO UPDATE SET
 			last_seen = now(),
-			result_count = assets.result_count + EXCLUDED.result_count
+			result_count = assets.result_count + EXCLUDED.result_count,
+			disappeared_at = NULL
 		RETURNING id::text, tenant_id::text, project_id::text, kind, value,
 		          first_seen, last_seen, result_count, (xmax = 0) AS is_new`
 	rows, err := r.pool.Query(ctx, q, args...)
@@ -138,7 +141,8 @@ func (r *pgRepo) UpsertBulk(ctx context.Context, items []*domain.Asset) error {
 		ON CONFLICT (tenant_id, project_id, kind, value_sha256)
 		DO UPDATE SET
 			last_seen = now(),
-			result_count = assets.result_count + EXCLUDED.result_count`
+			result_count = assets.result_count + EXCLUDED.result_count,
+			disappeared_at = NULL`
 	if _, err := r.pool.Exec(ctx, q, args...); err != nil {
 		return errx.Wrap(errx.ErrDatabase, err, "asset.repo: upsert")
 	}
@@ -242,6 +246,40 @@ func (r *pgRepo) GetByID(ctx context.Context, id string) (*domain.Asset, error) 
 	}
 	a.Kind = domain.Kind(kind)
 	return a, nil
+}
+
+// MarkDisappeared PR-S59：见 Repository.MarkDisappeared 注释。
+func (r *pgRepo) MarkDisappeared(ctx context.Context, cutoff time.Time) ([]*domain.Asset, error) {
+	if r == nil || r.pool == nil {
+		return nil, errx.New(errx.ErrInternal, "asset.repo: nil pool")
+	}
+	q := `UPDATE assets
+	      SET disappeared_at = now()
+	      WHERE last_seen < $1 AND disappeared_at IS NULL
+	      RETURNING id::text, tenant_id::text, project_id::text, kind, value,
+	                first_seen, last_seen, result_count`
+	rows, err := r.pool.Query(ctx, q, cutoff)
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "asset.repo: mark disappeared")
+	}
+	defer rows.Close()
+	out := []*domain.Asset{}
+	for rows.Next() {
+		a := &domain.Asset{}
+		var kind string
+		if err := rows.Scan(
+			&a.ID, &a.TenantID, &a.ProjectID, &kind, &a.Value,
+			&a.FirstSeen, &a.LastSeen, &a.ResultCount,
+		); err != nil {
+			return nil, errx.Wrap(errx.ErrDatabase, err, "asset.repo: scan mark disappeared")
+		}
+		a.Kind = domain.Kind(kind)
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "asset.repo: mark disappeared iter")
+	}
+	return out, nil
 }
 
 // itoa 便于 SQL placeholder 拼接。

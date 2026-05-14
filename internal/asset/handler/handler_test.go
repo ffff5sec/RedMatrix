@@ -53,6 +53,12 @@ func (s *stubAssetSvc) ListAssets(_ context.Context, req asset.ListRequest) (*as
 func (s *stubAssetSvc) GetAsset(_ context.Context, _ string) (*domain.Asset, error) {
 	return s.getRes, s.getErr
 }
+func (s *stubAssetSvc) SweepDisappeared(_ context.Context, _ time.Duration) (int, error) {
+	return 0, nil
+}
+func (s *stubAssetSvc) SweepCertsExpiring(_ context.Context, _, _ time.Duration) (int, error) {
+	return 0, nil
+}
 
 var _ asset.Service = (*stubAssetSvc)(nil)
 

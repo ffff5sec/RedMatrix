@@ -470,6 +470,13 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			startNotifySweeper(ctx, notifySvc, logger)
 		}()
 
+		// PR-S59 asset sweeper：每 1h 扫 asset_disappeared / cert_expiring_soon。
+		assetSweeperDone := make(chan struct{})
+		go func() {
+			defer close(assetSweeperDone)
+			startAssetSweeper(ctx, asMount.svc, logger)
+		}()
+
 		// PR-S12 加载已有 cron task → 启动调度器；ctx 取消时 Stop（等 job 完成）。
 		if err := scanSched.LoadAll(ctx); err != nil {
 			logger.LogError(ctx, "scan: scheduler LoadAll failed (continuing)", err)

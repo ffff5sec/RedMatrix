@@ -34,4 +34,13 @@ type EventRepository interface {
 	// GetByID 单条；不存在返 ErrAssetNotFound（共用 asset 错码，事件本质上是
 	// asset 的衍生数据）。
 	GetByID(ctx context.Context, id string) (*domain.Event, error)
+
+	// SweepCertsExpiring PR-S59：扫 scan_results 里 kind='tls_scan' 且 not_after
+	// 落在 (now, now+window] 内的证书，对每个 (tenant, project, fingerprint) 派
+	// 一条 cert_expiring_soon 事件。
+	//
+	// 幂等：跳过 dedupeWindow 内已派过同 fingerprint 的事件。
+	// asset_id 设为 NULL（证书不是 asset 实体）。
+	// 返回派出的事件数。
+	SweepCertsExpiring(ctx context.Context, window, dedupeWindow time.Duration) (int, error)
 }

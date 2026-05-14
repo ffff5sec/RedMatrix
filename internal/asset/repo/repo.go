@@ -30,6 +30,12 @@ type Repository interface {
 
 	// GetByID 单条；不存在返 ErrAssetNotFound。
 	GetByID(ctx context.Context, id string) (*domain.Asset, error)
+
+	// MarkDisappeared PR-S59：把 last_seen < cutoff AND disappeared_at IS NULL
+	// 的资产打上 disappeared_at = now()，返回真正被标记的行（用于派事件）。
+	// 单 UPDATE ... RETURNING；幂等：再次调同 cutoff 不会重复返。
+	// 资产 UPSERT（被重新扫到）会把 disappeared_at reset 成 NULL。
+	MarkDisappeared(ctx context.Context, cutoff time.Time) ([]*domain.Asset, error)
 }
 
 // UpsertResult UpsertBulkReturning 单条结果。

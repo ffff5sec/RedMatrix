@@ -24,6 +24,9 @@ import (
 type assetMount struct {
 	path    string
 	handler http.Handler
+	// svc PR-S59：暴露给 main 启动 asset sweeper goroutine（asset_disappeared /
+	// cert_expiring_soon）。
+	svc asset.Service
 }
 
 // buildAssetMount 装配 AssetService。返 RPC mount + scan service 用的
@@ -55,7 +58,7 @@ func buildAssetMount(
 	// PR-S58: handler 注入 EventRepository 提供 ListAssetEvents / GetAssetEvent RPC
 	h = h.WithEvents(er)
 	path, hh := assetv1connect.NewAssetServiceHandler(h)
-	return &assetMount{path: path, handler: hh}, &scanAssetAdapter{svc: svc}, &scanAssetReader{assets: svc}, nil
+	return &assetMount{path: path, handler: hh, svc: svc}, &scanAssetAdapter{svc: svc}, &scanAssetReader{assets: svc}, nil
 }
 
 // scanAssetAdapter 把 scan.AssetResultInput 转 asset.ResultInput；

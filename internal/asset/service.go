@@ -40,6 +40,17 @@ type Service interface {
 
 	// GetAsset 单条；不存在返 ErrAssetNotFound。
 	GetAsset(ctx context.Context, id string) (*domain.Asset, error)
+
+	// SweepDisappeared PR-S59 SPEC §2.7：对 last_seen 超 threshold 的资产派
+	// asset_disappeared 事件并标记 disappeared_at。
+	// threshold ≤ 0 = no-op 防误调；返回派出的事件数。
+	// 无 EventRepository 注入时返 (0, nil) —— 兼容老路径。
+	SweepDisappeared(ctx context.Context, threshold time.Duration) (int, error)
+
+	// SweepCertsExpiring PR-S59 SPEC §2.7：对 not_after 落在 (now, now+window]
+	// 的证书派 cert_expiring_soon 事件。dedupeWindow 内同 fingerprint 不重复派。
+	// window / dedupeWindow ≤ 0 = no-op；无 events 注入时返 (0, nil)。
+	SweepCertsExpiring(ctx context.Context, window, dedupeWindow time.Duration) (int, error)
 }
 
 // ListRequest 列表入参。
@@ -262,6 +273,68 @@ func (s *service) GetAsset(ctx context.Context, id string) (*domain.Asset, error
 		return nil, errx.New(errx.ErrInvalidInput, "asset.id 不能为空")
 	}
 	return s.repo.GetByID(ctx, id)
+}
+
+// SweepDisappeared 实现 Service.SweepDisappeared。
+func (s *service) SweepDisappeared(ctx context.Context, threshold time.Duration) (int, error) {
+	if s == nil || s.events == nil {
+		return 0, nil // 无事件管道注入 = 兼容路径，不扫
+	}
+	if threshold <= 0 {
+		return 0, nil
+	}
+	cutoff := s.now().Add(-threshold)
+	gone, err := s.repo.MarkDisappeared(ctx, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	if len(gone) == 0 {
+		return 0, nil
+	}
+	events := make([]*domain.Event, 0, len(gone))
+	for _, a := range gone {
+		if a == nil {
+			continue
+		}
+		assetID := a.ID
+		events = append(events, &domain.Event{
+			TenantID:  a.TenantID,
+			ProjectID: a.ProjectID,
+			AssetID:   &assetID,
+			Kind:      domain.EventDisappeared,
+			Payload: map[string]any{
+				"asset_kind":  string(a.Kind),
+				"asset_value": a.Value,
+				"last_seen":   a.LastSeen.Format(time.RFC3339),
+			},
+		})
+	}
+	if err := s.events.InsertBulk(ctx, events); err != nil {
+		if s.logger != nil {
+			s.logger.LogError(ctx, "asset.SweepDisappeared: events insert failed", err,
+				"gone_count", len(events))
+		}
+		return 0, err
+	}
+	return len(events), nil
+}
+
+// SweepCertsExpiring 实现 Service.SweepCertsExpiring。
+func (s *service) SweepCertsExpiring(ctx context.Context, window, dedupeWindow time.Duration) (int, error) {
+	if s == nil || s.events == nil {
+		return 0, nil
+	}
+	if window <= 0 || dedupeWindow <= 0 {
+		return 0, nil
+	}
+	n, err := s.events.SweepCertsExpiring(ctx, window, dedupeWindow)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.LogError(ctx, "asset.SweepCertsExpiring failed", err)
+		}
+		return 0, err
+	}
+	return n, nil
 }
 
 func normalizePage(page, size int) (int, int) {

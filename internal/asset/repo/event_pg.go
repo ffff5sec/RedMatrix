@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -209,6 +211,64 @@ func (r *pgEventRepo) GetByID(ctx context.Context, id string) (*domain.Event, er
 		e.Payload = map[string]any{}
 	}
 	return e, nil
+}
+
+// SweepCertsExpiring PR-S59：见 EventRepository.SweepCertsExpiring 注释。
+//
+// 单条 SQL INSERT ... SELECT + NOT EXISTS 子查询：
+//  1. 选 scan_results 里 kind='tls_scan' 且 not_after 落在 (now, now+window] 的行
+//  2. 按 (tenant, project, sha256_fingerprint) 去重（DISTINCT ON 取最近一条）
+//  3. NOT EXISTS 排除 dedupeWindow 内已有 cert_expiring_soon 事件命中同 fingerprint
+//  4. payload 取 host / port / subject_cn / issuer_cn / not_after / fingerprint
+//
+// 写入失败任一行整体 rollback。返 affected rows 数。
+func (r *pgEventRepo) SweepCertsExpiring(ctx context.Context, window, dedupeWindow time.Duration) (int, error) {
+	if r == nil || r.pool == nil {
+		return 0, errx.New(errx.ErrInternal, "asset.event_repo: nil pool")
+	}
+	if window <= 0 || dedupeWindow <= 0 {
+		return 0, nil
+	}
+	q := `
+INSERT INTO asset_events (tenant_id, project_id, asset_id, event_kind, payload)
+SELECT DISTINCT ON (r.tenant_id, r.project_id, r.data->>'sha256_fingerprint')
+       r.tenant_id, r.project_id, NULL, 'cert_expiring_soon',
+       jsonb_build_object(
+         'host',        r.data->>'host',
+         'port',        r.data->>'port',
+         'subject_cn',  r.data->>'subject_cn',
+         'issuer_cn',   r.data->>'issuer_cn',
+         'not_after',   r.data->>'not_after',
+         'fingerprint', r.data->>'sha256_fingerprint'
+       )
+FROM scan_results r
+WHERE r.kind = 'tls_scan'
+  AND r.data ? 'not_after'
+  AND r.data ? 'sha256_fingerprint'
+  AND (r.data->>'not_after')::timestamptz > now()
+  AND (r.data->>'not_after')::timestamptz <= now() + $1::interval
+  AND NOT EXISTS (
+    SELECT 1 FROM asset_events e
+    WHERE e.event_kind = 'cert_expiring_soon'
+      AND e.payload->>'fingerprint' = r.data->>'sha256_fingerprint'
+      AND e.created_at > now() - $2::interval
+  )
+ORDER BY r.tenant_id, r.project_id, r.data->>'sha256_fingerprint', r.created_at DESC`
+	tag, err := r.pool.Exec(ctx, q, intervalArg(window), intervalArg(dedupeWindow))
+	if err != nil {
+		return 0, errx.Wrap(errx.ErrDatabase, err, "asset.event_repo: sweep certs expiring")
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+// intervalArg 把 Go Duration 转成 PG INTERVAL 可接受的字符串（秒数）。
+// 用 'N seconds' 字面量，PG 自动转 INTERVAL；规避 driver 的 Duration 编码歧义。
+func intervalArg(d time.Duration) string {
+	secs := int64(d / time.Second)
+	if secs < 1 {
+		secs = 1
+	}
+	return strconv.FormatInt(secs, 10) + " seconds"
 }
 
 // strconvI 局部 helper：int → "1" / "2" / ... (避免大量 strconv.Itoa 噪音)。

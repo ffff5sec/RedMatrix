@@ -28,7 +28,6 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/enroll"
 	"github.com/ffff5sec/RedMatrix/internal/agent/heartbeat"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
-	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nuclei"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/tlsx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/pluginpuller"
@@ -174,13 +173,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	registerPortScanPlugin(registry, logger)
 	registerSubdomainPlugin(registry, logger)
 	registerWebCrawlPlugin(registry, logger)
-	if fp, err := httpx.NewFingerprint(); err == nil {
-		registry.Register(fp)
-		logger.Info("plugin registered", "kind", "fingerprint", "impl", "httpx")
-	} else {
-		logger.Info("plugin not installed; falling back to mock",
-			"kind", "fingerprint", "tool", "httpx", "err", err.Error())
-	}
+	registerFingerprintPlugin(registry, logger)
 	if vp, err := nuclei.New(); err == nil {
 		registry.Register(vp)
 		logger.Info("plugin registered", "kind", "vuln_scan", "impl", "nuclei")

@@ -13,6 +13,7 @@ import (
 
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/amass"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/fingerprintx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/katana"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/ksubdomain"
@@ -92,6 +93,32 @@ func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
 	}
 	logger.Info("plugin not installed; falling back to mock",
 		"kind", "subdomain", "tool", "subfinder", "err", err.Error())
+}
+
+// registerFingerprintPlugin 按 FINGERPRINT_PLUGIN env 注册 fingerprint 真插件。
+// 支持值："httpx"（default，仅 HTTP/HTTPS）/ "fingerprintx"（30+ TCP/UDP 服务）。
+// 多 agent 部署时一组装 httpx 走 Web，一组装 fingerprintx 走非 Web 服务。
+func registerFingerprintPlugin(registry *plugin.Registry, logger *log.Logger) {
+	choice := envOrDefault("FINGERPRINT_PLUGIN", "httpx")
+	if choice == "fingerprintx" {
+		p, err := fingerprintx.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "fingerprint", "impl", "fingerprintx")
+			return
+		}
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "fingerprint", "tool", "fingerprintx", "err", err.Error())
+		return
+	}
+	p, err := httpx.NewFingerprint()
+	if err == nil {
+		registry.Register(p)
+		logger.Info("plugin registered", "kind", "fingerprint", "impl", "httpx")
+		return
+	}
+	logger.Info("plugin not installed; falling back to mock",
+		"kind", "fingerprint", "tool", "httpx", "err", err.Error())
 }
 
 // registerWebCrawlPlugin 按 WEB_CRAWL_PLUGIN env 注册 web_crawl 真插件。

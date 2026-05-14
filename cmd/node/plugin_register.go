@@ -13,6 +13,7 @@ import (
 
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/amass"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/crtsh"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/fingerprintx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/gospider"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
@@ -62,7 +63,11 @@ func registerPortScanPlugin(registry *plugin.Registry, logger *log.Logger) {
 }
 
 // registerSubdomainPlugin 按 SUBDOMAIN_PLUGIN env 注册 subdomain 真插件。
-// 支持值："subfinder"（default）/ "amass" / "ksubdomain"。
+// 支持值：
+//   - "subfinder"（default，L2 被动情报源聚合）
+//   - "amass"（L2 被动 + 主动 DNS 推导）
+//   - "ksubdomain"（L2 字典爆破）
+//   - "crtsh"（L1 适配器，CT 日志 API）
 func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
 	choice := envOrDefault("SUBDOMAIN_PLUGIN", "subfinder")
 	switch choice {
@@ -85,6 +90,17 @@ func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
 		}
 		logger.Info("plugin not installed; falling back to mock",
 			"kind", "subdomain", "tool", "ksubdomain", "err", err.Error())
+		return
+	case "crtsh":
+		// L1 适配器：HTTP API，无 binary 依赖，几乎不会 fail
+		p, err := crtsh.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "subdomain", "impl", "crtsh", "layer", "L1")
+			return
+		}
+		logger.Info("L1 adapter init failed; falling back to mock",
+			"kind", "subdomain", "tool", "crtsh", "err", err.Error())
 		return
 	}
 	p, err := subfinder.New()

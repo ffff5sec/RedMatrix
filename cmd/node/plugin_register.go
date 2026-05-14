@@ -15,6 +15,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/amass"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/httpx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/katana"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/ksubdomain"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nmap"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/rustscan"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/subfinder"
@@ -58,10 +59,11 @@ func registerPortScanPlugin(registry *plugin.Registry, logger *log.Logger) {
 }
 
 // registerSubdomainPlugin 按 SUBDOMAIN_PLUGIN env 注册 subdomain 真插件。
-// 支持值："subfinder"（default）/ "amass"。
+// 支持值："subfinder"（default）/ "amass" / "ksubdomain"。
 func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
 	choice := envOrDefault("SUBDOMAIN_PLUGIN", "subfinder")
-	if choice == "amass" {
+	switch choice {
+	case "amass":
 		p, err := amass.New()
 		if err == nil {
 			registry.Register(p)
@@ -70,6 +72,16 @@ func registerSubdomainPlugin(registry *plugin.Registry, logger *log.Logger) {
 		}
 		logger.Info("plugin not installed; falling back to mock",
 			"kind", "subdomain", "tool", "amass", "err", err.Error())
+		return
+	case "ksubdomain":
+		p, err := ksubdomain.New()
+		if err == nil {
+			registry.Register(p)
+			logger.Info("plugin registered", "kind", "subdomain", "impl", "ksubdomain")
+			return
+		}
+		logger.Info("plugin not installed; falling back to mock",
+			"kind", "subdomain", "tool", "ksubdomain", "err", err.Error())
 		return
 	}
 	p, err := subfinder.New()

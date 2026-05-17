@@ -2,6 +2,7 @@ package export
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -228,13 +229,16 @@ func (h *Handler) buildScope(ctx context.Context, p *auth.UserPrincipal, q map[s
 func writeErr(w http.ResponseWriter, status int, code, msg string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_, _ = w.Write([]byte(`{"error":"` + code + `","message":` + jsonString(msg) + `}`))
-}
-
-// jsonString minimal escape 用于 error 消息（避免引入完整 json marshal）。
-func jsonString(s string) string {
-	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`, "\r", `\r`, "\t", `\t`)
-	return `"` + r.Replace(s) + `"`
+	// 用 json.Marshal 而非手拼字符串，避开 gosec G705 + 自动转义
+	body, err := json.Marshal(struct {
+		Error   string `json:"error"`
+		Message string `json:"message,omitempty"`
+	}{Error: code, Message: msg})
+	if err != nil {
+		// 极少触发；回退到固定文本
+		body = []byte(`{"error":"INTERNAL"}`)
+	}
+	_, _ = w.Write(body)
 }
 
 func errFields(err error) (code, msg string) {

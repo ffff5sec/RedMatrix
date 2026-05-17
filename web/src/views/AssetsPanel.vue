@@ -6,6 +6,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 import { assetClient, tenancyClient } from '@/api/transport';
+import { downloadExport, type ExportFormat } from '@/api/export';
 import { useToast } from '@/composables/useToast';
 import { errorMessage } from '@/util/error';
 import { formatRelativeTime, formatAbsoluteTime } from '@/util/relativeTime';
@@ -26,6 +27,7 @@ const filterKind = ref<'' | 'host' | 'subdomain' | 'url'>('');
 const filterProjectId = ref('');
 const keyword = ref('');
 const minAgeDays = ref(0); // 0 = 不过滤；7/30/90 等
+const exporting = ref(false);
 
 const projects = ref<Project[]>([]);
 const nowTick = ref(Date.now());
@@ -89,6 +91,25 @@ function applyFilters() {
 function pickKind(k: '' | 'host' | 'subdomain' | 'url') {
   filterKind.value = k;
   applyFilters();
+}
+
+// PR-S65：按当前 filter 触发下载。后端 /api/v1/export/assets 接同名 query。
+async function exportAs(format: ExportFormat) {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    await downloadExport('assets', format, {
+      kind: filterKind.value || undefined,
+      project_id: filterProjectId.value || undefined,
+      keyword: keyword.value || undefined,
+      min_age_days: minAgeDays.value > 0 ? String(minAgeDays.value) : undefined,
+    });
+    toast.success(`已导出 ${format.toUpperCase()}`);
+  } catch (e) {
+    toast.error(`导出失败：${errorMessage(e)}`);
+  } finally {
+    exporting.value = false;
+  }
 }
 
 function kindLabel(k: string) {
@@ -162,6 +183,11 @@ function staleLevel(lastSeen?: { seconds: bigint } | null): '' | 'stale' | 'very
           <option :value="90">≥ 90 天未扫</option>
         </select>
         <button :disabled="loading" @click="applyFilters">查询</button>
+        <span class="export-sep" aria-hidden="true">|</span>
+        <span class="muted" style="align-self: center">导出</span>
+        <button :disabled="loading || exporting" @click="exportAs('csv')">CSV</button>
+        <button :disabled="loading || exporting" @click="exportAs('json')">JSON</button>
+        <button :disabled="loading || exporting" @click="exportAs('xlsx')">Excel</button>
       </div>
     </div>
 
@@ -274,4 +300,5 @@ tr.very-stale { background: rgba(239, 68, 68, 0.08); }
 }
 .stale-badge.stale { background: rgba(245, 158, 11, 0.18); color: #92400e; }
 .stale-badge.very-stale { background: rgba(239, 68, 68, 0.18); color: #991b1b; }
+.export-sep { color: var(--border, #e2e8f0); align-self: center; padding: 0 4px; }
 </style>

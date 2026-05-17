@@ -26,6 +26,11 @@ export default defineConfig({
         target: apiTarget,
         changeOrigin: true,
       },
+      // PR-S65：非-RPC HTTP 端点（webhook + export）走 /api/v1。
+      '/api/v1': {
+        target: apiTarget,
+        changeOrigin: true,
+      },
       // tenancy 的 RPC（含 Node）都在 TenancyService 下，proxy 已覆盖
       // 后续 service 在此追加
     },

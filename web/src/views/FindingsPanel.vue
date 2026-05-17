@@ -8,6 +8,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { findingClient, tenancyClient } from '@/api/transport';
+import { downloadExport, type ExportFormat } from '@/api/export';
 import { useToast } from '@/composables/useToast';
 import { errorMessage } from '@/util/error';
 import { formatRelativeTime, formatAbsoluteTime } from '@/util/relativeTime';
@@ -40,6 +41,7 @@ const filterStatus = ref('');
 const filterSeverity = ref('');
 const filterMinSeverity = ref('');
 const filterKeyword = ref('');
+const exporting = ref(false);
 
 async function loadProjects() {
   try {
@@ -120,6 +122,26 @@ function statusLabel(s: string) {
 function open(f: Finding) {
   router.push({ name: 'finding-detail', params: { id: f.id } });
 }
+
+// PR-S65：按当前 filter 触发下载。
+async function exportAs(format: ExportFormat) {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    await downloadExport('findings', format, {
+      project_id: filterProjectId.value || undefined,
+      status: filterStatus.value || undefined,
+      severity: filterSeverity.value || undefined,
+      min_severity: filterMinSeverity.value || undefined,
+      keyword: filterKeyword.value || undefined,
+    });
+    toast.success(`已导出 ${format.toUpperCase()}`);
+  } catch (e) {
+    toast.error(`导出失败：${errorMessage(e)}`);
+  } finally {
+    exporting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -153,6 +175,11 @@ function open(f: Finding) {
         </select>
         <input v-model="filterKeyword" placeholder="title / host 模糊" :disabled="loading" style="width: 200px" />
         <button :disabled="loading" @click="refresh()">查询</button>
+        <span class="export-sep" aria-hidden="true">|</span>
+        <span class="muted" style="align-self: center">导出</span>
+        <button :disabled="loading || exporting" @click="exportAs('csv')">CSV</button>
+        <button :disabled="loading || exporting" @click="exportAs('json')">JSON</button>
+        <button :disabled="loading || exporting" @click="exportAs('xlsx')">Excel</button>
         <span class="muted" style="margin-left: auto">{{ total }} 条</span>
       </div>
     </div>
@@ -291,4 +318,5 @@ function open(f: Finding) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.export-sep { color: var(--border, #e2e8f0); align-self: center; padding: 0 4px; }
 </style>

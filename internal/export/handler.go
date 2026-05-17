@@ -110,8 +110,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		format = CSVFormat{}
 	case "json":
 		format = &JSONFormat{}
+	case "xlsx":
+		format = &XLSXFormat{}
 	default:
-		writeErr(w, http.StatusBadRequest, "INVALID_FORMAT", "format 必须是 csv 或 json")
+		writeErr(w, http.StatusBadRequest, "INVALID_FORMAT", "format 必须是 csv / json / xlsx")
 		return
 	}
 

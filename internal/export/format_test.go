@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xuri/excelize/v2"
 )
 
 // TestCSVFormat_WritesBOMAndHeader_RowsEscapeQuotes：CSV 写 BOM、header、行；
@@ -61,4 +62,25 @@ func TestJSONFormat_EmptyArrayWhenNoRows(t *testing.T) {
 	var parsed []map[string]string
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &parsed))
 	assert.Empty(t, parsed)
+}
+
+// TestXLSXFormat_ProducesValidWorkbook：用 excelize 反向解析校验列 / 行。
+func TestXLSXFormat_ProducesValidWorkbook(t *testing.T) {
+	var buf bytes.Buffer
+	f := &XLSXFormat{}
+	cols := []string{"id", "name"}
+	require.NoError(t, f.WriteHeader(&buf, cols))
+	require.NoError(t, f.WriteRow(&buf, cols, Row{"1", "alpha"}))
+	require.NoError(t, f.WriteRow(&buf, cols, Row{"2", "beta"}))
+	require.NoError(t, f.Close(&buf))
+
+	xf, err := excelize.OpenReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+	defer xf.Close()
+	rows, err := xf.GetRows("Sheet1")
+	require.NoError(t, err)
+	require.Len(t, rows, 3, "header + 2 data rows")
+	assert.Equal(t, []string{"id", "name"}, rows[0])
+	assert.Equal(t, []string{"1", "alpha"}, rows[1])
+	assert.Equal(t, []string{"2", "beta"}, rows[2])
 }

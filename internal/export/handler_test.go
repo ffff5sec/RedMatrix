@@ -1,6 +1,7 @@
 package export
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xuri/excelize/v2"
 
 	"github.com/ffff5sec/RedMatrix/internal/errx"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
@@ -126,9 +128,29 @@ func TestHandler_FormatJSON(t *testing.T) {
 func TestHandler_InvalidFormat_400(t *testing.T) {
 	res := &stubResource{name: "items", cols: []string{"id"}}
 	h, _ := newHandlerWithSA(t, res)
-	rec := mustGET(t, h, "/api/v1/export/items?format=xlsx")
+	rec := mustGET(t, h, "/api/v1/export/items?format=parquet")
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Contains(t, rec.Body.String(), "INVALID_FORMAT")
+}
+
+// TestHandler_FormatXLSX 端到端：响应是有效 .xlsx，包含 header + 数据行。
+func TestHandler_FormatXLSX(t *testing.T) {
+	res := &stubResource{name: "items", cols: []string{"id", "name"}, rows: []Row{{"1", "alpha"}, {"2", "beta"}}}
+	h, _ := newHandlerWithSA(t, res)
+	rec := mustGET(t, h, "/api/v1/export/items?format=xlsx")
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Header().Get("Content-Type"), "spreadsheetml.sheet")
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), ".xlsx")
+
+	xf, err := excelize.OpenReader(bytes.NewReader(rec.Body.Bytes()))
+	require.NoError(t, err)
+	defer xf.Close()
+	rows, err := xf.GetRows("Sheet1")
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	assert.Equal(t, []string{"id", "name"}, rows[0])
+	assert.Equal(t, []string{"1", "alpha"}, rows[1])
 }
 
 // === Auth ===

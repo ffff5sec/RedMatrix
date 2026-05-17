@@ -99,10 +99,16 @@ const form = ref({
 });
 const submitting = ref(false);
 
+// PR-S62：与后端 notify/domain.EventKind 字面量同步；asset 一期 5 事件接到 UI。
 const ALL_EVENT_KINDS = [
-  { value: 'task_completed', label: 'task_completed（任务完成）' },
-  { value: 'task_failed', label: 'task_failed（任务失败 / 取消）' },
-  { value: 'finding_high', label: 'finding_high（高危漏洞）' },
+  { value: 'task_completed', label: '扫描：任务完成' },
+  { value: 'task_failed', label: '扫描：任务失败 / 取消' },
+  { value: 'finding_high', label: '扫描：高危漏洞' },
+  { value: 'asset_new_subdomain', label: '资产：新增子域' },
+  { value: 'asset_new_port', label: '资产：新增端口' },
+  { value: 'asset_new_service', label: '资产：新增 Web 服务' },
+  { value: 'asset_disappeared', label: '资产：消失（>14d 未扫到）' },
+  { value: 'cert_expiring_soon', label: '证书：即将到期（30d 内）' },
 ];
 
 function openCreate() {

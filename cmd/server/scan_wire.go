@@ -9,6 +9,7 @@ import (
 
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/scan/v1/scanv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/fingerprint"
 	"github.com/ffff5sec/RedMatrix/internal/identity/auth"
 	"github.com/ffff5sec/RedMatrix/internal/platform/audithook"
 	"github.com/ffff5sec/RedMatrix/internal/platform/eventbus"
@@ -123,9 +124,10 @@ func buildScanMount(
 		Artifacts:      artifactStore,
 		Metrics:        scanMetrics,
 		Logger:         logger,
-		Notifier:       notifier,    // PR-S25
-		SuiteScheduler: suiteSched,  // PR-S30
-		AssetReader:    assetReader, // PR-S34
+		Notifier:       notifier,              // PR-S25
+		SuiteScheduler: suiteSched,            // PR-S30
+		AssetReader:    assetReader,           // PR-S34
+		FingerprintLib: fingerprint.Default(), // PR-S68 内置指纹库
 	})
 	if err != nil {
 		return nil, nil, nil, nil, err

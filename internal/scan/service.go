@@ -309,10 +309,17 @@ type service struct {
 	artifacts      ArtifactStore // 可空
 	metrics        *metricsscan.Collectors
 	logger         *log.Logger
-	notifier       TaskNotifier // PR-S25：task terminal / high-severity finding 钩子；可空
-	suiteScheduler Scheduler    // PR-S30：suite cron；可空（无 cron 时不注册）
-	assetReader    AssetReader  // PR-S34：增量套件 cron 拉 stale assets；可空
+	notifier       TaskNotifier       // PR-S25：task terminal / high-severity finding 钩子；可空
+	suiteScheduler Scheduler          // PR-S30：suite cron；可空（无 cron 时不注册）
+	assetReader    AssetReader        // PR-S34：增量套件 cron 拉 stale assets；可空
+	fingerprintLib FingerprintMatcher // PR-S68：内置指纹库；可空 = 不做二次识别
 	now            func() time.Time
+}
+
+// FingerprintMatcher 内置指纹库匹配器（PR-S68 SPEC §2.5）。
+// internal/fingerprint.Library 实现此接口；service 仅用 Match 不依赖具体类型。
+type FingerprintMatcher interface {
+	Match(data map[string]any) []string
 }
 
 // TaskNotifier 通知系统钩子（PR-S25），由 cmd/server 装配时注入。
@@ -354,6 +361,8 @@ type Deps struct {
 	SuiteScheduler Scheduler
 	// AssetReader（PR-S34）可空：nil → 增量套件 cron 跳过本轮。
 	AssetReader AssetReader
+	// FingerprintLib（PR-S68）可空：nil → 不跑内置指纹二次识别（仅用 httpx 自带 tech）。
+	FingerprintLib FingerprintMatcher
 }
 
 // NewService 构造 scan Service（PR-S18-A：options pattern）。
@@ -376,6 +385,7 @@ func NewService(d Deps) (Service, error) {
 		logger:  d.Logger, notifier: d.Notifier,
 		suiteScheduler: d.SuiteScheduler,
 		assetReader:    d.AssetReader,
+		fingerprintLib: d.FingerprintLib,
 		now:            time.Now,
 	}, nil
 }
@@ -908,6 +918,12 @@ func (s *service) ReportResults(
 		})
 	}
 
+	// PR-S68 SPEC §2.5：fingerprint kind 走内置指纹库二次识别，把命中合并进
+	// data.tech；与 httpx 内置 detection 互补，去重保留两边。
+	if s.fingerprintLib != nil && string(t.Kind) == "fingerprint" {
+		enrichFingerprintTech(rows, s.fingerprintLib)
+	}
+
 	// PR-S17-OUTB：开 tx → InsertBulkTx + PublishTx（outbox event）→ commit。
 	// PG 提交即"事件已落"承诺；relay 异步消费 → indexer.Index 投 ES。
 	// pool=nil（测试 / scaffold）退化到老 InsertBulk 非-TX 路径 + 同步 ES。
@@ -1250,4 +1266,51 @@ func isHighSeverityFinding(r *domain.ScanResult) bool {
 		return true
 	}
 	return false
+}
+
+// enrichFingerprintTech PR-S68：对每条 fingerprint result 跑内置指纹库匹配，
+// 把命中合并进 r.Data["tech"]（与 httpx 自带 tech 互补 + 去重保留顺序）。
+// data 缺 / 库 nil / 无命中均 no-op。
+func enrichFingerprintTech(rows []*domain.ScanResult, lib FingerprintMatcher) {
+	if lib == nil {
+		return
+	}
+	for _, r := range rows {
+		if r == nil || r.Data == nil {
+			continue
+		}
+		hits := lib.Match(r.Data)
+		if len(hits) == 0 {
+			continue
+		}
+		// 合并到 data.tech（既有 + 新 hits，按出现顺序去重）
+		existing := []string{}
+		switch t := r.Data["tech"].(type) {
+		case []string:
+			existing = t
+		case []any:
+			for _, v := range t {
+				if s, ok := v.(string); ok {
+					existing = append(existing, s)
+				}
+			}
+		}
+		seen := make(map[string]struct{}, len(existing)+len(hits))
+		merged := make([]string, 0, len(existing)+len(hits))
+		for _, s := range existing {
+			if _, ok := seen[s]; ok {
+				continue
+			}
+			seen[s] = struct{}{}
+			merged = append(merged, s)
+		}
+		for _, s := range hits {
+			if _, ok := seen[s]; ok {
+				continue
+			}
+			seen[s] = struct{}{}
+			merged = append(merged, s)
+		}
+		r.Data["tech"] = merged
+	}
 }

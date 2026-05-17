@@ -1407,3 +1407,65 @@ func TestChain_CurrentStepRunning_NoAdvance(t *testing.T) {
 		assert.False(t, l.Finished, "still running 不应 finish")
 	}
 }
+
+// === PR-S68 enrichFingerprintTech ===
+
+type stubFPMatcher struct {
+	hits []string
+}
+
+func (s *stubFPMatcher) Match(_ map[string]any) []string { return s.hits }
+
+func TestEnrichFingerprintTech_MergesWithExistingStringSlice(t *testing.T) {
+	rows := []*domain.ScanResult{
+		{Data: map[string]any{
+			"tech": []string{"nginx", "WordPress"},
+		}},
+	}
+	enrichFingerprintTech(rows, &stubFPMatcher{hits: []string{"宝塔面板", "nginx"}})
+	got, _ := rows[0].Data["tech"].([]string)
+	require.Equal(t, []string{"nginx", "WordPress", "宝塔面板"}, got, "去重 + 保序")
+}
+
+func TestEnrichFingerprintTech_MergesWithExistingAnySlice(t *testing.T) {
+	rows := []*domain.ScanResult{
+		{Data: map[string]any{
+			"tech": []any{"nginx"},
+		}},
+	}
+	enrichFingerprintTech(rows, &stubFPMatcher{hits: []string{"用友NC"}})
+	got, _ := rows[0].Data["tech"].([]string)
+	require.Equal(t, []string{"nginx", "用友NC"}, got)
+}
+
+func TestEnrichFingerprintTech_AddsWhenNoExisting(t *testing.T) {
+	rows := []*domain.ScanResult{
+		{Data: map[string]any{"title": "test"}},
+	}
+	enrichFingerprintTech(rows, &stubFPMatcher{hits: []string{"WordPress"}})
+	got, _ := rows[0].Data["tech"].([]string)
+	require.Equal(t, []string{"WordPress"}, got)
+}
+
+func TestEnrichFingerprintTech_NoHits_NoChange(t *testing.T) {
+	rows := []*domain.ScanResult{
+		{Data: map[string]any{"tech": []string{"nginx"}}},
+	}
+	enrichFingerprintTech(rows, &stubFPMatcher{hits: nil})
+	got, _ := rows[0].Data["tech"].([]string)
+	assert.Equal(t, []string{"nginx"}, got, "无命中应保留原值不变")
+}
+
+func TestEnrichFingerprintTech_NilLib_NoOp(t *testing.T) {
+	rows := []*domain.ScanResult{{Data: map[string]any{"tech": []string{"x"}}}}
+	enrichFingerprintTech(rows, nil)
+	got, _ := rows[0].Data["tech"].([]string)
+	assert.Equal(t, []string{"x"}, got)
+}
+
+func TestEnrichFingerprintTech_NilDataSkipped(t *testing.T) {
+	rows := []*domain.ScanResult{{Data: nil}}
+	require.NotPanics(t, func() {
+		enrichFingerprintTech(rows, &stubFPMatcher{hits: []string{"x"}})
+	})
+}

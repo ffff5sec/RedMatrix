@@ -1,0 +1,251 @@
+# RedMatrix 内置指纹规则集（PR-S68）。
+#
+# 字段约定：
+#   name           命中后写入 asset / scan_result 的 tech 标签
+#   fields         限制查的字段；空 = 全 string 字段（含 []string）
+#                  常见可选字段：title / body / webserver / favicon_hash / tech
+#   keyword        子串匹配（默认大小写不敏感）
+#   case_sensitive false 默认；true 时区分大小写
+#
+# 设计：
+#   - 默认规则覆盖国内常见 stack + 通用 Web 服务器 / 中间件
+#   - 不与 httpx 内置 wappalyzer-style detection 重复（不写 nginx / WordPress
+#     这类 httpx 已识别；只补 httpx 不覆盖的）—— 实际上 httpx 不一定都识别准，
+#     这里仍保留少量通用规则做强化
+#   - 字段优先级：webserver / title 比 body 准；body 易误判
+
+rules:
+  # === 通用 Web 服务器（补强 httpx）===
+  - name: nginx
+    fields: [webserver, body, title]
+    keyword: nginx
+  - name: Apache
+    fields: [webserver]
+    keyword: Apache
+  - name: IIS
+    fields: [webserver]
+    keyword: Microsoft-IIS
+  - name: Tengine
+    fields: [webserver]
+    keyword: Tengine
+  - name: LiteSpeed
+    fields: [webserver]
+    keyword: LiteSpeed
+  - name: Caddy
+    fields: [webserver]
+    keyword: Caddy
+  - name: Cloudflare
+    fields: [webserver]
+    keyword: cloudflare
+  - name: AWS-ELB
+    fields: [webserver]
+    keyword: awselb
+
+  # === Java 中间件 ===
+  - name: Tomcat
+    fields: [webserver, title]
+    keyword: Tomcat
+  - name: Jetty
+    fields: [webserver]
+    keyword: Jetty
+  - name: WebLogic
+    fields: [title, body]
+    keyword: WebLogic
+  - name: JBoss
+    fields: [webserver, title]
+    keyword: JBoss
+  - name: WildFly
+    fields: [webserver]
+    keyword: WildFly
+
+  # === DevOps / 管理 ===
+  - name: Jenkins
+    fields: [title, body]
+    keyword: Jenkins
+  - name: GitLab
+    fields: [title, body]
+    keyword: GitLab
+  - name: Gitea
+    fields: [title]
+    keyword: Gitea
+  - name: Gogs
+    fields: [title]
+    keyword: Gogs
+  - name: Nexus
+    fields: [title]
+    keyword: Sonatype Nexus
+  - name: Harbor
+    fields: [title]
+    keyword: Harbor
+  - name: Rancher
+    fields: [title]
+    keyword: Rancher
+  - name: Portainer
+    fields: [title]
+    keyword: Portainer
+  - name: Grafana
+    fields: [title]
+    keyword: Grafana
+  - name: Kibana
+    fields: [title]
+    keyword: Kibana
+  - name: Prometheus
+    fields: [title]
+    keyword: Prometheus
+  - name: Zabbix
+    fields: [title, body]
+    keyword: Zabbix
+
+  # === CMS / 博客 / 论坛 ===
+  - name: WordPress
+    fields: [body, title]
+    keyword: wp-content
+  - name: Drupal
+    fields: [body]
+    keyword: drupal
+  - name: Joomla
+    fields: [body]
+    keyword: joomla
+  - name: Discuz
+    fields: [body, title]
+    keyword: Discuz
+  - name: phpBB
+    fields: [body]
+    keyword: phpBB
+  - name: Ghost
+    fields: [body]
+    keyword: ghost-blog
+
+  # === 国内 OA / ERP ===
+  - name: 致远OA
+    fields: [body, title]
+    keyword: /seeyon/
+  - name: 用友NC
+    fields: [body, title]
+    keyword: /nccloud/
+  - name: 用友U8
+    fields: [body, title]
+    keyword: /u8api/
+  - name: 泛微OA
+    fields: [body, title]
+    keyword: /weaver/
+  - name: 蓝凌OA
+    fields: [body, title]
+    keyword: landray
+  - name: 帆软报表
+    fields: [body, title]
+    keyword: FineReport
+  - name: 帆软BI
+    fields: [body, title]
+    keyword: FineBI
+  - name: 金蝶EAS
+    fields: [body, title]
+    keyword: kingdee
+  - name: 通达OA
+    fields: [body, title]
+    keyword: TongDa
+  - name: 华天动力OA
+    fields: [body, title]
+    keyword: htoa
+
+  # === 管理面板 ===
+  - name: phpMyAdmin
+    fields: [title, body]
+    keyword: phpMyAdmin
+  - name: Adminer
+    fields: [title]
+    keyword: Adminer
+  - name: 宝塔面板
+    fields: [title, body]
+    keyword: 宝塔Linux面板
+  - name: cPanel
+    fields: [title, body]
+    keyword: cPanel
+  - name: Plesk
+    fields: [title]
+    keyword: Plesk
+
+  # === PHP / Python / Ruby / Go 框架 ===
+  - name: ThinkPHP
+    fields: [body, webserver]
+    keyword: ThinkPHP
+  - name: Laravel
+    fields: [body]
+    keyword: laravel_session
+  - name: CodeIgniter
+    fields: [body]
+    keyword: ci_session
+  - name: Django
+    fields: [body]
+    keyword: csrfmiddlewaretoken
+  - name: Flask
+    fields: [webserver]
+    keyword: Werkzeug
+  - name: Ruby-on-Rails
+    fields: [body]
+    keyword: _rails_session
+  - name: Spring-Boot
+    fields: [body, title]
+    keyword: Whitelabel Error Page
+  - name: Gin
+    fields: [webserver]
+    keyword: Gin
+
+  # === 数据库 / 中间件 ===
+  - name: Elasticsearch
+    fields: [body]
+    keyword: '"cluster_name":'
+  - name: Solr
+    fields: [title]
+    keyword: Solr Admin
+  - name: Redis-Commander
+    fields: [title]
+    keyword: Redis Commander
+  - name: RabbitMQ
+    fields: [title]
+    keyword: RabbitMQ Management
+
+  # === 安全 / WAF ===
+  - name: ModSecurity
+    fields: [body]
+    keyword: Mod_Security
+  - name: SafeDog-WAF
+    fields: [body]
+    keyword: safedog
+  - name: 长亭雷池WAF
+    fields: [body]
+    keyword: SafeLine
+  - name: Cloudflare-WAF
+    fields: [body]
+    keyword: '"Attention Required! | Cloudflare"'
+
+  # === 路由器 / IoT / 厂商默认页 ===
+  - name: TP-Link-Router
+    fields: [title]
+    keyword: TP-LINK
+  - name: H3C-Device
+    fields: [title]
+    keyword: H3C
+  - name: Huawei-Device
+    fields: [title]
+    keyword: Huawei
+  - name: 海康威视
+    fields: [title, body]
+    keyword: hikvision
+  - name: 大华
+    fields: [title, body]
+    keyword: dahua
+
+  # === 默认页 / 错误页 ===
+  - name: Nginx-Default-Page
+    fields: [title]
+    keyword: Welcome to nginx
+  - name: Apache-Default-Page
+    fields: [title]
+    keyword: Apache2 Ubuntu Default Page
+  - name: IIS-Default-Page
+    fields: [title]
+    keyword: IIS Windows
+  - name: Tomcat-Default-Page
+    fields: [title]
+    keyword: Apache Tomcat

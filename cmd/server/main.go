@@ -36,8 +36,10 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // database/sql 驱动注册（goose 用）
 
 	"github.com/ffff5sec/RedMatrix/internal/asset"
+	"github.com/ffff5sec/RedMatrix/internal/audit/domain"
 	"github.com/ffff5sec/RedMatrix/internal/config"
 	"github.com/ffff5sec/RedMatrix/internal/errx"
+	"github.com/ffff5sec/RedMatrix/internal/export"
 	"github.com/ffff5sec/RedMatrix/internal/notify"
 	"github.com/ffff5sec/RedMatrix/internal/platform/bootstrapcheck"
 	"github.com/ffff5sec/RedMatrix/internal/platform/eventbus"
@@ -432,6 +434,16 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			return failExitCode(err)
 		}
 		mux.Handle(findingMnt.path, findingMnt.handler)
+
+		// === 8a₃-export. ExportHandler（PR-S63 资产 / 漏洞下载）===
+		exportH := export.New(authSvc, tenancyrepo.NewProjectMemberPG(pool.App), logger).
+			Register(&export.AssetsResource{Svc: asMount.svc}, string(domain.ActionAssetsExported)).
+			Register(&export.FindingsResource{Svc: findingSvc}, string(domain.ActionFindingsExported))
+		if auditHook != nil {
+			exportH.WithAudit(auditHook)
+		}
+		mux.Handle(export.Path(), exportH)
+		logger.Info("export endpoint mounted", "path", export.Path())
 
 		// === 8a₃-pre3. PluginPackageService（PR-S28 插件包分发）===
 		pluginMnt, pluginPkgSvc, err := buildPluginPkgMount(ctx, pool, mio, authSvc, logger, auditHook)

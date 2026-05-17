@@ -60,6 +60,10 @@ const (
 	ActionNotifySubUpdated ActionKind = "notify_sub_updated" // PR-S41
 	ActionNotifySubDeleted ActionKind = "notify_sub_deleted" // PR-S41
 	ActionNotifySubTested  ActionKind = "notify_sub_tested"  // PR-S41
+
+	// PR-S63 export
+	ActionAssetsExported   ActionKind = "assets_exported"
+	ActionFindingsExported ActionKind = "findings_exported"
 )
 
 // Valid 判定 action 合法。
@@ -74,7 +78,8 @@ func (a ActionKind) Valid() bool {
 		ActionProjectCreated, ActionProjectArchived, ActionProjectUnarchived,
 		ActionProjectDeleted, ActionProjectMemberAdded, ActionProjectMemberRemoved,
 		ActionPluginUploaded, ActionNotifySubCreated,
-		ActionNotifySubUpdated, ActionNotifySubDeleted, ActionNotifySubTested:
+		ActionNotifySubUpdated, ActionNotifySubDeleted, ActionNotifySubTested,
+		ActionAssetsExported, ActionFindingsExported:
 		return true
 	}
 	return false

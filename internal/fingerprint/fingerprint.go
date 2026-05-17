@@ -142,7 +142,7 @@ func (r *Rule) hitText(text, needle string) bool {
 
 // extractTextFields 从 data 抽全部 string / []string / []any[string] 值。
 func extractTextFields(data map[string]any) []string {
-	out := []string{}
+	out := make([]string, 0, len(data))
 	for _, v := range data {
 		out = append(out, valueToText(v)...)
 	}

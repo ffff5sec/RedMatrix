@@ -6,6 +6,9 @@ import { fileURLToPath, URL } from 'node:url';
 // 后端按 LLD 默认监听 :8080；如改了端口设 RM_API_TARGET。
 const apiTarget = process.env.RM_API_TARGET ?? 'http://localhost:8080';
 
+// 用前缀通配：所有 /redmatrix.* 走后端 + /api/v1 走后端（webhook + export）
+const proxyEntry = { target: apiTarget, changeOrigin: true };
+
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -14,25 +17,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/redmatrix.identity.v1.IdentityService': {
-        target: apiTarget,
-        changeOrigin: true,
-      },
-      '/redmatrix.tenancy.v1.TenancyService': {
-        target: apiTarget,
-        changeOrigin: true,
-      },
-      '/redmatrix.scan.v1.ScanService': {
-        target: apiTarget,
-        changeOrigin: true,
-      },
-      // PR-S65：非-RPC HTTP 端点（webhook + export）走 /api/v1。
-      '/api/v1': {
-        target: apiTarget,
-        changeOrigin: true,
-      },
-      // tenancy 的 RPC（含 Node）都在 TenancyService 下，proxy 已覆盖
-      // 后续 service 在此追加
+      // ConnectRPC：覆盖全部已注册 service（identity/tenancy/scan/asset/
+      // audit/finding/notify/pluginpkg/export 等）。新 service 不需再加。
+      '^/redmatrix\\..+': proxyEntry,
+      // 非-RPC HTTP 端点（webhook + export 等）
+      '/api/v1': proxyEntry,
     },
   },
 });

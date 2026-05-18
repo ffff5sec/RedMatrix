@@ -8,6 +8,7 @@ import { NotifyService } from '@/gen/proto/redmatrix/notify/v1/notify_connect';
 import { FindingService } from '@/gen/proto/redmatrix/finding/v1/finding_connect';
 import { PluginPackageService } from '@/gen/proto/redmatrix/pluginpkg/v1/pluginpkg_connect';
 import { AuditService } from '@/gen/proto/redmatrix/audit/v1/audit_connect';
+import { FingerprintService } from '@/gen/proto/redmatrix/fingerprint/v1/fingerprint_connect';
 import { authStore } from '@/store/auth';
 
 // 自动附 Authorization: Bearer <jwt>。
@@ -52,3 +53,4 @@ export const notifyClient = createPromiseClient(NotifyService, transport);
 export const findingClient = createPromiseClient(FindingService, transport);
 export const pluginPackageClient = createPromiseClient(PluginPackageService, transport);
 export const auditClient = createPromiseClient(AuditService, transport);
+export const fingerprintClient = createPromiseClient(FingerprintService, transport);

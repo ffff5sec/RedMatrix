@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+// FingerprintService —— 指纹规则库管理（PR-S74，SPEC §2.5）。
+//
+// 包含 RedMatrix 内嵌规则（read-only）+ 租户自定义规则（CRUD）。
+// 内嵌规则 ID 为空，自定义规则 ID 为 UUID。
+package redmatrix.fingerprint.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service FingerprintService {
+  // ListBuiltinRules 列内嵌规则（read-only，全租户共享）。
+  // SA / Auditor 可读；PA 也可读（仅展示，不暴露 tenant 数据）。
+  rpc ListBuiltinRules(ListBuiltinRulesRequest) returns (ListBuiltinRulesResponse);
+
+  // ListCustomRules 列本租户自定义规则（含 disabled）。
+  // SA + TA + PA：本租户；PlatformAuditor：跨租户全量。
+  rpc ListCustomRules(ListCustomRulesRequest) returns (ListCustomRulesResponse);
+
+  // CreateCustomRule 新建自定义规则。SA + PA 可写；TA / PlatformAuditor 拒。
+  // 同 tenant 下 name 唯一冲突返 INVALID_INPUT。
+  rpc CreateCustomRule(CreateCustomRuleRequest) returns (CreateCustomRuleResponse);
+
+  // DeleteCustomRule 软删（SA + PA 可写）。
+  rpc DeleteCustomRule(DeleteCustomRuleRequest) returns (DeleteCustomRuleResponse);
+
+  // ToggleCustomRule 翻转 enabled（SA + PA 可写）。
+  rpc ToggleCustomRule(ToggleCustomRuleRequest) returns (ToggleCustomRuleResponse);
+}
+
+message Rule {
+  // ID 内嵌规则空；自定义规则 UUID。
+  string id = 1;
+  string name = 2;
+  repeated string fields = 3;
+  string keyword = 4;
+  bool case_sensitive = 5;
+  // Source builtin / custom
+  string source = 6;
+  // 以下仅 custom 填充
+  bool enabled = 7;
+  string description = 8;
+  string tenant_id = 9;
+  optional string created_by = 10;
+  optional google.protobuf.Timestamp created_at = 11;
+  optional google.protobuf.Timestamp updated_at = 12;
+}
+
+message ListBuiltinRulesRequest {}
+message ListBuiltinRulesResponse {
+  repeated Rule rules = 1;
+}
+
+message ListCustomRulesRequest {
+  // PlatformAuditor 路径可指定 tenant_id 跨租户查；其他角色忽略此字段
+  string tenant_id = 1;
+}
+message ListCustomRulesResponse {
+  repeated Rule rules = 1;
+}
+
+message CreateCustomRuleRequest {
+  string name = 1;
+  repeated string fields = 2;
+  string keyword = 3;
+  bool case_sensitive = 4;
+  bool enabled = 5;
+  string description = 6;
+}
+message CreateCustomRuleResponse {
+  Rule rule = 1;
+}
+
+message DeleteCustomRuleRequest {
+  string id = 1;
+}
+message DeleteCustomRuleResponse {}
+
+message ToggleCustomRuleRequest {
+  string id = 1;
+  bool enabled = 2;
+}
+message ToggleCustomRuleResponse {
+  Rule rule = 1;
+}

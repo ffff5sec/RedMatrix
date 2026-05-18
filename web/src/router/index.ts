@@ -39,6 +39,7 @@ import NotificationsPanel from '@/views/NotificationsPanel.vue';
 import FindingsPanel from '@/views/FindingsPanel.vue';
 import FindingDetail from '@/views/FindingDetail.vue';
 import PluginsPanel from '@/views/PluginsPanel.vue';
+import FingerprintsPanel from '@/views/FingerprintsPanel.vue';
 import AuditPanel from '@/views/AuditPanel.vue';
 import AssetsPanel from '@/views/AssetsPanel.vue';
 import AssetDetail from '@/views/AssetDetail.vue';
@@ -161,6 +162,12 @@ const routes: RouteRecordRaw[] = [
         name: 'plugins',
         component: PluginsPanel,
         meta: { requiresAuth: true, requiresRoles: [ROLE_SA], title: '插件库' },
+      },
+      {
+        path: 'fingerprints',
+        name: 'fingerprints',
+        component: FingerprintsPanel,
+        meta: { requiresAuth: true, title: '指纹库' },
       },
       {
         path: 'audit',

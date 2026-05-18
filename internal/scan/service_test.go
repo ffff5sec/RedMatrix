@@ -1414,7 +1414,7 @@ type stubFPMatcher struct {
 	hits []string
 }
 
-func (s *stubFPMatcher) Match(_ map[string]any) []string { return s.hits }
+func (s *stubFPMatcher) Match(_ string, _ map[string]any) []string { return s.hits }
 
 func TestEnrichFingerprintTech_MergesWithExistingStringSlice(t *testing.T) {
 	rows := []*domain.ScanResult{

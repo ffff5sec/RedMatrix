@@ -12,5 +12,9 @@ func Default() *Library {
 	if err != nil {
 		panic("fingerprint: default rules.yaml invalid: " + err.Error())
 	}
+	// 标 Source=builtin，让 UI 区分
+	for _, r := range lib.rules {
+		r.Source = "builtin"
+	}
 	return lib
 }

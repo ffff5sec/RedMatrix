@@ -33,13 +33,17 @@ import (
 // Rule 单条指纹规则。
 type Rule struct {
 	// Name 命中后写入的 tech 名称。
-	Name string `yaml:"name"`
+	Name string `yaml:"name" json:"name"`
 	// Fields 限制只在这些字段查；为空 = 所有字符串 / 字符串数组字段。
-	Fields []string `yaml:"fields,omitempty"`
+	Fields []string `yaml:"fields,omitempty" json:"fields,omitempty"`
 	// Keyword 子串匹配；空 = 永不命中（被静默跳过）。
-	Keyword string `yaml:"keyword"`
+	Keyword string `yaml:"keyword" json:"keyword"`
 	// CaseSensitive false（默认）= 不区分大小写；true = 严格。
-	CaseSensitive bool `yaml:"case_sensitive,omitempty"`
+	CaseSensitive bool `yaml:"case_sensitive,omitempty" json:"case_sensitive,omitempty"`
+	// Source 仅运行时填充；YAML 不读：
+	//   "builtin" = 来自 rules.yaml 内嵌
+	//   "custom"  = 来自 fingerprint_rules 表
+	Source string `yaml:"-" json:"source,omitempty"`
 }
 
 // Library 加载后的规则库。零值不可用；用 NewLibrary 或 Default 构造。

@@ -462,10 +462,21 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			logger:  logger,
 		}
 
+		// === 8a₃-fp. FingerprintService（PR-S74 内嵌库 + 自定义规则 CRUD）===
+		// 在 scan 前装：scan service 用 TenantMatcher 做 enrichFingerprintTech。
+		fpMount, err := buildFingerprintMount(pool, authSvc, auditHook)
+		if err != nil {
+			logger.LogError(ctx, "fingerprint stack init failed", err)
+			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
+			return failExitCode(err)
+		}
+		mux.Handle(fpMount.path, fpMount.handler)
+		logger.Info("fingerprint service mounted", "path", fpMount.path)
+
 		// === 8a₃. ScanService（PR-S1 扫描调度入口）===
 		// 先于 node_agent server 装：node_agent 的 PullTasks/ReportTaskProgress
 		// 需要注入 scan.Service。同时返回 scheduler 让 main 控生命周期（PR-S12）。
-		scMount, scanSvc, scanSched, suiteSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, assetReader, artifactStore, scanMetrics, eventBus, eventRegistry, logger, scanHook, auditHook)
+		scMount, scanSvc, scanSched, suiteSched, err := buildScanMount(ctx, pool, esClient, authSvc, assetDeriver, assetReader, artifactStore, scanMetrics, eventBus, eventRegistry, logger, scanHook, auditHook, fpMount.matcher)
 		if err != nil {
 			logger.LogError(ctx, "scan stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

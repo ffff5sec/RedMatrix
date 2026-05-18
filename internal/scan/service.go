@@ -317,9 +317,11 @@ type service struct {
 }
 
 // FingerprintMatcher 内置指纹库匹配器（PR-S68 SPEC §2.5）。
-// internal/fingerprint.Library 实现此接口；service 仅用 Match 不依赖具体类型。
+//
+// PR-S74：签名加 tenantID 让 matcher 能合并 tenant 自定义规则；
+// BuiltinOnlyMatcher / TenantMatcher 两个实现各自处理。
 type FingerprintMatcher interface {
-	Match(data map[string]any) []string
+	Match(tenantID string, data map[string]any) []string
 }
 
 // TaskNotifier 通知系统钩子（PR-S25），由 cmd/server 装配时注入。
@@ -1279,7 +1281,7 @@ func enrichFingerprintTech(rows []*domain.ScanResult, lib FingerprintMatcher) {
 		if r == nil || r.Data == nil {
 			continue
 		}
-		hits := lib.Match(r.Data)
+		hits := lib.Match(r.TenantID, r.Data)
 		if len(hits) == 0 {
 			continue
 		}

@@ -51,6 +51,7 @@ func buildScanMount(
 	logger *log.Logger,
 	notifier scan.TaskNotifier, // PR-S25 可空
 	auditHook audithook.Hook, // PR-S35 可空
+	fpMatcher scan.FingerprintMatcher, // PR-S74 nil = builtin-only 兜底
 ) (*scanMount, scan.Service, *scheduler.Scheduler, *scheduler.Scheduler, error) {
 	if pool == nil || pool.App == nil {
 		return nil, nil, nil, nil, errx.New(errx.ErrInternal, "buildScanMount: pg.Pool.App 不能为 nil")
@@ -124,10 +125,10 @@ func buildScanMount(
 		Artifacts:      artifactStore,
 		Metrics:        scanMetrics,
 		Logger:         logger,
-		Notifier:       notifier,              // PR-S25
-		SuiteScheduler: suiteSched,            // PR-S30
-		AssetReader:    assetReader,           // PR-S34
-		FingerprintLib: fingerprint.Default(), // PR-S68 内置指纹库
+		Notifier:       notifier,                      // PR-S25
+		SuiteScheduler: suiteSched,                    // PR-S30
+		AssetReader:    assetReader,                   // PR-S34
+		FingerprintLib: fpMatcherOrDefault(fpMatcher), // PR-S74：TenantMatcher 优先；nil 时兜底 builtin-only
 	})
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -191,4 +192,13 @@ func (a *suiteCronListingAdapter) ListCronTemplates(ctx context.Context) ([]sche
 		out = append(out, scheduler.CronTemplate{TaskID: r.SuiteID, CronExpr: r.CronExpr})
 	}
 	return out, nil
+}
+
+// fpMatcherOrDefault PR-S74：caller 传 nil 时兜底用 builtin-only matcher，
+// 保证 scan service 总有可用的 FingerprintMatcher。
+func fpMatcherOrDefault(m scan.FingerprintMatcher) scan.FingerprintMatcher {
+	if m != nil {
+		return m
+	}
+	return fingerprint.NewBuiltinOnlyMatcher(fingerprint.Default())
 }

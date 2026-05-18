@@ -1,17 +1,19 @@
-// Package httpx 是 fingerprint / web_crawl 任务的真插件（PR-S11）。
+// Package httpx 是 fingerprint / web_crawl 任务的真插件（PR-S11；PR-S75 加 favicon）。
 //
 // 调用方式：
 //
-//	httpx -u <target> -json -silent -title -status-code [-td -tech-detect]
+//	httpx -u <target> -json -silent -title -status-code [-td -tech-detect] [-favicon]
 //
 // -u <target>：单目标输入（host / url / ip 均可；httpx 自己探 80/443）
 // -json：每行一条 JSON
 // -silent：抑制 banner / 进度
 // -title -status-code：基础 HTTP 元数据
 // -td -tech-detect：技术栈识别（仅 fingerprint 路径开启，省 web_crawl 路径开销）
+// -favicon：拉 favicon 并算 mmh3 hash（与 FOFA `icon_hash` 同构），仅 fingerprint
+//           路径开启；让自定义指纹规则可在 favicon_hash 字段匹配（PR-S75）
 //
 // 同一 binary 包两个 Plugin wrapper：
-//   - NewFingerprint() → kind="fingerprint"，输出 {target, tech, status, title, webserver}
+//   - NewFingerprint() → kind="fingerprint"，输出 {target, tech, status, title, webserver, favicon_hash?, favicon_path?}
 //   - NewWebCrawl()    → kind="web_crawl"，  输出 {url, status, title}
 //
 // target_kind:
@@ -99,7 +101,7 @@ func (p *Plugin) Run(
 		"-no-color",
 	}
 	if p.kind == "fingerprint" {
-		args = append(args, "-td", "-tech-detect")
+		args = append(args, "-td", "-tech-detect", "-favicon")
 	}
 	cmd := exec.CommandContext(ctx, p.bin, args...)
 	var stdout, stderr bytes.Buffer
@@ -151,7 +153,7 @@ func parseJSONLines(out []byte, kind string) ([]map[string]any, error) {
 
 // convertRow 把 httpx 一行 entry 按 kind 转 plugin 输出 schema。
 //
-// fingerprint: {target, tech, status, title, webserver}
+// fingerprint: {target, tech, status, title, webserver, favicon_hash?, favicon_path?}
 // web_crawl:   {url, status, title}
 func convertRow(e *httpxEntry, kind string) map[string]any {
 	url := strings.TrimSpace(e.URL)
@@ -178,6 +180,18 @@ func convertRow(e *httpxEntry, kind string) map[string]any {
 		}
 		if len(e.Technologies) > 0 {
 			row["tech"] = e.Technologies
+		}
+		// PR-S75：mmh3 favicon hash（与 FOFA `icon_hash` 同算法）。
+		// 部分 httpx 版本字段名 favicon_mmh3，老版本 favicon；我们读两者。
+		hash := strings.TrimSpace(e.FaviconMMH3)
+		if hash == "" {
+			hash = strings.TrimSpace(e.Favicon)
+		}
+		if hash != "" {
+			row["favicon_hash"] = hash
+		}
+		if v := strings.TrimSpace(e.FaviconPath); v != "" {
+			row["favicon_path"] = v
 		}
 		return row
 	case "web_crawl":
@@ -210,4 +224,9 @@ type httpxEntry struct {
 	Title        string   `json:"title"`
 	Webserver    string   `json:"webserver"`
 	Technologies []string `json:"tech"`
+	// PR-S75 favicon：FOFA `icon_hash` 同算法（mmh3）。
+	// 新版 httpx 用 favicon_mmh3，老版用 favicon；两者都读，优先 mmh3。
+	FaviconMMH3 string `json:"favicon_mmh3"`
+	Favicon     string `json:"favicon"`
+	FaviconPath string `json:"favicon_path"`
 }

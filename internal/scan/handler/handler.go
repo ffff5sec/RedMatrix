@@ -191,7 +191,7 @@ func (h *Handler) CreateScanTask(
 	if in.Settings != nil {
 		settings = in.Settings.AsMap()
 	}
-	t, err := h.svc.CreateTask(ctx, scan.CreateTaskRequest{
+	createReq := scan.CreateTaskRequest{
 		TenantID:     p.TenantID,
 		ProjectID:    in.GetProjectId(),
 		Name:         in.GetName(),
@@ -203,7 +203,13 @@ func (h *Handler) CreateScanTask(
 		CronExpr:     in.GetCronExpr(),
 		Settings:     settings,
 		CreatedBy:    p.UserID,
-	})
+	}
+	// PR-S76：> 0 才传，避免误传 0 写入 NULL 之外的值
+	if h := in.GetContinuousAfterHours(); h > 0 {
+		hv := int(h)
+		createReq.ContinuousAfterHours = &hv
+	}
+	t, err := h.svc.CreateTask(ctx, createReq)
 	if err != nil {
 		return nil, toConnectError(err)
 	}

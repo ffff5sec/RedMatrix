@@ -97,6 +97,11 @@ func (s *stubScanSvc) SweepStaleAssignments(_ context.Context, _ time.Duration) 
 	panic("unexpected: SweepStaleAssignments")
 }
 
+// PR-S76 stub：handler 不调，但 interface 要满足
+func (s *stubScanSvc) SweepContinuousTasks(_ context.Context) (int, error) {
+	return 0, nil
+}
+
 func (s *stubScanSvc) RetryTask(_ context.Context, _ string) (*scandomain.ScanTask, error) {
 	panic("unexpected: RetryTask")
 }

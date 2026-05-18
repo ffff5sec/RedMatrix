@@ -155,6 +155,11 @@ type Service interface {
 	// 触发 task 状态聚合。返已扫数。
 	SweepStaleAssignments(ctx context.Context, timeout time.Duration) (int, error)
 
+	// SweepContinuousTasks（PR-S76 SPEC §2.6）—— 拉 next_continuous_at ≤ now
+	// 的 task，clone immediate 实例继承 continuous_after_hours 让循环持续。
+	// 返触发的 clone 数。
+	SweepContinuousTasks(ctx context.Context) (int, error)
+
 	// RetryTask（PR-S14）—— 从 failed/canceled task 复制成 immediate 实例
 	// 触发 dispatch。pending/running 拒。返新实例 task。
 	RetryTask(ctx context.Context, taskID string) (*domain.ScanTask, error)
@@ -270,6 +275,9 @@ type CreateTaskRequest struct {
 	SourceTaskID *string
 	// SuiteRunID（PR-S23）：套件展开生成的子 task 内部传；handler 不暴露。
 	SuiteRunID *string
+	// ContinuousAfterHours PR-S76 SPEC §2.6：> 0 时 task 终态后等 N 小时
+	// 自动 clone immediate 实例继续循环；0 / nil 关闭。
+	ContinuousAfterHours *int
 }
 
 // ListTasksRequest 入参。
@@ -431,19 +439,20 @@ func (s *service) CreateTask(ctx context.Context, req CreateTaskRequest) (*domai
 		target = targets[0]
 	}
 	t := &domain.ScanTask{
-		TenantID:     p.TenantID, // 信任 project 的 tenant
-		ProjectID:    req.ProjectID,
-		Name:         req.Name,
-		Kind:         req.Kind,
-		Target:       target,
-		Targets:      targets,
-		TargetKind:   req.TargetKind,
-		ScheduleKind: req.ScheduleKind,
-		CronExpr:     req.CronExpr,
-		Settings:     req.Settings,
-		CreatedBy:    req.CreatedBy,
-		SourceTaskID: req.SourceTaskID, // PR-S15
-		SuiteRunID:   req.SuiteRunID,   // PR-S23
+		TenantID:             p.TenantID, // 信任 project 的 tenant
+		ProjectID:            req.ProjectID,
+		Name:                 req.Name,
+		Kind:                 req.Kind,
+		Target:               target,
+		Targets:              targets,
+		TargetKind:           req.TargetKind,
+		ScheduleKind:         req.ScheduleKind,
+		CronExpr:             req.CronExpr,
+		Settings:             req.Settings,
+		CreatedBy:            req.CreatedBy,
+		SourceTaskID:         req.SourceTaskID,         // PR-S15
+		SuiteRunID:           req.SuiteRunID,           // PR-S23
+		ContinuousAfterHours: req.ContinuousAfterHours, // PR-S76
 	}
 	if err := s.tasks.Insert(ctx, t); err != nil {
 		return nil, err
@@ -866,6 +875,15 @@ func (s *service) aggregateTaskStatus(ctx context.Context, taskID string) error 
 			t.Status = next // 让 hook 拿到最新状态
 			s.notifier.OnTaskTerminal(ctx, t)
 		}
+		// PR-S76 SPEC §2.6：continuous 模式 → 设 next_continuous_at 让 sweeper N
+		// 小时后 clone immediate 实例
+		if t.ContinuousAfterHours != nil && *t.ContinuousAfterHours > 0 {
+			next := s.now().Add(time.Duration(*t.ContinuousAfterHours) * time.Hour)
+			if err := s.tasks.SetNextContinuousAt(ctx, taskID, &next); err != nil && s.logger != nil {
+				s.logger.LogError(ctx, "scan: set next_continuous_at failed", err,
+					"task_id", taskID)
+			}
+		}
 	}
 	// PR-S23: task 是套件子 task → 反推 run 聚合
 	if t.SuiteRunID != nil && *t.SuiteRunID != "" && s.suiteRuns != nil {
@@ -1151,18 +1169,28 @@ func (s *service) instantiateFromTemplate(t *domain.ScanTask, suffixLayout strin
 	}
 	srcID := t.ID
 	return CreateTaskRequest{
-		TenantID:     t.TenantID,
-		ProjectID:    t.ProjectID,
-		Name:         name,
-		Kind:         t.Kind,
-		Target:       t.Target,
-		Targets:      append([]string(nil), t.Targets...), // PR-S22：保留批量目标
-		TargetKind:   t.TargetKind,
-		ScheduleKind: domain.ScheduleImmediate,
-		Settings:     t.Settings,
-		CreatedBy:    t.CreatedBy,
-		SourceTaskID: &srcID,
+		TenantID:             t.TenantID,
+		ProjectID:            t.ProjectID,
+		Name:                 name,
+		Kind:                 t.Kind,
+		Target:               t.Target,
+		Targets:              append([]string(nil), t.Targets...), // PR-S22：保留批量目标
+		TargetKind:           t.TargetKind,
+		ScheduleKind:         domain.ScheduleImmediate,
+		Settings:             t.Settings,
+		CreatedBy:            t.CreatedBy,
+		SourceTaskID:         &srcID,
+		ContinuousAfterHours: copyIntPtr(t.ContinuousAfterHours), // PR-S76：让循环持续
 	}
+}
+
+// copyIntPtr 返回 src 的独立拷贝，避免共享指针被外部改。
+func copyIntPtr(src *int) *int {
+	if src == nil {
+		return nil
+	}
+	v := *src
+	return &v
 }
 
 // SweepStaleAssignments（PR-S14）—— 把卡 pulled/running > timeout 的派发
@@ -1207,6 +1235,40 @@ func (s *service) SweepStaleAssignments(ctx context.Context, timeout time.Durati
 			"swept", swept, "tasks_touched", len(touchedTasks))
 	}
 	return swept, nil
+}
+
+// SweepContinuousTasks PR-S76 SPEC §2.6：拉 next_continuous_at ≤ now 的 task，
+// clone immediate 实例（保留 continuous_after_hours 让循环持续）。
+//
+// repo.PopDueContinuous 已经把 due 行的 next_continuous_at 清成 NULL（原子），
+// 这里只负责在外侧 create 实例。若 create 失败 caller 应通过日志察觉；
+// 失败的 due 行不会自动恢复 next_continuous_at（避免无限 retry 风暴）。
+func (s *service) SweepContinuousTasks(ctx context.Context) (int, error) {
+	cutoff := s.now()
+	due, err := s.tasks.PopDueContinuous(ctx, cutoff, 50)
+	if err != nil {
+		return 0, err
+	}
+	cloned := 0
+	for _, t := range due {
+		if t == nil || t.ContinuousAfterHours == nil || *t.ContinuousAfterHours <= 0 {
+			continue
+		}
+		req := s.instantiateFromTemplate(t, "[continuous 2006-01-02 15:04]")
+		if _, err := s.CreateTask(ctx, req); err != nil {
+			if s.logger != nil {
+				s.logger.LogError(ctx, "scan: continuous clone failed", err,
+					"source_task_id", t.ID, "after_hours", *t.ContinuousAfterHours)
+			}
+			continue
+		}
+		cloned++
+	}
+	if s.logger != nil && cloned > 0 {
+		s.logger.Info("scan: sweep continuous tasks",
+			"due", len(due), "cloned", cloned)
+	}
+	return cloned, nil
 }
 
 // RetryTask（PR-S14）—— 把 failed/canceled task 作模板复制成 immediate 实例。

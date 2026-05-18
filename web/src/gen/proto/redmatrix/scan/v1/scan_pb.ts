@@ -230,6 +230,14 @@ export class CreateScanTaskRequest extends Message<CreateScanTaskRequest> {
    */
   targets: string[] = [];
 
+  /**
+   * continuous_after_hours（PR-S76 SPEC §2.6）：> 0 时 task 终态后等 N 小时
+   * 自动 clone immediate 实例继续循环；0 / 未设 = 关闭。建议范围 [1, 720]。
+   *
+   * @generated from field: uint32 continuous_after_hours = 10;
+   */
+  continuousAfterHours = 0;
+
   constructor(data?: PartialMessage<CreateScanTaskRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -247,6 +255,7 @@ export class CreateScanTaskRequest extends Message<CreateScanTaskRequest> {
     { no: 7, name: "cron_expr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "settings", kind: "message", T: Struct },
     { no: 9, name: "targets", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 10, name: "continuous_after_hours", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateScanTaskRequest {

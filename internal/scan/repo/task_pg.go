@@ -45,7 +45,9 @@ SELECT id::text,
        deleted_at,
        source_task_id::text,
        targets,
-       suite_run_id::text
+       suite_run_id::text,
+       continuous_after_hours,
+       next_continuous_at
 FROM scan_tasks
 `
 
@@ -68,8 +70,9 @@ func (r *pgTaskRepo) Insert(ctx context.Context, t *domain.ScanTask) error {
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO scan_tasks (
 			tenant_id, project_id, name, kind, target, target_kind, status,
-			schedule_kind, cron_expr, settings, created_by, source_task_id, targets, suite_run_id
-		) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::text[], $14)
+			schedule_kind, cron_expr, settings, created_by, source_task_id, targets, suite_run_id,
+			continuous_after_hours
+		) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::text[], $14, $15)
 		RETURNING id::text, created_at, updated_at
 	`,
 		t.TenantID, t.ProjectID, t.Name, string(t.Kind), t.Target, string(t.TargetKind),
@@ -77,7 +80,8 @@ func (r *pgTaskRepo) Insert(ctx context.Context, t *domain.ScanTask) error {
 		nullableString(t.CronExpr), settingsJSON, nullableUUID(t.CreatedBy),
 		nullableUUIDPtr(t.SourceTaskID),
 		targets,
-		nullableUUIDPtr(t.SuiteRunID), // PR-S23
+		nullableUUIDPtr(t.SuiteRunID),          // PR-S23
+		nullableIntPtr(t.ContinuousAfterHours), // PR-S76
 	)
 	if err := row.Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt); err != nil {
 		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: insert task").
@@ -304,6 +308,8 @@ func scanTask(s interface {
 		&sourceTaskID,
 		&t.Targets,
 		&suiteRunID,
+		&t.ContinuousAfterHours, // PR-S76
+		&t.NextContinuousAt,     // PR-S76
 	); err != nil {
 		return nil, err
 	}
@@ -345,6 +351,14 @@ func nullableString(s string) any {
 	return s
 }
 
+// nullableIntPtr PR-S76：*int → any（nil = SQL NULL）。
+func nullableIntPtr(p *int) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
 // toS 把 *string nullable 转成 string|""，便于 nullableString。
 func toS(p *string) string {
 	if p == nil {
@@ -359,3 +373,65 @@ func itoa(n int) string { return strconv.Itoa(n) }
 
 // 占位防止 time 未用：scanTask 里 *time.Time pointer 类型由 sql 自动处理，无需 import。
 var _ = time.Time{}
+
+// SetNextContinuousAt PR-S76：写 next_continuous_at（nil = 清空）。
+func (r *pgTaskRepo) SetNextContinuousAt(ctx context.Context, id string, at *time.Time) error {
+	if r == nil || r.pool == nil {
+		return errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	_, err := r.pool.Exec(ctx,
+		`UPDATE scan_tasks SET next_continuous_at = $2, updated_at = now() WHERE id = $1::uuid AND deleted_at IS NULL`,
+		id, at)
+	if err != nil {
+		return errx.Wrap(errx.ErrDatabase, err, "scan.repo: set next_continuous_at")
+	}
+	return nil
+}
+
+// PopDueContinuous PR-S76：UPDATE … RETURNING 原子 pop。
+// 用 partial index idx_scan_tasks_continuous_due 命中行。
+func (r *pgTaskRepo) PopDueContinuous(ctx context.Context, cutoff time.Time, limit int) ([]*domain.ScanTask, error) {
+	if r == nil || r.pool == nil {
+		return nil, errx.New(errx.ErrInternal, "scan.repo: nil pool")
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	// 子查询锁待 pop 的 id 集合（SELECT … FOR UPDATE SKIP LOCKED 防并发 sweeper 重复处理）
+	q := `
+WITH due AS (
+    SELECT id FROM scan_tasks
+    WHERE next_continuous_at IS NOT NULL
+      AND next_continuous_at <= $1
+      AND deleted_at IS NULL
+    ORDER BY next_continuous_at ASC
+    LIMIT $2
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE scan_tasks t
+SET next_continuous_at = NULL, updated_at = now()
+FROM due
+WHERE t.id = due.id
+RETURNING t.id::text, t.tenant_id::text, t.project_id::text, t.name, t.kind,
+          t.target, t.target_kind, t.status, t.schedule_kind,
+          COALESCE(t.cron_expr, '') AS cron_expr, t.settings,
+          COALESCE(t.created_by::text, '') AS created_by,
+          t.created_at, t.updated_at, t.started_at, t.finished_at, t.deleted_at,
+          t.source_task_id::text, t.targets, t.suite_run_id::text,
+          t.continuous_after_hours, t.next_continuous_at
+`
+	rows, err := r.pool.Query(ctx, q, cutoff, limit)
+	if err != nil {
+		return nil, errx.Wrap(errx.ErrDatabase, err, "scan.repo: pop due continuous")
+	}
+	defer rows.Close()
+	out := []*domain.ScanTask{}
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}

@@ -94,6 +94,8 @@ const newT = ref({
   // PR-S22：批量目标。1 行 = 老路径单 target；多行 = service 端切到各 online node。
   targetsRaw: '',
   targetKind: 'host',
+  // PR-S76 continuous 模式：> 0 时任务终态后 N 小时自动重起一次（循环）。0 = 关闭。
+  continuousAfterHours: 0,
 });
 const submitting = ref(false);
 
@@ -176,6 +178,7 @@ async function create() {
       target: targets[0],
       targets,
       targetKind: newT.value.targetKind,
+      continuousAfterHours: newT.value.continuousAfterHours > 0 ? newT.value.continuousAfterHours : 0,
     });
     const summary =
       targets.length === 1
@@ -183,7 +186,7 @@ async function create() {
         : `任务 ${newT.value.name} 已创建，包含 ${targets.length} 个目标`;
     toast.success(summary);
     showCreate.value = false;
-    newT.value = { projectId: '', name: '', kind: 'port_scan', targetsRaw: '', targetKind: 'host' };
+    newT.value = { projectId: '', name: '', kind: 'port_scan', targetsRaw: '', targetKind: 'host', continuousAfterHours: 0 };
     await refresh();
   } catch (e) {
     toast.error(errorMessage(e));
@@ -390,6 +393,20 @@ function targetKindLabel(k: string) {
               <option value="cidr">CIDR</option>
               <option value="url">URL</option>
             </select>
+          </div>
+
+          <!-- PR-S76 continuous 模式 -->
+          <div class="form-row">
+            <span class="label">持续扫描</span>
+            <label style="display: inline-flex; align-items: center; gap: 6px">
+              <input type="checkbox" :checked="newT.continuousAfterHours > 0"
+                @change="newT.continuousAfterHours = ($event.target as HTMLInputElement).checked ? 24 : 0"
+                :disabled="submitting" />
+              终态后等
+              <input v-model.number="newT.continuousAfterHours" type="number" min="0" max="720"
+                :disabled="submitting || newT.continuousAfterHours === 0" style="width: 70px" />
+              小时自动重起一次（0 = 关闭；循环持续）
+            </label>
           </div>
 
           <div class="form-row form-row-top">

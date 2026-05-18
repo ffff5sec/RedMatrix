@@ -3,6 +3,7 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	"github.com/ffff5sec/RedMatrix/internal/scan/domain"
 )
@@ -45,6 +46,15 @@ type TaskRepository interface {
 	// 模板 ID + cron_expr。启动期 scheduler.LoadAll 用；不分页（cron task
 	// MVP 数量预期 < 100）。
 	ListCronTemplates(ctx context.Context) ([]CronTemplateRow, error)
+
+	// SetNextContinuousAt PR-S76：仅当任务有 continuous_after_hours 时调用，
+	// 把 next_continuous_at 写到给定时间；nil = 清除。sweeper / 服务层用。
+	SetNextContinuousAt(ctx context.Context, id string, at *time.Time) error
+
+	// PopDueContinuous PR-S76：原子拉取 next_continuous_at ≤ cutoff 的 task，
+	// 把它们的 next_continuous_at 清回 nil，返回原始行。重复调幂等（同一行只
+	// 被处理一次）。sweeper 1min ticker 调。
+	PopDueContinuous(ctx context.Context, cutoff time.Time, limit int) ([]*domain.ScanTask, error)
 }
 
 // CronTemplateRow 启动期 LoadAll 的最小载入信息。

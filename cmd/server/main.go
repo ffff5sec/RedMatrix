@@ -539,6 +539,13 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			"interval", sweeper.DefaultInterval.String(),
 			"timeout", sweeper.DefaultTimeout.String())
 
+		// PR-S76 continuous sweeper：拉 next_continuous_at ≤ now 的 task clone 实例
+		continuousSweeperDone := make(chan struct{})
+		go func() {
+			defer close(continuousSweeperDone)
+			startContinuousSweeper(ctx, scanSvc, logger)
+		}()
+
 		// === 8a₁'. NodeAgentService（mTLS-only；Agent 心跳 + 拉任务）===
 		nodeAgentSrv, err := startNodeAgentServer(ctx, logger, pool, tenancySvc, scanSvc, artifactStore, pluginPkgSvc, ca, cfg.Public.GRPCAddr)
 		if err != nil {

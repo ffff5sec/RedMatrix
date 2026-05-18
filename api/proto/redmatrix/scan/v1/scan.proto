@@ -94,6 +94,9 @@ message CreateScanTaskRequest {
   // targets（PR-S22）：批量目标列表。每条都是同 target_kind 的目标
   // （host/ip/cidr/url），service 端 dispatch 时切到 online nodes。
   repeated string targets = 9;
+  // continuous_after_hours（PR-S76 SPEC §2.6）：> 0 时 task 终态后等 N 小时
+  // 自动 clone immediate 实例继续循环；0 / 未设 = 关闭。建议范围 [1, 720]。
+  uint32 continuous_after_hours = 10;
 }
 message CreateScanTaskResponse {
   ScanTask task = 1;

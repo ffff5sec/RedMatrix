@@ -236,9 +236,12 @@ type CreateScanTaskRequest struct {
 	Settings     *structpb.Struct `protobuf:"bytes,8,opt,name=settings,proto3" json:"settings,omitempty"`
 	// targets（PR-S22）：批量目标列表。每条都是同 target_kind 的目标
 	// （host/ip/cidr/url），service 端 dispatch 时切到 online nodes。
-	Targets       []string `protobuf:"bytes,9,rep,name=targets,proto3" json:"targets,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Targets []string `protobuf:"bytes,9,rep,name=targets,proto3" json:"targets,omitempty"`
+	// continuous_after_hours（PR-S76 SPEC §2.6）：> 0 时 task 终态后等 N 小时
+	// 自动 clone immediate 实例继续循环；0 / 未设 = 关闭。建议范围 [1, 720]。
+	ContinuousAfterHours uint32 `protobuf:"varint,10,opt,name=continuous_after_hours,json=continuousAfterHours,proto3" json:"continuous_after_hours,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *CreateScanTaskRequest) Reset() {
@@ -332,6 +335,13 @@ func (x *CreateScanTaskRequest) GetTargets() []string {
 		return x.Targets
 	}
 	return nil
+}
+
+func (x *CreateScanTaskRequest) GetContinuousAfterHours() uint32 {
+	if x != nil {
+		return x.ContinuousAfterHours
+	}
+	return 0
 }
 
 type CreateScanTaskResponse struct {
@@ -2924,7 +2934,7 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\fsuite_run_id\x18\x13 \x01(\tR\n" +
 	"suiteRunIdB\r\n" +
 	"\v_started_atB\x0e\n" +
-	"\f_finished_at\"\xa8\x02\n" +
+	"\f_finished_at\"\xde\x02\n" +
 	"\x15CreateScanTaskRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x12\n" +
@@ -2936,7 +2946,9 @@ const file_redmatrix_scan_v1_scan_proto_rawDesc = "" +
 	"\rschedule_kind\x18\x06 \x01(\tR\fscheduleKind\x12\x1b\n" +
 	"\tcron_expr\x18\a \x01(\tR\bcronExpr\x123\n" +
 	"\bsettings\x18\b \x01(\v2\x17.google.protobuf.StructR\bsettings\x12\x18\n" +
-	"\atargets\x18\t \x03(\tR\atargets\"I\n" +
+	"\atargets\x18\t \x03(\tR\atargets\x124\n" +
+	"\x16continuous_after_hours\x18\n" +
+	" \x01(\rR\x14continuousAfterHours\"I\n" +
 	"\x16CreateScanTaskResponse\x12/\n" +
 	"\x04task\x18\x01 \x01(\v2\x1b.redmatrix.scan.v1.ScanTaskR\x04task\"\xb9\x01\n" +
 	"\x14ListScanTasksRequest\x12\x1d\n" +

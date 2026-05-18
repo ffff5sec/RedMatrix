@@ -144,6 +144,13 @@ type ScanTask struct {
 	StartedAt  *time.Time
 	FinishedAt *time.Time
 	DeletedAt  *time.Time
+
+	// ContinuousAfterHours PR-S76 SPEC §2.6：任务终态后等 N 小时自动重起一次。
+	// 0 / nil = 关闭。新 instance 也继承此字段，让循环持续。
+	ContinuousAfterHours *int
+	// NextContinuousAt 终态时 service 设为 FinishedAt + ContinuousAfterHours；
+	// sweeper 拉 due 行触发 clone。clone 后清回 nil。
+	NextContinuousAt *time.Time
 }
 
 // IsActive 状态机非终态 + 未软删。

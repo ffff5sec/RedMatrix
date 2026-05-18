@@ -178,6 +178,33 @@ func (r *stubTaskRepo) ListCronTemplates(_ context.Context) ([]repo.CronTemplate
 	return r.templates, nil
 }
 
+// PR-S76 stub
+func (r *stubTaskRepo) SetNextContinuousAt(_ context.Context, id string, at *time.Time) error {
+	if t, ok := r.tasks[id]; ok {
+		t.NextContinuousAt = at
+	}
+	return nil
+}
+
+func (r *stubTaskRepo) PopDueContinuous(_ context.Context, cutoff time.Time, _ int) ([]*domain.ScanTask, error) {
+	out := []*domain.ScanTask{}
+	for _, t := range r.tasks {
+		if t.DeletedAt != nil {
+			continue
+		}
+		if t.NextContinuousAt == nil {
+			continue
+		}
+		if t.NextContinuousAt.After(cutoff) {
+			continue
+		}
+		// 原子 pop：清 next_continuous_at
+		t.NextContinuousAt = nil
+		out = append(out, t)
+	}
+	return out, nil
+}
+
 // === stub AssignmentRepository ===============================================
 
 type stubAssignmentRepo struct {
@@ -1468,4 +1495,63 @@ func TestEnrichFingerprintTech_NilDataSkipped(t *testing.T) {
 	require.NotPanics(t, func() {
 		enrichFingerprintTech(rows, &stubFPMatcher{hits: []string{"x"}})
 	})
+}
+
+// === PR-S76 SweepContinuousTasks ===
+
+func TestSweepContinuous_NoDue_ReturnsZero(t *testing.T) {
+	h := newHarness(t)
+	n, err := h.svc.SweepContinuousTasks(context.Background())
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if n != 0 {
+		t.Errorf("got %d want 0", n)
+	}
+}
+
+func TestSweepContinuous_DueClonesImmediateInstance(t *testing.T) {
+	h := newHarness(t)
+	// fixture project（CreateTask 时校验 project 存在）
+	h.projects.put(&tenancydomain.Project{ID: "p1", TenantID: "t1", Status: tenancydomain.ProjectActive})
+	// 一个 due continuous template
+	hours := 24
+	pastTime := fixedTime().Add(-time.Hour) // 相对 s.now（fixedTime）为过去
+	src := &domain.ScanTask{
+		ID: "src-1", TenantID: "t1", ProjectID: "p1",
+		Name: "tpl", Kind: domain.KindPortScan, Target: "10.0.0.1",
+		Targets: []string{"10.0.0.1"}, TargetKind: domain.TargetIP,
+		Status: domain.TaskCompleted, ScheduleKind: domain.ScheduleImmediate,
+		CreatedBy:            "u-1",
+		ContinuousAfterHours: &hours,
+		NextContinuousAt:     &pastTime,
+	}
+	h.tasks.put(src)
+
+	n, err := h.svc.SweepContinuousTasks(context.Background())
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if n != 1 {
+		t.Errorf("want 1 cloned, got %d", n)
+	}
+	if h.tasks.tasks["src-1"].NextContinuousAt != nil {
+		t.Errorf("next_continuous_at 应被清空")
+	}
+	// 多出 1 个 source=src-1 instance（继承 continuous flag 让循环持续）
+	found := 0
+	for _, t2 := range h.tasks.tasks {
+		if t2.ID == "src-1" {
+			continue
+		}
+		if t2.SourceTaskID != nil && *t2.SourceTaskID == "src-1" {
+			found++
+			if t2.ContinuousAfterHours == nil || *t2.ContinuousAfterHours != 24 {
+				t.Errorf("instance 应继承 continuous_after_hours=24，got %v", t2.ContinuousAfterHours)
+			}
+		}
+	}
+	if found != 1 {
+		t.Errorf("应有 1 个 source=src-1 实例，got %d", found)
+	}
 }

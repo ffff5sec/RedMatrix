@@ -88,6 +88,9 @@ func (r *stubRepo) List(_ context.Context, f repo.Filter, p repo.Page) ([]*domai
 		if f.Kind != "" && a.Kind != f.Kind {
 			continue
 		}
+		if f.Value != "" && a.Value != f.Value {
+			continue
+		}
 		out = append(out, a)
 	}
 	return out, len(out), nil
@@ -601,4 +604,48 @@ func TestNotifier_NotTriggeredWhenEventInsertFails(t *testing.T) {
 		{TenantID: "t1", ProjectID: "p1", Kind: "subdomain", Data: map[string]any{"name": "x.example.com"}},
 	})
 	assert.Zero(t, notifier.calls, "事件未落库则不发通知")
+}
+
+// === PR-S70 LookupByHostValue ===
+
+func TestLookupByHostValue_FindsHostKind(t *testing.T) {
+	r := newStubRepo()
+	r.rows = []*domain.Asset{
+		{ID: "a-h", TenantID: "t1", ProjectID: "p1", Kind: domain.KindHost, Value: "10.0.0.5"},
+	}
+	r.byID = map[string]*domain.Asset{"a-h": r.rows[0]}
+	svc, _ := NewService(r, nil)
+	a, err := svc.LookupByHostValue(context.Background(), "t1", "p1", "10.0.0.5")
+	require.NoError(t, err)
+	require.NotNil(t, a)
+	assert.Equal(t, "a-h", a.ID)
+}
+
+func TestLookupByHostValue_FallsBackToSubdomainKind(t *testing.T) {
+	r := newStubRepo()
+	r.rows = []*domain.Asset{
+		{ID: "a-s", TenantID: "t1", ProjectID: "p1", Kind: domain.KindSubdomain, Value: "api.example.com"},
+	}
+	r.byID = map[string]*domain.Asset{"a-s": r.rows[0]}
+	svc, _ := NewService(r, nil)
+	a, err := svc.LookupByHostValue(context.Background(), "t1", "p1", "api.example.com")
+	require.NoError(t, err)
+	require.NotNil(t, a)
+	assert.Equal(t, "a-s", a.ID)
+}
+
+func TestLookupByHostValue_NotFoundReturnsNil(t *testing.T) {
+	r := newStubRepo()
+	svc, _ := NewService(r, nil)
+	a, err := svc.LookupByHostValue(context.Background(), "t1", "p1", "unknown.example.com")
+	require.NoError(t, err)
+	assert.Nil(t, a, "未命中应返 nil 不抛错")
+}
+
+func TestLookupByHostValue_EmptyValueNoLookup(t *testing.T) {
+	r := newStubRepo()
+	svc, _ := NewService(r, nil)
+	a, err := svc.LookupByHostValue(context.Background(), "t1", "p1", "  ")
+	require.NoError(t, err)
+	assert.Nil(t, a)
 }

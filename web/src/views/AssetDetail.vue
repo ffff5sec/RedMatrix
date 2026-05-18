@@ -6,11 +6,12 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { assetClient, scanClient } from '@/api/transport';
+import { assetClient, findingClient, scanClient } from '@/api/transport';
 import { useToast } from '@/composables/useToast';
 import { errorMessage } from '@/util/error';
 import { formatRelativeTime, formatAbsoluteTime } from '@/util/relativeTime';
 import type { Asset } from '@/gen/proto/redmatrix/asset/v1/asset_pb';
+import type { Finding } from '@/gen/proto/redmatrix/finding/v1/finding_pb';
 import type { ScanResult } from '@/gen/proto/redmatrix/scan/v1/scan_pb';
 
 const route = useRoute();
@@ -20,6 +21,8 @@ const toast = useToast();
 const asset = ref<Asset | null>(null);
 const results = ref<ScanResult[]>([]);
 const resultsTotal = ref(0);
+const findings = ref<Finding[]>([]);
+const findingsTotal = ref(0);
 const loading = ref(false);
 
 const nowTick = ref(Date.now());
@@ -42,6 +45,20 @@ async function refresh() {
       });
       results.value = sr.results;
       resultsTotal.value = sr.total;
+      // PR-S70：拉该资产的漏洞工单
+      try {
+        const fr = await findingClient.listFindings({
+          assetId: asset.value.id,
+          page: 1,
+          pageSize: 100,
+        });
+        findings.value = fr.findings;
+        findingsTotal.value = fr.total;
+      } catch {
+        // 静默；finding 模块未启用时不阻断详情页
+        findings.value = [];
+        findingsTotal.value = 0;
+      }
     }
   } catch (e) {
     toast.error(errorMessage(e));
@@ -58,6 +75,20 @@ onMounted(() => {
 onUnmounted(() => {
   if (tickTimer) clearInterval(tickTimer);
 });
+
+function severityBadge(s: string) {
+  return `sev-${s}`;
+}
+function statusLabel(s: string) {
+  switch (s) {
+    case 'open': return '待处理';
+    case 'triaged': return '已分派';
+    case 'confirmed': return '已确认';
+    case 'fixed': return '已修复';
+    case 'false_positive': return '误报';
+    default: return s;
+  }
+}
 
 function kindLabel(k: string) {
   switch (k) {
@@ -128,6 +159,38 @@ function formatData(s: unknown): string {
     </div>
 
     <div v-if="asset" class="card">
+      <h3 style="margin-top: 0">关联漏洞（{{ findingsTotal }}）</h3>
+      <table v-if="findings.length > 0">
+        <thead>
+          <tr>
+            <th style="width: 90px">严重度</th>
+            <th style="width: 90px">状态</th>
+            <th>标题</th>
+            <th style="width: 80px">次数</th>
+            <th style="width: 140px">最近</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="f in findings" :key="f.id">
+            <td><span class="badge" :class="severityBadge(f.severity)">{{ f.severity }}</span></td>
+            <td>{{ statusLabel(f.status) }}</td>
+            <td>
+              <router-link :to="`/findings/${f.id}`" class="link">{{ f.title }}</router-link>
+              <span class="muted" style="margin-left: 8px; font-size: 12px">{{ f.templateId }}</span>
+            </td>
+            <td>{{ f.occurrenceCount }}</td>
+            <td class="muted" :title="formatAbsoluteTime(f.lastSeenAt)">
+              {{ formatRelativeTime(f.lastSeenAt, nowTick) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else class="muted" style="text-align: center; padding: 16px">
+        该资产暂无关联漏洞。
+      </div>
+    </div>
+
+    <div v-if="asset" class="card">
       <h3 style="margin-top: 0">关联扫描结果（{{ resultsTotal }}）</h3>
       <table>
         <thead>
@@ -178,4 +241,15 @@ function formatData(s: unknown): string {
 }
 .value { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; word-break: break-all; }
 .data { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; word-break: break-all; }
+.link { color: var(--accent, #2563eb); text-decoration: none; }
+.link:hover { text-decoration: underline; }
+.badge {
+  display: inline-block; border-radius: 4px; padding: 1px 8px;
+  font-size: 12px; font-weight: 500;
+}
+.sev-critical { background: rgba(207, 19, 34, 0.12); color: #cf1322; }
+.sev-high     { background: rgba(250, 84, 28, 0.12); color: #fa541c; }
+.sev-medium   { background: rgba(250, 173, 20, 0.18); color: #ad6800; }
+.sev-low      { background: rgba(19, 194, 194, 0.12); color: #08979c; }
+.sev-info     { background: rgba(140, 140, 140, 0.18); color: #595959; }
 </style>

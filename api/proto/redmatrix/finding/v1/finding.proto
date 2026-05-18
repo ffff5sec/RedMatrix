@@ -78,6 +78,8 @@ message ListFindingsRequest {
   string min_severity = 6; // ≥ minSeverity（含本身）
   int32 page = 7;
   int32 page_size = 8;
+  // PR-S70：按资产 ID 过滤；用于 AssetDetail 「这个资产的所有漏洞」视图。
+  string asset_id = 9;
 }
 message ListFindingsResponse {
   repeated Finding findings = 1;

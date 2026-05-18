@@ -90,6 +90,7 @@ func (h *Handler) ListFindings(
 		AssigneeID:  in.GetAssigneeId(),
 		Keyword:     in.GetKeyword(),
 		MinSeverity: in.GetMinSeverity(),
+		AssetID:     in.GetAssetId(), // PR-S70
 		Page:        int(in.GetPage()),
 		PageSize:    int(in.GetPageSize()),
 	}

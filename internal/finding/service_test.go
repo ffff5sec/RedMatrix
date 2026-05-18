@@ -15,6 +15,8 @@ import (
 type stubFindingRepo struct {
 	byID    map[string]*domain.Finding
 	byDedup map[string]*domain.Finding
+	// PR-S70：记录每次 Upsert 的 finding（不区分 insert/update，按调用顺序）。
+	upserted []*domain.Finding
 	// PR-S42: 注入 CAS 入口前的并发钩子；测试用它模拟"GetByID 后状态被外部改"
 	casPreHook func()
 }
@@ -23,6 +25,7 @@ func (r *stubFindingRepo) Upsert(_ context.Context, f *domain.Finding) (*domain.
 	if err := f.ValidateForCreate(); err != nil {
 		return nil, false, err
 	}
+	r.upserted = append(r.upserted, f)
 	dKey := f.TenantID + "|" + f.ProjectID + "|" + f.DedupKey
 	if r.byDedup == nil {
 		r.byDedup = map[string]*domain.Finding{}
@@ -441,5 +444,44 @@ func TestMakeDedupKey_Consistent(t *testing.T) {
 	c := domain.MakeDedupKey("CVE-2021-44228", "other.com")
 	if a == c {
 		t.Errorf("MakeDedupKey should differ on host: both = %q", a)
+	}
+}
+
+// === PR-S70 AssetID 入参 ===
+
+// TestUpsertFromResult_StoresAssetID 验 service.UpsertFromResult 把 req.AssetID
+// 写到落库的 finding.AssetID。
+func TestUpsertFromResult_StoresAssetID(t *testing.T) {
+	svc, repo, _ := newHarness(t)
+	assetID := "a-1"
+	_, _, err := svc.UpsertFromResult(context.Background(), UpsertFromResultRequest{
+		TenantID: "t1", ProjectID: "p1", TemplateID: "T", Host: "example.com",
+		Severity: domain.SeverityMedium, Title: "x",
+		AssetID: &assetID,
+	})
+	if err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if len(repo.upserted) != 1 {
+		t.Fatalf("want 1 upsert, got %d", len(repo.upserted))
+	}
+	got := repo.upserted[0].AssetID
+	if got == nil || *got != assetID {
+		t.Errorf("AssetID 未透传：got=%v want=%q", got, assetID)
+	}
+}
+
+// TestUpsertFromResult_NoAssetIDStillWorks AssetID 不传时落 nil。
+func TestUpsertFromResult_NoAssetIDStillWorks(t *testing.T) {
+	svc, repo, _ := newHarness(t)
+	_, _, err := svc.UpsertFromResult(context.Background(), UpsertFromResultRequest{
+		TenantID: "t1", ProjectID: "p1", TemplateID: "T", Host: "x",
+		Severity: domain.SeverityMedium, Title: "x",
+	})
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if repo.upserted[0].AssetID != nil {
+		t.Errorf("AssetID 应保持 nil")
 	}
 }

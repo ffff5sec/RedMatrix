@@ -41,6 +41,12 @@ type Service interface {
 	// GetAsset 单条；不存在返 ErrAssetNotFound。
 	GetAsset(ctx context.Context, id string) (*domain.Asset, error)
 
+	// LookupByHostValue PR-S70：按 (tenant, project, value) 精确匹配资产。
+	// 先试 host kind；不命中 fallback subdomain。都不命中返 (nil, nil)（
+	// 与 GetAsset 不同：lookup-not-found 是正常路径，不抛 ErrAssetNotFound）。
+	// 用于 scan_hooks 把 finding 自动绑到对应 asset。
+	LookupByHostValue(ctx context.Context, tenantID, projectID, value string) (*domain.Asset, error)
+
 	// SweepDisappeared PR-S59 SPEC §2.7：对 last_seen 超 threshold 的资产派
 	// asset_disappeared 事件并标记 disappeared_at。
 	// threshold ≤ 0 = no-op 防误调；返回派出的事件数。
@@ -294,6 +300,33 @@ func (s *service) GetAsset(ctx context.Context, id string) (*domain.Asset, error
 		return nil, errx.New(errx.ErrInvalidInput, "asset.id 不能为空")
 	}
 	return s.repo.GetByID(ctx, id)
+}
+
+// LookupByHostValue PR-S70：精确匹配；host kind 不命中 fallback subdomain。
+func (s *service) LookupByHostValue(ctx context.Context, tenantID, projectID, value string) (*domain.Asset, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil //nolint:nilnil // 空 value 不抛错，正常 no-match
+	}
+	value = domain.NormalizeHost(value)
+	if value == "" {
+		return nil, nil //nolint:nilnil // normalize 后空（不合法 hostname）= no-match
+	}
+	for _, kind := range []domain.Kind{domain.KindHost, domain.KindSubdomain} {
+		list, _, err := s.repo.List(ctx, repo.Filter{
+			TenantID:  tenantID,
+			ProjectID: projectID,
+			Kind:      kind,
+			Value:     value,
+		}, repo.Page{Page: 1, PageSize: 1})
+		if err != nil {
+			return nil, err
+		}
+		if len(list) > 0 {
+			return list[0], nil
+		}
+	}
+	return nil, nil //nolint:nilnil // 查不到资产是正常路径（finding 早于 asset 派生）
 }
 
 // SweepDisappeared 实现 Service.SweepDisappeared。

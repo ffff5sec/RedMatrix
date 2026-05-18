@@ -23,6 +23,7 @@ type FindingFilter struct {
 	AssigneeID  string
 	Keyword     string // title/host ILIKE
 	MinSeverity string // ≥ minSeverity 比较
+	AssetID     string // PR-S70：按资产 ID 精确匹配（asset 详情页用）
 }
 
 // FindingRepository findings 表持久层。

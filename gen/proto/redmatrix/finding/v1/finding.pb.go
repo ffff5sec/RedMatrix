@@ -336,15 +336,17 @@ func (x *FindingEvent) GetCreatedAt() *timestamppb.Timestamp {
 }
 
 type ListFindingsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"` // 空 = 不限项目（SA/TA 跨项目）
-	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
-	Severity      string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"`
-	AssigneeId    string                 `protobuf:"bytes,4,opt,name=assignee_id,json=assigneeId,proto3" json:"assignee_id,omitempty"`
-	Keyword       string                 `protobuf:"bytes,5,opt,name=keyword,proto3" json:"keyword,omitempty"`
-	MinSeverity   string                 `protobuf:"bytes,6,opt,name=min_severity,json=minSeverity,proto3" json:"min_severity,omitempty"` // ≥ minSeverity（含本身）
-	Page          int32                  `protobuf:"varint,7,opt,name=page,proto3" json:"page,omitempty"`
-	PageSize      int32                  `protobuf:"varint,8,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId   string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"` // 空 = 不限项目（SA/TA 跨项目）
+	Status      string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Severity    string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"`
+	AssigneeId  string                 `protobuf:"bytes,4,opt,name=assignee_id,json=assigneeId,proto3" json:"assignee_id,omitempty"`
+	Keyword     string                 `protobuf:"bytes,5,opt,name=keyword,proto3" json:"keyword,omitempty"`
+	MinSeverity string                 `protobuf:"bytes,6,opt,name=min_severity,json=minSeverity,proto3" json:"min_severity,omitempty"` // ≥ minSeverity（含本身）
+	Page        int32                  `protobuf:"varint,7,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize    int32                  `protobuf:"varint,8,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// PR-S70：按资产 ID 过滤；用于 AssetDetail 「这个资产的所有漏洞」视图。
+	AssetId       string `protobuf:"bytes,9,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -433,6 +435,13 @@ func (x *ListFindingsRequest) GetPageSize() int32 {
 		return x.PageSize
 	}
 	return 0
+}
+
+func (x *ListFindingsRequest) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
 }
 
 type ListFindingsResponse struct {
@@ -1022,7 +1031,7 @@ const file_redmatrix_finding_v1_finding_proto_rawDesc = "" +
 	"\x04body\x18\t \x01(\tR\x04body\x129\n" +
 	"\n" +
 	"created_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xf7\x01\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x92\x02\n" +
 	"\x13ListFindingsRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x16\n" +
@@ -1033,7 +1042,8 @@ const file_redmatrix_finding_v1_finding_proto_rawDesc = "" +
 	"\akeyword\x18\x05 \x01(\tR\akeyword\x12!\n" +
 	"\fmin_severity\x18\x06 \x01(\tR\vminSeverity\x12\x12\n" +
 	"\x04page\x18\a \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\b \x01(\x05R\bpageSize\"\x98\x01\n" +
+	"\tpage_size\x18\b \x01(\x05R\bpageSize\x12\x19\n" +
+	"\basset_id\x18\t \x01(\tR\aassetId\"\x98\x01\n" +
 	"\x14ListFindingsResponse\x129\n" +
 	"\bfindings\x18\x01 \x03(\v2\x1d.redmatrix.finding.v1.FindingR\bfindings\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +

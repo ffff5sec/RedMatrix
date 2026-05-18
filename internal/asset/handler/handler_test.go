@@ -59,6 +59,9 @@ func (s *stubAssetSvc) SweepDisappeared(_ context.Context, _ time.Duration) (int
 func (s *stubAssetSvc) SweepCertsExpiring(_ context.Context, _, _ time.Duration) (int, error) {
 	return 0, nil
 }
+func (s *stubAssetSvc) LookupByHostValue(_ context.Context, _, _, _ string) (*domain.Asset, error) {
+	return nil, nil
+}
 
 var _ asset.Service = (*stubAssetSvc)(nil)
 

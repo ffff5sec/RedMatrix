@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 
+	assetDomain "github.com/ffff5sec/RedMatrix/internal/asset/domain"
 	"github.com/ffff5sec/RedMatrix/internal/finding"
 	"github.com/ffff5sec/RedMatrix/internal/notify"
 	"github.com/ffff5sec/RedMatrix/internal/platform/log"
@@ -14,10 +15,18 @@ import (
 	scandomain "github.com/ffff5sec/RedMatrix/internal/scan/domain"
 )
 
+// AssetLookup PR-S70：scan_hook 用来按 (tenant, project, host) 反查 asset 拿
+// AssetID 填到 finding。asset.Service 已实现此签名；写成 interface 让 hook
+// 不强依赖 asset 包细节。
+type AssetLookup interface {
+	LookupByHostValue(ctx context.Context, tenantID, projectID, value string) (*assetDomain.Asset, error)
+}
+
 // scanCompositeNotifier 同时持有 notify.ScanHook 和 finding 入口；nil 字段忽略。
 type scanCompositeNotifier struct {
 	notify  *notify.ScanHook
 	finding finding.Service
+	assets  AssetLookup // PR-S70 可空：nil = 不填 finding.AssetID
 	logger  *log.Logger
 }
 
@@ -46,6 +55,21 @@ func (c *scanCompositeNotifier) OnHighSeverityResult(ctx context.Context, r *sca
 			return
 		}
 		resultID := r.ID
+		// PR-S70：反查 asset 拿到 ID，让 finding 与 asset 直链。
+		// lookup 失败仅 log，不阻断 finding 创建（asset 可能还没派生）。
+		var assetIDPtr *string
+		if c.assets != nil {
+			a, lookupErr := c.assets.LookupByHostValue(ctx, r.TenantID, r.ProjectID, host)
+			if lookupErr != nil {
+				if c.logger != nil {
+					c.logger.LogError(ctx, "finding hook: asset lookup failed", lookupErr,
+						"tenant", r.TenantID, "project", r.ProjectID, "host", host)
+				}
+			} else if a != nil {
+				id := a.ID
+				assetIDPtr = &id
+			}
+		}
 		_, _, err := c.finding.UpsertFromResult(ctx, finding.UpsertFromResultRequest{
 			TenantID:    r.TenantID,
 			ProjectID:   r.ProjectID,
@@ -56,6 +80,7 @@ func (c *scanCompositeNotifier) OnHighSeverityResult(ctx context.Context, r *sca
 			Description: desc,
 			Reference:   ref,
 			ResultID:    &resultID,
+			AssetID:     assetIDPtr, // PR-S70
 		})
 		if err != nil && c.logger != nil {
 			c.logger.LogError(ctx, "finding hook: upsert failed", err,

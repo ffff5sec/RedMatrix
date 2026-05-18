@@ -144,6 +144,10 @@ func (r *pgFindingRepo) List(ctx context.Context, f FindingFilter, p Page) ([]*d
 		args = append(args, f.AssigneeID)
 		clauses = append(clauses, "assignee_id = $"+itoa(len(args))+"::uuid")
 	}
+	if strings.TrimSpace(f.AssetID) != "" {
+		args = append(args, f.AssetID)
+		clauses = append(clauses, "asset_id = $"+itoa(len(args))+"::uuid")
+	}
 	if kw := strings.TrimSpace(f.Keyword); kw != "" {
 		args = append(args, "%"+kw+"%")
 		clauses = append(clauses, "(title ILIKE $"+itoa(len(args))+" OR host ILIKE $"+itoa(len(args))+")")

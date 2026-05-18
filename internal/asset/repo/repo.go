@@ -50,6 +50,9 @@ type Filter struct {
 	ProjectID string
 	Kind      domain.Kind
 	Keyword   string // value 模糊匹配（ILIKE %kw%）
+	// Value PR-S70：精确等值匹配（用于 LookupByHost 等）。与 Keyword 同时存在
+	// 时 SQL 用 AND，几乎肯定空 result，caller 应只用一个。
+	Value string
 	// ProjectIDs PA 权限收紧：非 nil 时用 ANY 过滤。空切片 caller 应短路。
 	ProjectIDs []string
 	// LastSeenBefore（PR-S31 freshness）：非 nil → SQL last_seen < $X；

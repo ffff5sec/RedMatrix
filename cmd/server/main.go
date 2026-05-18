@@ -458,6 +458,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 		scanHook := &scanCompositeNotifier{
 			notify:  notifyScanHook,
 			finding: findingSvc,
+			assets:  asMount.svc, // PR-S70 asset 反查填 finding.AssetID
 			logger:  logger,
 		}
 

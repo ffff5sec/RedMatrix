@@ -42,6 +42,7 @@ type ListFindingsRequest struct {
 	AssigneeID  string
 	Keyword     string
 	MinSeverity string
+	AssetID     string // PR-S70 按资产 ID 过滤
 	Page        int
 	PageSize    int
 }
@@ -87,6 +88,7 @@ type UpsertFromResultRequest struct {
 	Description string
 	Reference   string
 	ResultID    *string // 来源 scan_result.id
+	AssetID     *string // PR-S70：可选；scan_hook 用 asset.LookupByHost 查到后传入
 }
 
 // Deps service 依赖。
@@ -121,6 +123,7 @@ func (s *service) ListFindings(ctx context.Context, req ListFindingsRequest) (*L
 		AssigneeID:  req.AssigneeID,
 		Keyword:     req.Keyword,
 		MinSeverity: req.MinSeverity,
+		AssetID:     req.AssetID, // PR-S70
 	}, repo.Page{Page: req.Page, PageSize: req.PageSize})
 	if err != nil {
 		return nil, err
@@ -270,6 +273,7 @@ func (s *service) UpsertFromResult(ctx context.Context, req UpsertFromResultRequ
 		DedupKey:       dedupKey,
 		TemplateID:     req.TemplateID,
 		SourceResultID: req.ResultID,
+		AssetID:        req.AssetID, // PR-S70：可选；scan_hook 查到则带入
 		Severity:       req.Severity,
 		Title:          req.Title,
 		Host:           req.Host,

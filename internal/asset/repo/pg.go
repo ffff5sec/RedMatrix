@@ -178,6 +178,11 @@ func (r *pgRepo) List(ctx context.Context, f Filter, p Page) ([]*domain.Asset, i
 		args = append(args, "%"+v+"%")
 		clauses = append(clauses, "value ILIKE $"+itoa(len(args)))
 	}
+	// PR-S70：精确值匹配（LookupByHost 等）。
+	if v := strings.TrimSpace(f.Value); v != "" {
+		args = append(args, v)
+		clauses = append(clauses, "value = $"+itoa(len(args)))
+	}
 	if f.LastSeenBefore != nil {
 		args = append(args, *f.LastSeenBefore)
 		clauses = append(clauses, "last_seen < $"+itoa(len(args)))

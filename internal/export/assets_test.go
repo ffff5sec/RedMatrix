@@ -39,6 +39,9 @@ func (s *stubAssetSvc) SweepDisappeared(_ context.Context, _ time.Duration) (int
 func (s *stubAssetSvc) SweepCertsExpiring(_ context.Context, _, _ time.Duration) (int, error) {
 	return 0, nil
 }
+func (s *stubAssetSvc) LookupByHostValue(_ context.Context, _, _, _ string) (*domain.Asset, error) {
+	return nil, nil
+}
 
 func TestAssetsResource_PagesAndMapsAllColumns(t *testing.T) {
 	fixedTime := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)

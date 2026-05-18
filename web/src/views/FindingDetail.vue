@@ -196,7 +196,14 @@ function eventLabel(e: FindingEvent): string {
 
         <div class="kv">
           <div class="kv-row"><span class="kv-k">Template</span><code>{{ finding.templateId }}</code></div>
-          <div class="kv-row"><span class="kv-k">Host</span><code>{{ finding.host }}</code></div>
+          <div class="kv-row">
+            <span class="kv-k">Host</span>
+            <code>{{ finding.host }}</code>
+            <!-- PR-S70：finding 自动绑定到 asset 时给跳链 -->
+            <router-link v-if="finding.assetId" :to="`/assets/${finding.assetId}`" class="link-btn" style="margin-left: 8px">
+              查看资产 →
+            </router-link>
+          </div>
           <div class="kv-row">
             <span class="kv-k">指派</span>
             <span v-if="finding.assigneeId">

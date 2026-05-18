@@ -309,6 +309,13 @@ export class ListFindingsRequest extends Message<ListFindingsRequest> {
    */
   pageSize = 0;
 
+  /**
+   * PR-S70：按资产 ID 过滤；用于 AssetDetail 「这个资产的所有漏洞」视图。
+   *
+   * @generated from field: string asset_id = 9;
+   */
+  assetId = "";
+
   constructor(data?: PartialMessage<ListFindingsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -325,6 +332,7 @@ export class ListFindingsRequest extends Message<ListFindingsRequest> {
     { no: 6, name: "min_severity", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "page", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 8, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 9, name: "asset_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListFindingsRequest {

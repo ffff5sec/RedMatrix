@@ -1,0 +1,21 @@
+id: git-config-exposed
+info:
+  name: Git Repository Config Exposed
+  severity: medium
+  author: redmatrix
+  tags: [exposure, git, info]
+  reference:
+    - https://blog.gitguardian.com/leaking-secrets-through-git/
+requests:
+  - method: GET
+    path: /.git/config
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: regex
+        part: body
+        regex:
+          - '\[core\]'
+          - '\[remote\b'
+        condition: or

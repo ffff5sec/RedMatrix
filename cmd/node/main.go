@@ -29,6 +29,7 @@ import (
 	"github.com/ffff5sec/RedMatrix/internal/agent/heartbeat"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/nuclei"
+	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/pocengine"
 	"github.com/ffff5sec/RedMatrix/internal/agent/plugin/tlsx"
 	"github.com/ffff5sec/RedMatrix/internal/agent/pluginpuller"
 	"github.com/ffff5sec/RedMatrix/internal/agent/store"
@@ -180,6 +181,16 @@ func run(args []string, stdout, stderr io.Writer) error {
 	} else {
 		logger.Info("plugin not installed; falling back to mock",
 			"kind", "vuln_scan", "tool", "nuclei", "err", err.Error())
+	}
+	// PR-S69: L3 POC 引擎（内嵌模板 + 可选 REDMATRIX_POC_TEMPLATE_DIR）。
+	// 与 nuclei 在 Registry 自动聚合并跑（PR-S56 group）。
+	if pp, err := pocengine.New(); err == nil {
+		registry.Register(pp)
+		logger.Info("plugin registered", "kind", "vuln_scan", "impl", "redmatrix-poc",
+			"templates", len(pp.Templates()))
+	} else {
+		logger.Info("plugin not loaded; falling back to mock",
+			"kind", "vuln_scan", "tool", "redmatrix-poc", "err", err.Error())
 	}
 	// PR-S48: tlsx 证书探测
 	if tp, err := tlsx.New(); err == nil {

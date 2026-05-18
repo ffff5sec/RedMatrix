@@ -1,0 +1,20 @@
+id: phpinfo-page-exposed
+info:
+  name: PHP Info Page Exposed
+  severity: low
+  author: redmatrix
+  tags: [exposure, php, info]
+  reference:
+    - https://www.php.net/manual/en/function.phpinfo.php
+requests:
+  # 用 DSL 匹配示意：status==200 且 body 包含 phpinfo 特征 + 是 PHP（Server 含 PHP 或 X-Powered-By）
+  - method: GET
+    path: /phpinfo.php
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - 'response.status == 200'
+          - 'response.body.contains("PHP Version")'
+          - 'response.body.contains("phpinfo()")'
+        condition: and

@@ -1,0 +1,21 @@
+id: apache-server-status-exposed
+info:
+  name: Apache Server-Status Page Exposed
+  severity: low
+  author: redmatrix
+  tags: [exposure, apache, info]
+  reference:
+    - https://httpd.apache.org/docs/2.4/mod/mod_status.html
+requests:
+  - method: GET
+    path: /server-status
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        part: body
+        words:
+          - "Apache Server Status"
+          - "Server uptime"
+        condition: and

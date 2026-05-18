@@ -1,0 +1,31 @@
+id: spring-actuator-exposed
+info:
+  name: Spring Boot Actuator Endpoints Exposed
+  severity: medium
+  author: redmatrix
+  tags: [misconfig, spring, actuator, info]
+  reference:
+    - https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html
+requests:
+  # 多端点级联：/actuator 列表 or /actuator/health
+  - method: GET
+    path: /actuator
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: dsl
+        dsl:
+          - 'response.body.contains("/actuator/")'
+          - 'response.body.contains("_links")'
+        condition: and
+  - method: GET
+    path: /actuator/health
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: regex
+        part: body
+        regex:
+          - '(?i)"status"\s*:\s*"(UP|DOWN|OUT_OF_SERVICE|UNKNOWN)"'

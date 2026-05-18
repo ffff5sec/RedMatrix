@@ -1,0 +1,21 @@
+id: elasticsearch-no-auth
+info:
+  name: Elasticsearch Cluster Without Authentication
+  severity: high
+  author: redmatrix
+  tags: [misconfig, elasticsearch, no-auth, data-exposure]
+  reference:
+    - https://www.elastic.co/guide/en/elasticsearch/reference/current/security-minimal-setup.html
+requests:
+  - method: GET
+    path: /_cluster/health
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: regex
+        part: body
+        regex:
+          - '(?i)"cluster_name"\s*:'
+          - '(?i)"status"\s*:\s*"(green|yellow|red)"'
+        condition: and

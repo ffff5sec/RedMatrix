@@ -1,0 +1,22 @@
+id: jenkins-panel
+info:
+  name: Jenkins Web Console Detected
+  severity: info
+  author: redmatrix
+  tags: [panel, jenkins, ci, info]
+  reference:
+    - https://www.jenkins.io/
+requests:
+  - method: GET
+    path: /
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: headers
+        words: ["X-Jenkins:"]
+      - type: word
+        part: body
+        words:
+          - "<title>Dashboard [Jenkins]</title>"
+          - 'data-app-name="Jenkins"'
+        condition: or

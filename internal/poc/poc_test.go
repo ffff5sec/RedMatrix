@@ -112,14 +112,24 @@ func TestLoadDir_InvalidTemplateReportedNotFatal(t *testing.T) {
 func TestLoadDefault_LoadsEmbeddedTemplates(t *testing.T) {
 	tpls, err := LoadDefault()
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(tpls), 3, "应加载 ≥ 3 个内嵌模板")
+	require.GreaterOrEqual(t, len(tpls), 14, "应加载 ≥ 14 个内嵌模板（PR-S72 扩展）")
 	ids := map[string]bool{}
 	for _, tp := range tpls {
 		ids[tp.ID] = true
 	}
+	// 三类基线（PR-S69 内嵌）
 	assert.True(t, ids["apache-server-status-exposed"])
 	assert.True(t, ids["git-config-exposed"])
 	assert.True(t, ids["phpinfo-page-exposed"])
+	// PR-S72 扩展（部分）
+	for _, expect := range []string{
+		"env-file-exposed", "swagger-ui-exposed", "backup-sql-exposed",
+		"jenkins-panel", "grafana-panel", "weblogic-console",
+		"spring-actuator-exposed", "elasticsearch-no-auth", "prometheus-metrics-exposed",
+		"tomcat-manager-probe",
+	} {
+		assert.True(t, ids[expect], "应含模板 %s", expect)
+	}
 }
 
 // === Matcher unit ===
@@ -286,4 +296,69 @@ func TestEngine_CtxCancelStops(t *testing.T) {
 	cancel() // 立即取消
 	findings := eng.Run(ctx, srv.URL, tpls)
 	assert.Empty(t, findings)
+}
+
+// === PR-S72 端到端命中 ===
+
+// TestEngine_HitsMultipleTemplates 模拟一个 server 多端点返各模板期望的特征，
+// 验证 ≥6 个模板能被命中。
+func TestEngine_HitsMultipleTemplates(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.env":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("APP_KEY=abc\nDB_PASSWORD=s3cret\n"))
+		case "/swagger-ui.html":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body>Swagger UI loaded; swagger.json at /v2/api-docs</body></html>`))
+		case "/backup.sql":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("-- MySQL dump 10.13  Distrib 8.0.32\n-- Host: localhost\nCREATE TABLE users(id INT);"))
+		case "/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><title>Grafana</title><body>Welcome to Grafana</body></html>`))
+		case "/actuator":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"_links":{"self":{"href":"/actuator/"},"health":{"href":"/actuator/health"}}}`))
+		case "/actuator/health":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"UP"}`))
+		case "/_cluster/health":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"cluster_name":"docker-cluster","status":"green","number_of_nodes":1}`))
+		case "/metrics":
+			w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("# HELP http_requests_total The total number of HTTP requests.\n# TYPE http_requests_total counter\nhttp_requests_total 1\n"))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadDefault()
+	require.NoError(t, err)
+	eng := NewEngine(NewRunner(srv.Client()))
+	findings := eng.Run(context.Background(), srv.URL, tpls)
+	require.GreaterOrEqual(t, len(findings), 6,
+		"应至少命中 6 个模板（env/swagger/backup/grafana/actuator/elasticsearch/prometheus 中）")
+
+	gotIDs := map[string]bool{}
+	for _, f := range findings {
+		gotIDs[f.TemplateID] = true
+	}
+	for _, want := range []string{
+		"env-file-exposed",
+		"swagger-ui-exposed",
+		"backup-sql-exposed",
+		"grafana-panel",
+		"spring-actuator-exposed",
+		"elasticsearch-no-auth",
+		"prometheus-metrics-exposed",
+	} {
+		assert.True(t, gotIDs[want], "应命中 %s", want)
+	}
 }

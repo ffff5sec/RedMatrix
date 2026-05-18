@@ -1,0 +1,21 @@
+id: grafana-panel
+info:
+  name: Grafana Login Panel Detected
+  severity: info
+  author: redmatrix
+  tags: [panel, grafana, monitoring, info]
+  reference:
+    - https://grafana.com/
+requests:
+  - method: GET
+    path: /login
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        part: body
+        words:
+          - "Grafana"
+          - "grafana"
+        condition: or

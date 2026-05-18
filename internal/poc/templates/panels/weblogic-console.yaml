@@ -1,0 +1,21 @@
+id: weblogic-console
+info:
+  name: Oracle WebLogic Admin Console Detected
+  severity: medium
+  author: redmatrix
+  tags: [panel, weblogic, java, oracle]
+  reference:
+    - https://www.oracle.com/middleware/technologies/weblogic.html
+requests:
+  - method: GET
+    path: /console/login/LoginForm.jsp
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        part: body
+        words:
+          - "Oracle WebLogic Server Administration Console"
+          - "WebLogic Server"
+        condition: or

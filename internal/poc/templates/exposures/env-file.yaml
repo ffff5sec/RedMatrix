@@ -1,0 +1,24 @@
+id: env-file-exposed
+info:
+  name: .env File Exposed
+  severity: high
+  author: redmatrix
+  tags: [exposure, env, secrets, info]
+  reference:
+    - https://owasp.org/www-community/vulnerabilities/Improper_Access_Control
+requests:
+  - method: GET
+    path: /.env
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: regex
+        part: body
+        # 任一典型 .env 字段命中即视为暴露
+        regex:
+          - '(?i)\bDB_PASSWORD\s*='
+          - '(?i)\bAPP_KEY\s*='
+          - '(?i)\bAWS_SECRET_ACCESS_KEY\s*='
+          - '(?i)\bMYSQL_ROOT_PASSWORD\s*='
+        condition: or

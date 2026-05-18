@@ -1,0 +1,18 @@
+id: swagger-ui-exposed
+info:
+  name: Swagger UI / OpenAPI Endpoint Exposed
+  severity: info
+  author: redmatrix
+  tags: [exposure, swagger, openapi, api, info]
+  reference:
+    - https://swagger.io/tools/swagger-ui/
+requests:
+  - method: GET
+    path: /swagger-ui.html
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: dsl
+        dsl:
+          - 'response.body.contains("swagger-ui") || response.body.contains("Swagger UI") || response.body.contains("swagger.json")'

@@ -1,0 +1,22 @@
+id: prometheus-metrics-exposed
+info:
+  name: Prometheus /metrics Endpoint Publicly Exposed
+  severity: medium
+  author: redmatrix
+  tags: [misconfig, prometheus, metrics, info]
+  reference:
+    - https://prometheus.io/docs/instrumenting/exposition_formats/
+requests:
+  - method: GET
+    path: /metrics
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: regex
+        part: body
+        # Prometheus exposition：以 # HELP / # TYPE 注释行开头
+        regex:
+          - '^# HELP '
+          - '^# TYPE '
+        condition: or

@@ -1,0 +1,21 @@
+id: gitlab-panel
+info:
+  name: GitLab Web Console Detected
+  severity: info
+  author: redmatrix
+  tags: [panel, gitlab, scm, info]
+  reference:
+    - https://about.gitlab.com/
+requests:
+  - method: GET
+    path: /users/sign_in
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        part: body
+        words:
+          - "GitLab"
+          - "sign_in"
+        condition: and

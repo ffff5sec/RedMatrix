@@ -1,0 +1,24 @@
+id: backup-sql-exposed
+info:
+  name: Database Backup (.sql / .sql.gz) Exposed
+  severity: high
+  author: redmatrix
+  tags: [exposure, backup, database, secrets]
+  reference:
+    - https://owasp.org/www-community/Improper_Asset_Management
+requests:
+  - method: GET
+    path: /backup.sql
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: regex
+        part: body
+        # SQL dump 头部典型特征
+        regex:
+          - '(?i)-- MySQL dump '
+          - '(?i)-- PostgreSQL database dump'
+          - '(?i)\bCREATE\s+TABLE\b'
+          - '(?i)\bINSERT\s+INTO\b'
+        condition: or

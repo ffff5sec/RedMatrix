@@ -1,0 +1,21 @@
+id: tomcat-manager-probe
+info:
+  name: Apache Tomcat Manager Endpoint Detected
+  severity: medium
+  author: redmatrix
+  tags: [defaults, tomcat, manager, info]
+  reference:
+    - https://tomcat.apache.org/tomcat-9.0-doc/manager-howto.html
+requests:
+  - method: GET
+    path: /manager/html
+    matchers-condition: or
+    matchers:
+      # 已开放（200）：未配置鉴权或访问 IP 白名单允许
+      - type: dsl
+        dsl:
+          - 'response.status == 200 && response.body.contains("Tomcat Web Application Manager")'
+      # 受 BASIC auth 保护（401）：仍说明端点存在，记 info 级
+      - type: dsl
+        dsl:
+          - 'response.status == 401 && response.headers["www-authenticate"].size() > 0'

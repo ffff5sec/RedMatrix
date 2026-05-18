@@ -1,0 +1,22 @@
+id: kibana-panel
+info:
+  name: Kibana Dashboard Detected
+  severity: info
+  author: redmatrix
+  tags: [panel, kibana, elastic, info]
+  reference:
+    - https://www.elastic.co/kibana
+requests:
+  - method: GET
+    path: /app/kibana
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "Kibana"
+          - "kbn-loading-message"
+        condition: or
+      - type: dsl
+        dsl:
+          - 'response.headers["kbn-name"].size() > 0'

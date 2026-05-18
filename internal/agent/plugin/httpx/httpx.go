@@ -10,7 +10,8 @@
 // -title -status-code：基础 HTTP 元数据
 // -td -tech-detect：技术栈识别（仅 fingerprint 路径开启，省 web_crawl 路径开销）
 // -favicon：拉 favicon 并算 mmh3 hash（与 FOFA `icon_hash` 同构），仅 fingerprint
-//           路径开启；让自定义指纹规则可在 favicon_hash 字段匹配（PR-S75）
+//
+//	路径开启；让自定义指纹规则可在 favicon_hash 字段匹配（PR-S75）
 //
 // 同一 binary 包两个 Plugin wrapper：
 //   - NewFingerprint() → kind="fingerprint"，输出 {target, tech, status, title, webserver, favicon_hash?, favicon_path?}

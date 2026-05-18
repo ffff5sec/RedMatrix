@@ -249,3 +249,445 @@ rules:
   - name: Tomcat-Default-Page
     fields: [title]
     keyword: Apache Tomcat
+
+  # ============================================================
+  # PR-S77 扩 120+ 规则：云 / SaaS / DevOps / IoT 厂商 / 国内 OA / 海外 ERP
+  # ============================================================
+
+  # === 国内云服务商 ===
+  - name: 阿里云-OSS
+    fields: [body, headers]
+    keyword: aliyuncs.com
+  - name: 阿里云-CDN
+    fields: [headers]
+    keyword: AliyunCDN
+  - name: 腾讯云-COS
+    fields: [body, headers]
+    keyword: myqcloud.com
+  - name: 腾讯云-CDN
+    fields: [headers]
+    keyword: TencentCDN
+  - name: 华为云-OBS
+    fields: [body, headers]
+    keyword: myhuaweicloud.com
+  - name: 百度智能云-BOS
+    fields: [body, headers]
+    keyword: bcebos.com
+  - name: 七牛云
+    fields: [body, headers]
+    keyword: qiniucdn.com
+  - name: 又拍云
+    fields: [body, headers]
+    keyword: upaiyun.com
+  - name: UCloud
+    fields: [body]
+    keyword: ucloud.cn
+  - name: 京东云
+    fields: [body]
+    keyword: jdcloud.com
+
+  # === 国内 SaaS / OA ===
+  - name: 钉钉
+    fields: [body, title]
+    keyword: dingtalk.com
+  - name: 飞书
+    fields: [body, title]
+    keyword: feishu.cn
+  - name: 企业微信
+    fields: [body, title]
+    keyword: work.weixin.qq.com
+  - name: 腾讯会议
+    fields: [body, title]
+    keyword: meeting.tencent.com
+  - name: 金山WPS
+    fields: [body, title]
+    keyword: wps.cn
+  - name: 石墨文档
+    fields: [body, title]
+    keyword: shimo.im
+  - name: 蓝凌MK
+    fields: [body, title]
+    keyword: /sys/portalIndex
+  - name: 用友U9
+    fields: [body, title]
+    keyword: u9_login
+  - name: 用友政务
+    fields: [body, title]
+    keyword: yonyou-gov
+  - name: 万户ezOFFICE
+    fields: [body, title]
+    keyword: ezoffice
+  - name: 致远A8
+    fields: [body, title]
+    keyword: /seeyon/main.do
+  - name: 红帆OA
+    fields: [body, title]
+    keyword: ioffice
+  - name: 中科网威
+    fields: [body, title]
+    keyword: zk-netvision
+
+  # === 国内安全产品 / WAF / NDR ===
+  - name: 绿盟NSFOCUS
+    fields: [title, body]
+    keyword: NSFOCUS
+  - name: 启明星辰
+    fields: [title, body]
+    keyword: venustech
+  - name: 山石网科
+    fields: [title]
+    keyword: Hillstone
+  - name: 安恒明御
+    fields: [title, body]
+    keyword: dbappsecurity
+  - name: 长亭WebShellChop
+    fields: [body]
+    keyword: SafeLine
+  - name: 知道创宇
+    fields: [body, headers]
+    keyword: knownsec
+  - name: 安全狗
+    fields: [body, headers]
+    keyword: WAF/2.0
+  - name: 深信服SecGate
+    fields: [title]
+    keyword: SANGFOR
+  - name: 360-EDR
+    fields: [body, headers]
+    keyword: 360EDR
+  - name: 奇安信天擎
+    fields: [body, title]
+    keyword: tianqing
+  - name: 火绒
+    fields: [body, headers]
+    keyword: Huorong
+
+  # === 海外 SaaS / ERP ===
+  - name: Salesforce
+    fields: [body, headers]
+    keyword: salesforce.com
+  - name: HubSpot
+    fields: [body, headers]
+    keyword: hubspot.com
+  - name: Slack
+    fields: [title, body]
+    keyword: slack.com
+  - name: Notion
+    fields: [title, body]
+    keyword: notion.so
+  - name: Atlassian-Confluence
+    fields: [title, body]
+    keyword: Atlassian Confluence
+  - name: Atlassian-Jira
+    fields: [title, body]
+    keyword: jira.atlassian
+  - name: Atlassian-Bitbucket
+    fields: [title]
+    keyword: Bitbucket
+  - name: SAP-Web
+    fields: [title, body]
+    keyword: SAP NetWeaver
+  - name: Oracle-EBS
+    fields: [body, title]
+    keyword: oracle.apps
+  - name: Microsoft-365
+    fields: [body, headers]
+    keyword: office365
+  - name: Microsoft-SharePoint
+    fields: [title, body]
+    keyword: SharePoint
+  - name: Microsoft-Exchange
+    fields: [title, body]
+    keyword: outlook web app
+  - name: Workday
+    fields: [body, headers]
+    keyword: workday.com
+  - name: Zendesk
+    fields: [body]
+    keyword: zendesk.com
+  - name: Intercom
+    fields: [body]
+    keyword: intercomcdn.com
+  - name: Cloudflare-Workers
+    fields: [headers]
+    keyword: cf-ray
+
+  # === 海外 CMS / E-commerce ===
+  - name: Magento
+    fields: [body, headers]
+    keyword: Mage.Cookies
+  - name: Shopify
+    fields: [body, headers]
+    keyword: shopify.com
+  - name: Squarespace
+    fields: [body, headers]
+    keyword: squarespace.com
+  - name: Wix
+    fields: [body, headers]
+    keyword: parastorage.com
+  - name: Webflow
+    fields: [body, headers]
+    keyword: webflow.com
+  - name: PrestaShop
+    fields: [body]
+    keyword: prestashop
+  - name: OpenCart
+    fields: [body]
+    keyword: 'route=common'
+  - name: BigCommerce
+    fields: [body, headers]
+    keyword: bigcommerce.com
+
+  # === Container / Cloud Native ===
+  - name: Kubernetes-Dashboard
+    fields: [title, body]
+    keyword: Kubernetes Dashboard
+  - name: Argo-CD
+    fields: [title, body]
+    keyword: Argo CD
+  - name: Argo-Workflows
+    fields: [title]
+    keyword: Argo Workflows
+  - name: HashiCorp-Vault
+    fields: [body, headers]
+    keyword: vault-ui
+  - name: HashiCorp-Consul
+    fields: [title, body]
+    keyword: Consul by HashiCorp
+  - name: HashiCorp-Nomad
+    fields: [title]
+    keyword: Nomad
+  - name: Spinnaker
+    fields: [title]
+    keyword: Spinnaker
+  - name: ArgoCD-Server
+    fields: [headers]
+    keyword: argocd-server
+  - name: Tekton
+    fields: [body]
+    keyword: tekton-dashboard
+  - name: Linkerd
+    fields: [headers]
+    keyword: linkerd-proxy
+  - name: Istio
+    fields: [headers]
+    keyword: istio
+  - name: KubeSphere
+    fields: [title, body]
+    keyword: KubeSphere
+  - name: Karmada
+    fields: [body]
+    keyword: karmada
+
+  # === Reverse Proxy / API Gateway / LB ===
+  - name: HAProxy
+    fields: [webserver, headers]
+    keyword: HAProxy
+  - name: Traefik
+    fields: [headers, body]
+    keyword: traefik
+  - name: Envoy
+    fields: [headers]
+    keyword: envoy
+  - name: Kong-Gateway
+    fields: [headers]
+    keyword: kong/
+  - name: APISIX
+    fields: [headers]
+    keyword: APISIX
+  - name: AWS-CloudFront
+    fields: [headers]
+    keyword: cloudfront
+  - name: AWS-API-Gateway
+    fields: [headers]
+    keyword: x-amzn-apigw
+  - name: Akamai
+    fields: [headers]
+    keyword: akamai
+  - name: Fastly
+    fields: [headers]
+    keyword: fastly
+
+  # === Database / Cache 管理面 ===
+  - name: pgAdmin4
+    fields: [title]
+    keyword: pgAdmin 4
+  - name: RedisInsight
+    fields: [title, body]
+    keyword: RedisInsight
+  - name: Mongo-Express
+    fields: [title]
+    keyword: Mongo Express
+  - name: phpRedisAdmin
+    fields: [title]
+    keyword: phpRedisAdmin
+  - name: PMA-OpsView
+    fields: [title]
+    keyword: OpsView
+  - name: ClickHouse-Play
+    fields: [body]
+    keyword: clickhouse
+  - name: InfluxDB
+    fields: [headers, title]
+    keyword: InfluxDB
+
+  # === Auth / IAM ===
+  - name: Keycloak
+    fields: [title, body]
+    keyword: Keycloak
+  - name: Authelia
+    fields: [title]
+    keyword: Authelia
+  - name: Authentik
+    fields: [title]
+    keyword: authentik
+  - name: Okta
+    fields: [body, headers]
+    keyword: okta.com
+  - name: Auth0
+    fields: [body, headers]
+    keyword: auth0.com
+  - name: DEX-IDP
+    fields: [title]
+    keyword: dex
+
+  # === DevOps 监控 / 日志 ===
+  - name: Sentry
+    fields: [title, body]
+    keyword: Sentry
+  - name: AlertManager
+    fields: [title]
+    keyword: Alertmanager
+  - name: Loki
+    fields: [headers, body]
+    keyword: grafana/loki
+  - name: Jaeger-UI
+    fields: [title]
+    keyword: Jaeger UI
+  - name: SkyWalking
+    fields: [title, body]
+    keyword: SkyWalking
+  - name: Pinpoint
+    fields: [title]
+    keyword: Pinpoint
+  - name: Zipkin
+    fields: [title]
+    keyword: Zipkin
+  - name: Apache-SuperSet
+    fields: [title]
+    keyword: Superset
+  - name: Metabase
+    fields: [title]
+    keyword: Metabase
+
+  # === 漏扫器 / 红队工具 UI ===
+  - name: AWVS
+    fields: [title]
+    keyword: Acunetix
+  - name: Nessus
+    fields: [title]
+    keyword: Tenable
+  - name: Goby-UI
+    fields: [title]
+    keyword: Goby
+  - name: Burp-Enterprise
+    fields: [title]
+    keyword: Burp Suite Enterprise
+  - name: XRay
+    fields: [headers]
+    keyword: chaitin-xray
+  - name: OpenVAS
+    fields: [title]
+    keyword: Greenbone Security
+
+  # === IoT / 厂商设备 ===
+  - name: Cisco-IOS
+    fields: [title, body]
+    keyword: Cisco Systems
+  - name: Juniper-JunOS
+    fields: [title]
+    keyword: Juniper Web Device Manager
+  - name: Fortinet-FortiGate
+    fields: [title, body]
+    keyword: FortiGate
+  - name: PaloAlto-GlobalProtect
+    fields: [title, body]
+    keyword: GlobalProtect
+  - name: SonicWall
+    fields: [title]
+    keyword: SonicWall
+  - name: Mikrotik-WebFig
+    fields: [title]
+    keyword: WebFig
+  - name: pfSense
+    fields: [title]
+    keyword: pfSense
+  - name: OpenWrt
+    fields: [title]
+    keyword: OpenWrt
+  - name: Ubiquiti-UniFi
+    fields: [title]
+    keyword: UniFi
+  - name: Aruba-Networks
+    fields: [title]
+    keyword: Aruba Networks
+  - name: Synology-DSM
+    fields: [title, body]
+    keyword: DiskStation Manager
+  - name: QNAP-QTS
+    fields: [title]
+    keyword: QNAP
+
+  # === 国内常见易受攻击系统 ===
+  - name: 旭日中文搜索
+    fields: [body]
+    keyword: AspCms
+  - name: 蝉知CMS
+    fields: [body, title]
+    keyword: chanzhi
+  - name: phpwind
+    fields: [body]
+    keyword: phpwind
+  - name: 帝国CMS
+    fields: [body]
+    keyword: empirecms
+  - name: 织梦DedeCMS
+    fields: [body]
+    keyword: dedecms
+  - name: 网格信息
+    fields: [body, title]
+    keyword: gridinfo
+
+  # === 视频会议 / 直播 ===
+  - name: Jitsi-Meet
+    fields: [title]
+    keyword: Jitsi Meet
+  - name: BigBlueButton
+    fields: [title]
+    keyword: BigBlueButton
+  - name: Asterisk
+    fields: [headers]
+    keyword: Asterisk
+
+  # === 其他常见管理面板 ===
+  - name: Cacti
+    fields: [title]
+    keyword: Cacti
+  - name: NetBox
+    fields: [title]
+    keyword: NetBox
+  - name: Bookstack
+    fields: [title]
+    keyword: BookStack
+  - name: Outline
+    fields: [body, title]
+    keyword: outline-wiki
+  - name: Mattermost
+    fields: [title, body]
+    keyword: Mattermost
+  - name: Rocket-Chat
+    fields: [title, body]
+    keyword: Rocket.Chat
+  - name: Cachet
+    fields: [body]
+    keyword: cachethq

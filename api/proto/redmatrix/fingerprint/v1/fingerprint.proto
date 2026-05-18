@@ -26,6 +26,11 @@ service FingerprintService {
 
   // ToggleCustomRule 翻转 enabled（SA + PA 可写）。
   rpc ToggleCustomRule(ToggleCustomRuleRequest) returns (ToggleCustomRuleResponse);
+
+  // BulkImportCustomRules 批量导入自定义规则（PR-S77，SA + PA）。
+  // 入参 yaml_text 是 RedMatrix YAML 格式（同 rules.yaml schema）。
+  // duplicate_policy: "skip"（默认，同名跳过）/ "overwrite"（先软删旧再插）。
+  rpc BulkImportCustomRules(BulkImportCustomRulesRequest) returns (BulkImportCustomRulesResponse);
 }
 
 message Rule {
@@ -82,4 +87,29 @@ message ToggleCustomRuleRequest {
 }
 message ToggleCustomRuleResponse {
   Rule rule = 1;
+}
+
+// PR-S77
+message BulkImportCustomRulesRequest {
+  // RedMatrix YAML 文本。schema 与 internal/fingerprint/rules.yaml 一致：
+  //   rules:
+  //     - name: ...
+  //       fields: [...]
+  //       keyword: ...
+  //       case_sensitive: ...
+  string yaml_text = 1;
+  // "skip"（默认） / "overwrite"
+  string duplicate_policy = 2;
+}
+message BulkImportRuleResult {
+  string name = 1;
+  // "created" / "skipped" / "failed"
+  string status = 2;
+  string error = 3;
+}
+message BulkImportCustomRulesResponse {
+  int32 created = 1;
+  int32 skipped = 2;
+  int32 failed = 3;
+  repeated BulkImportRuleResult details = 4;
 }

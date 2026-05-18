@@ -516,3 +516,163 @@ export class ToggleCustomRuleResponse extends Message<ToggleCustomRuleResponse> 
   }
 }
 
+/**
+ * PR-S77
+ *
+ * @generated from message redmatrix.fingerprint.v1.BulkImportCustomRulesRequest
+ */
+export class BulkImportCustomRulesRequest extends Message<BulkImportCustomRulesRequest> {
+  /**
+   * RedMatrix YAML 文本。schema 与 internal/fingerprint/rules.yaml 一致：
+   *   rules:
+   *     - name: ...
+   *       fields: [...]
+   *       keyword: ...
+   *       case_sensitive: ...
+   *
+   * @generated from field: string yaml_text = 1;
+   */
+  yamlText = "";
+
+  /**
+   * "skip"（默认） / "overwrite"
+   *
+   * @generated from field: string duplicate_policy = 2;
+   */
+  duplicatePolicy = "";
+
+  constructor(data?: PartialMessage<BulkImportCustomRulesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.fingerprint.v1.BulkImportCustomRulesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "yaml_text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "duplicate_policy", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BulkImportCustomRulesRequest {
+    return new BulkImportCustomRulesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BulkImportCustomRulesRequest {
+    return new BulkImportCustomRulesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BulkImportCustomRulesRequest {
+    return new BulkImportCustomRulesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BulkImportCustomRulesRequest | PlainMessage<BulkImportCustomRulesRequest> | undefined, b: BulkImportCustomRulesRequest | PlainMessage<BulkImportCustomRulesRequest> | undefined): boolean {
+    return proto3.util.equals(BulkImportCustomRulesRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.fingerprint.v1.BulkImportRuleResult
+ */
+export class BulkImportRuleResult extends Message<BulkImportRuleResult> {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name = "";
+
+  /**
+   * "created" / "skipped" / "failed"
+   *
+   * @generated from field: string status = 2;
+   */
+  status = "";
+
+  /**
+   * @generated from field: string error = 3;
+   */
+  error = "";
+
+  constructor(data?: PartialMessage<BulkImportRuleResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.fingerprint.v1.BulkImportRuleResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BulkImportRuleResult {
+    return new BulkImportRuleResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BulkImportRuleResult {
+    return new BulkImportRuleResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BulkImportRuleResult {
+    return new BulkImportRuleResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BulkImportRuleResult | PlainMessage<BulkImportRuleResult> | undefined, b: BulkImportRuleResult | PlainMessage<BulkImportRuleResult> | undefined): boolean {
+    return proto3.util.equals(BulkImportRuleResult, a, b);
+  }
+}
+
+/**
+ * @generated from message redmatrix.fingerprint.v1.BulkImportCustomRulesResponse
+ */
+export class BulkImportCustomRulesResponse extends Message<BulkImportCustomRulesResponse> {
+  /**
+   * @generated from field: int32 created = 1;
+   */
+  created = 0;
+
+  /**
+   * @generated from field: int32 skipped = 2;
+   */
+  skipped = 0;
+
+  /**
+   * @generated from field: int32 failed = 3;
+   */
+  failed = 0;
+
+  /**
+   * @generated from field: repeated redmatrix.fingerprint.v1.BulkImportRuleResult details = 4;
+   */
+  details: BulkImportRuleResult[] = [];
+
+  constructor(data?: PartialMessage<BulkImportCustomRulesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "redmatrix.fingerprint.v1.BulkImportCustomRulesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "created", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "skipped", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "details", kind: "message", T: BulkImportRuleResult, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BulkImportCustomRulesResponse {
+    return new BulkImportCustomRulesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BulkImportCustomRulesResponse {
+    return new BulkImportCustomRulesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BulkImportCustomRulesResponse {
+    return new BulkImportCustomRulesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BulkImportCustomRulesResponse | PlainMessage<BulkImportCustomRulesResponse> | undefined, b: BulkImportCustomRulesResponse | PlainMessage<BulkImportCustomRulesResponse> | undefined): boolean {
+    return proto3.util.equals(BulkImportCustomRulesResponse, a, b);
+  }
+}
+

@@ -3,6 +3,8 @@ package handler
 
 import (
 	"context"
+	"net/http"
+	"strings"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -28,19 +30,24 @@ type MatcherInvalidator interface {
 	Invalidate(tenantID string)
 }
 
+// AuthSvc 仅取 RequireAuth 需要的方法子集，让测试 stub 不必实现全部 auth.Service。
+type AuthSvc interface {
+	AuthenticateBearer(ctx context.Context, raw string) (*auth.UserPrincipal, error)
+}
+
 // Handler FingerprintService 实现。
 type Handler struct {
 	builtin     *fingerprint.Library
 	repo        fingerprint.CustomRuleRepository
-	authSvc     auth.Service
+	authSvc     AuthSvc
 	audit       audithook.Hook
 	invalidator MatcherInvalidator
 }
 
 var _ fingerprintv1connect.FingerprintServiceHandler = (*Handler)(nil)
 
-// New 构造；builtin + repo + authSvc 必填。
-func New(builtin *fingerprint.Library, repo fingerprint.CustomRuleRepository, authSvc auth.Service) (*Handler, error) {
+// New 构造；builtin + repo + authSvc 必填。auth.Service 自动满足 AuthSvc 子集。
+func New(builtin *fingerprint.Library, repo fingerprint.CustomRuleRepository, authSvc AuthSvc) (*Handler, error) {
 	if builtin == nil || repo == nil || authSvc == nil {
 		return nil, errx.New(errx.ErrInternal, "fingerprint.handler.New: 依赖不能为 nil")
 	}
@@ -56,13 +63,30 @@ func (h *Handler) WithInvalidator(inv MatcherInvalidator) *Handler {
 	return h
 }
 
+// requireAuth 本地 helper：让 handler 只依赖 AuthSvc 子集（便于测试）。
+func (h *Handler) requireAuth(ctx context.Context, header http.Header) (*auth.UserPrincipal, error) {
+	raw := header.Get("Authorization")
+	if raw == "" {
+		return nil, errx.New(errx.ErrAuthTokenInvalid, "缺少 Authorization header")
+	}
+	const prefix = "Bearer "
+	if !strings.HasPrefix(raw, prefix) {
+		return nil, errx.New(errx.ErrAuthTokenInvalid, "Authorization header 必须以 Bearer 开头")
+	}
+	token := strings.TrimSpace(raw[len(prefix):])
+	if token == "" {
+		return nil, errx.New(errx.ErrAuthTokenInvalid, "Bearer token 为空")
+	}
+	return h.authSvc.AuthenticateBearer(ctx, token)
+}
+
 // === ListBuiltinRules ===
 
 func (h *Handler) ListBuiltinRules(
 	ctx context.Context,
 	req *connect.Request[fpv1.ListBuiltinRulesRequest],
 ) (*connect.Response[fpv1.ListBuiltinRulesResponse], error) {
-	if _, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header()); err != nil {
+	if _, err := h.requireAuth(ctx, req.Header()); err != nil {
 		return nil, toConnectError(err)
 	}
 	rules := h.builtin.Rules()
@@ -85,7 +109,7 @@ func (h *Handler) ListCustomRules(
 	ctx context.Context,
 	req *connect.Request[fpv1.ListCustomRulesRequest],
 ) (*connect.Response[fpv1.ListCustomRulesResponse], error) {
-	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	p, err := h.requireAuth(ctx, req.Header())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
@@ -113,7 +137,7 @@ func (h *Handler) CreateCustomRule(
 	ctx context.Context,
 	req *connect.Request[fpv1.CreateCustomRuleRequest],
 ) (*connect.Response[fpv1.CreateCustomRuleResponse], error) {
-	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	p, err := h.requireAuth(ctx, req.Header())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
@@ -145,7 +169,7 @@ func (h *Handler) DeleteCustomRule(
 	ctx context.Context,
 	req *connect.Request[fpv1.DeleteCustomRuleRequest],
 ) (*connect.Response[fpv1.DeleteCustomRuleResponse], error) {
-	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	p, err := h.requireAuth(ctx, req.Header())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
@@ -177,7 +201,7 @@ func (h *Handler) ToggleCustomRule(
 	ctx context.Context,
 	req *connect.Request[fpv1.ToggleCustomRuleRequest],
 ) (*connect.Response[fpv1.ToggleCustomRuleResponse], error) {
-	p, err := identityhandler.RequireAuth(ctx, h.authSvc, req.Header())
+	p, err := h.requireAuth(ctx, req.Header())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
@@ -205,6 +229,111 @@ func (h *Handler) ToggleCustomRule(
 	}
 	h.logAudit(ctx, action, req.Header(), p, cur.ID, cur.Name)
 	return connect.NewResponse(&fpv1.ToggleCustomRuleResponse{Rule: customRuleToProto(cur)}), nil
+}
+
+// === BulkImportCustomRules (PR-S77) ===
+
+func (h *Handler) BulkImportCustomRules(
+	ctx context.Context,
+	req *connect.Request[fpv1.BulkImportCustomRulesRequest],
+) (*connect.Response[fpv1.BulkImportCustomRulesResponse], error) {
+	p, err := h.requireAuth(ctx, req.Header())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	if err := identityhandler.RequireRole(p, writers...); err != nil {
+		return nil, toConnectError(err)
+	}
+	yamlText := req.Msg.GetYamlText()
+	if yamlText == "" {
+		return nil, toConnectError(errx.New(errx.ErrInvalidInput, "yaml_text 不能为空"))
+	}
+	// 解析复用 internal/fingerprint.NewLibrary（验证 + 去重 + name 排序）
+	lib, err := fingerprint.NewLibrary([]byte(yamlText))
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	policy := req.Msg.GetDuplicatePolicy()
+	if policy == "" {
+		policy = "skip"
+	}
+	if policy != "skip" && policy != "overwrite" {
+		return nil, toConnectError(errx.New(errx.ErrInvalidInput,
+			"duplicate_policy 必须是 skip 或 overwrite").WithFields("got", policy))
+	}
+
+	// 当前 tenant 已有自定义规则按 name 索引，让 skip / overwrite 决策走内存
+	existing, err := h.repo.ListAllByTenant(ctx, p.TenantID)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	byName := make(map[string]*fingerprint.CustomRule, len(existing))
+	for _, c := range existing {
+		byName[c.Name] = c
+	}
+
+	out := &fpv1.BulkImportCustomRulesResponse{}
+	for _, r := range lib.Rules() {
+		entry := &fpv1.BulkImportRuleResult{Name: r.Name}
+		if old, dup := byName[r.Name]; dup {
+			if policy == "skip" {
+				entry.Status = "skipped"
+				out.Skipped++
+				out.Details = append(out.Details, entry)
+				continue
+			}
+			// overwrite：先软删
+			if err := h.repo.SoftDelete(ctx, old.ID); err != nil {
+				entry.Status = "failed"
+				entry.Error = err.Error()
+				out.Failed++
+				out.Details = append(out.Details, entry)
+				continue
+			}
+		}
+		newRule := &fingerprint.CustomRule{
+			TenantID:      p.TenantID,
+			Name:          r.Name,
+			Fields:        r.Fields,
+			Keyword:       r.Keyword,
+			CaseSensitive: r.CaseSensitive,
+			Enabled:       true,
+			Description:   "bulk-imported",
+		}
+		if v := p.UserID; v != "" {
+			newRule.CreatedBy = &v
+		}
+		if err := h.repo.Insert(ctx, newRule); err != nil {
+			entry.Status = "failed"
+			entry.Error = err.Error()
+			out.Failed++
+		} else {
+			entry.Status = "created"
+			out.Created++
+		}
+		out.Details = append(out.Details, entry)
+	}
+
+	// 单次刷缓存即可（不必每条 invalidate）
+	h.invalidate(p.TenantID)
+	// 审计：只记 summary，不展开 details 避免 audit payload 过大
+	if h.audit != nil {
+		_ = h.audit.Log(ctx, audithook.Event{
+			Action:        "fingerprint_rules_bulk_imported",
+			ResourceKind:  "fingerprint_rule",
+			TenantID:      p.TenantID,
+			ActorUserID:   p.UserID,
+			ActorUsername: p.Username,
+			Payload: map[string]any{
+				"created":  out.Created,
+				"skipped":  out.Skipped,
+				"failed":   out.Failed,
+				"policy":   policy,
+				"total_in": len(lib.Rules()),
+			},
+		})
+	}
+	return connect.NewResponse(out), nil
 }
 
 // === helpers ===

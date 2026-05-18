@@ -52,6 +52,9 @@ const (
 	// FingerprintServiceToggleCustomRuleProcedure is the fully-qualified name of the
 	// FingerprintService's ToggleCustomRule RPC.
 	FingerprintServiceToggleCustomRuleProcedure = "/redmatrix.fingerprint.v1.FingerprintService/ToggleCustomRule"
+	// FingerprintServiceBulkImportCustomRulesProcedure is the fully-qualified name of the
+	// FingerprintService's BulkImportCustomRules RPC.
+	FingerprintServiceBulkImportCustomRulesProcedure = "/redmatrix.fingerprint.v1.FingerprintService/BulkImportCustomRules"
 )
 
 // FingerprintServiceClient is a client for the redmatrix.fingerprint.v1.FingerprintService service.
@@ -69,6 +72,10 @@ type FingerprintServiceClient interface {
 	DeleteCustomRule(context.Context, *connect.Request[v1.DeleteCustomRuleRequest]) (*connect.Response[v1.DeleteCustomRuleResponse], error)
 	// ToggleCustomRule 翻转 enabled（SA + PA 可写）。
 	ToggleCustomRule(context.Context, *connect.Request[v1.ToggleCustomRuleRequest]) (*connect.Response[v1.ToggleCustomRuleResponse], error)
+	// BulkImportCustomRules 批量导入自定义规则（PR-S77，SA + PA）。
+	// 入参 yaml_text 是 RedMatrix YAML 格式（同 rules.yaml schema）。
+	// duplicate_policy: "skip"（默认，同名跳过）/ "overwrite"（先软删旧再插）。
+	BulkImportCustomRules(context.Context, *connect.Request[v1.BulkImportCustomRulesRequest]) (*connect.Response[v1.BulkImportCustomRulesResponse], error)
 }
 
 // NewFingerprintServiceClient constructs a client for the
@@ -113,16 +120,23 @@ func NewFingerprintServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(fingerprintServiceMethods.ByName("ToggleCustomRule")),
 			connect.WithClientOptions(opts...),
 		),
+		bulkImportCustomRules: connect.NewClient[v1.BulkImportCustomRulesRequest, v1.BulkImportCustomRulesResponse](
+			httpClient,
+			baseURL+FingerprintServiceBulkImportCustomRulesProcedure,
+			connect.WithSchema(fingerprintServiceMethods.ByName("BulkImportCustomRules")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // fingerprintServiceClient implements FingerprintServiceClient.
 type fingerprintServiceClient struct {
-	listBuiltinRules *connect.Client[v1.ListBuiltinRulesRequest, v1.ListBuiltinRulesResponse]
-	listCustomRules  *connect.Client[v1.ListCustomRulesRequest, v1.ListCustomRulesResponse]
-	createCustomRule *connect.Client[v1.CreateCustomRuleRequest, v1.CreateCustomRuleResponse]
-	deleteCustomRule *connect.Client[v1.DeleteCustomRuleRequest, v1.DeleteCustomRuleResponse]
-	toggleCustomRule *connect.Client[v1.ToggleCustomRuleRequest, v1.ToggleCustomRuleResponse]
+	listBuiltinRules      *connect.Client[v1.ListBuiltinRulesRequest, v1.ListBuiltinRulesResponse]
+	listCustomRules       *connect.Client[v1.ListCustomRulesRequest, v1.ListCustomRulesResponse]
+	createCustomRule      *connect.Client[v1.CreateCustomRuleRequest, v1.CreateCustomRuleResponse]
+	deleteCustomRule      *connect.Client[v1.DeleteCustomRuleRequest, v1.DeleteCustomRuleResponse]
+	toggleCustomRule      *connect.Client[v1.ToggleCustomRuleRequest, v1.ToggleCustomRuleResponse]
+	bulkImportCustomRules *connect.Client[v1.BulkImportCustomRulesRequest, v1.BulkImportCustomRulesResponse]
 }
 
 // ListBuiltinRules calls redmatrix.fingerprint.v1.FingerprintService.ListBuiltinRules.
@@ -150,6 +164,11 @@ func (c *fingerprintServiceClient) ToggleCustomRule(ctx context.Context, req *co
 	return c.toggleCustomRule.CallUnary(ctx, req)
 }
 
+// BulkImportCustomRules calls redmatrix.fingerprint.v1.FingerprintService.BulkImportCustomRules.
+func (c *fingerprintServiceClient) BulkImportCustomRules(ctx context.Context, req *connect.Request[v1.BulkImportCustomRulesRequest]) (*connect.Response[v1.BulkImportCustomRulesResponse], error) {
+	return c.bulkImportCustomRules.CallUnary(ctx, req)
+}
+
 // FingerprintServiceHandler is an implementation of the redmatrix.fingerprint.v1.FingerprintService
 // service.
 type FingerprintServiceHandler interface {
@@ -166,6 +185,10 @@ type FingerprintServiceHandler interface {
 	DeleteCustomRule(context.Context, *connect.Request[v1.DeleteCustomRuleRequest]) (*connect.Response[v1.DeleteCustomRuleResponse], error)
 	// ToggleCustomRule 翻转 enabled（SA + PA 可写）。
 	ToggleCustomRule(context.Context, *connect.Request[v1.ToggleCustomRuleRequest]) (*connect.Response[v1.ToggleCustomRuleResponse], error)
+	// BulkImportCustomRules 批量导入自定义规则（PR-S77，SA + PA）。
+	// 入参 yaml_text 是 RedMatrix YAML 格式（同 rules.yaml schema）。
+	// duplicate_policy: "skip"（默认，同名跳过）/ "overwrite"（先软删旧再插）。
+	BulkImportCustomRules(context.Context, *connect.Request[v1.BulkImportCustomRulesRequest]) (*connect.Response[v1.BulkImportCustomRulesResponse], error)
 }
 
 // NewFingerprintServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -205,6 +228,12 @@ func NewFingerprintServiceHandler(svc FingerprintServiceHandler, opts ...connect
 		connect.WithSchema(fingerprintServiceMethods.ByName("ToggleCustomRule")),
 		connect.WithHandlerOptions(opts...),
 	)
+	fingerprintServiceBulkImportCustomRulesHandler := connect.NewUnaryHandler(
+		FingerprintServiceBulkImportCustomRulesProcedure,
+		svc.BulkImportCustomRules,
+		connect.WithSchema(fingerprintServiceMethods.ByName("BulkImportCustomRules")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/redmatrix.fingerprint.v1.FingerprintService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case FingerprintServiceListBuiltinRulesProcedure:
@@ -217,6 +246,8 @@ func NewFingerprintServiceHandler(svc FingerprintServiceHandler, opts ...connect
 			fingerprintServiceDeleteCustomRuleHandler.ServeHTTP(w, r)
 		case FingerprintServiceToggleCustomRuleProcedure:
 			fingerprintServiceToggleCustomRuleHandler.ServeHTTP(w, r)
+		case FingerprintServiceBulkImportCustomRulesProcedure:
+			fingerprintServiceBulkImportCustomRulesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -244,4 +275,8 @@ func (UnimplementedFingerprintServiceHandler) DeleteCustomRule(context.Context, 
 
 func (UnimplementedFingerprintServiceHandler) ToggleCustomRule(context.Context, *connect.Request[v1.ToggleCustomRuleRequest]) (*connect.Response[v1.ToggleCustomRuleResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.fingerprint.v1.FingerprintService.ToggleCustomRule is not implemented"))
+}
+
+func (UnimplementedFingerprintServiceHandler) BulkImportCustomRules(context.Context, *connect.Request[v1.BulkImportCustomRulesRequest]) (*connect.Response[v1.BulkImportCustomRulesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("redmatrix.fingerprint.v1.FingerprintService.BulkImportCustomRules is not implemented"))
 }

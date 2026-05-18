@@ -8,7 +8,7 @@
 // 包含 RedMatrix 内嵌规则（read-only）+ 租户自定义规则（CRUD）。
 // 内嵌规则 ID 为空，自定义规则 ID 为 UUID。
 
-import { CreateCustomRuleRequest, CreateCustomRuleResponse, DeleteCustomRuleRequest, DeleteCustomRuleResponse, ListBuiltinRulesRequest, ListBuiltinRulesResponse, ListCustomRulesRequest, ListCustomRulesResponse, ToggleCustomRuleRequest, ToggleCustomRuleResponse } from "./fingerprint_pb.js";
+import { BulkImportCustomRulesRequest, BulkImportCustomRulesResponse, CreateCustomRuleRequest, CreateCustomRuleResponse, DeleteCustomRuleRequest, DeleteCustomRuleResponse, ListBuiltinRulesRequest, ListBuiltinRulesResponse, ListCustomRulesRequest, ListCustomRulesResponse, ToggleCustomRuleRequest, ToggleCustomRuleResponse } from "./fingerprint_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -73,6 +73,19 @@ export const FingerprintService = {
       name: "ToggleCustomRule",
       I: ToggleCustomRuleRequest,
       O: ToggleCustomRuleResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * BulkImportCustomRules 批量导入自定义规则（PR-S77，SA + PA）。
+     * 入参 yaml_text 是 RedMatrix YAML 格式（同 rules.yaml schema）。
+     * duplicate_policy: "skip"（默认，同名跳过）/ "overwrite"（先软删旧再插）。
+     *
+     * @generated from rpc redmatrix.fingerprint.v1.FingerprintService.BulkImportCustomRules
+     */
+    bulkImportCustomRules: {
+      name: "BulkImportCustomRules",
+      I: BulkImportCustomRulesRequest,
+      O: BulkImportCustomRulesResponse,
       kind: MethodKind.Unary,
     },
   }

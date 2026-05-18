@@ -635,6 +635,196 @@ func (x *ToggleCustomRuleResponse) GetRule() *Rule {
 	return nil
 }
 
+// PR-S77
+type BulkImportCustomRulesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// RedMatrix YAML 文本。schema 与 internal/fingerprint/rules.yaml 一致：
+	//
+	//	rules:
+	//	  - name: ...
+	//	    fields: [...]
+	//	    keyword: ...
+	//	    case_sensitive: ...
+	YamlText string `protobuf:"bytes,1,opt,name=yaml_text,json=yamlText,proto3" json:"yaml_text,omitempty"`
+	// "skip"（默认） / "overwrite"
+	DuplicatePolicy string `protobuf:"bytes,2,opt,name=duplicate_policy,json=duplicatePolicy,proto3" json:"duplicate_policy,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *BulkImportCustomRulesRequest) Reset() {
+	*x = BulkImportCustomRulesRequest{}
+	mi := &file_redmatrix_fingerprint_v1_fingerprint_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkImportCustomRulesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkImportCustomRulesRequest) ProtoMessage() {}
+
+func (x *BulkImportCustomRulesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_fingerprint_v1_fingerprint_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkImportCustomRulesRequest.ProtoReflect.Descriptor instead.
+func (*BulkImportCustomRulesRequest) Descriptor() ([]byte, []int) {
+	return file_redmatrix_fingerprint_v1_fingerprint_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BulkImportCustomRulesRequest) GetYamlText() string {
+	if x != nil {
+		return x.YamlText
+	}
+	return ""
+}
+
+func (x *BulkImportCustomRulesRequest) GetDuplicatePolicy() string {
+	if x != nil {
+		return x.DuplicatePolicy
+	}
+	return ""
+}
+
+type BulkImportRuleResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// "created" / "skipped" / "failed"
+	Status        string `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Error         string `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkImportRuleResult) Reset() {
+	*x = BulkImportRuleResult{}
+	mi := &file_redmatrix_fingerprint_v1_fingerprint_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkImportRuleResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkImportRuleResult) ProtoMessage() {}
+
+func (x *BulkImportRuleResult) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_fingerprint_v1_fingerprint_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkImportRuleResult.ProtoReflect.Descriptor instead.
+func (*BulkImportRuleResult) Descriptor() ([]byte, []int) {
+	return file_redmatrix_fingerprint_v1_fingerprint_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *BulkImportRuleResult) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *BulkImportRuleResult) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *BulkImportRuleResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type BulkImportCustomRulesResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Created       int32                   `protobuf:"varint,1,opt,name=created,proto3" json:"created,omitempty"`
+	Skipped       int32                   `protobuf:"varint,2,opt,name=skipped,proto3" json:"skipped,omitempty"`
+	Failed        int32                   `protobuf:"varint,3,opt,name=failed,proto3" json:"failed,omitempty"`
+	Details       []*BulkImportRuleResult `protobuf:"bytes,4,rep,name=details,proto3" json:"details,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkImportCustomRulesResponse) Reset() {
+	*x = BulkImportCustomRulesResponse{}
+	mi := &file_redmatrix_fingerprint_v1_fingerprint_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkImportCustomRulesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkImportCustomRulesResponse) ProtoMessage() {}
+
+func (x *BulkImportCustomRulesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_redmatrix_fingerprint_v1_fingerprint_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkImportCustomRulesResponse.ProtoReflect.Descriptor instead.
+func (*BulkImportCustomRulesResponse) Descriptor() ([]byte, []int) {
+	return file_redmatrix_fingerprint_v1_fingerprint_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *BulkImportCustomRulesResponse) GetCreated() int32 {
+	if x != nil {
+		return x.Created
+	}
+	return 0
+}
+
+func (x *BulkImportCustomRulesResponse) GetSkipped() int32 {
+	if x != nil {
+		return x.Skipped
+	}
+	return 0
+}
+
+func (x *BulkImportCustomRulesResponse) GetFailed() int32 {
+	if x != nil {
+		return x.Failed
+	}
+	return 0
+}
+
+func (x *BulkImportCustomRulesResponse) GetDetails() []*BulkImportRuleResult {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
 var File_redmatrix_fingerprint_v1_fingerprint_proto protoreflect.FileDescriptor
 
 const file_redmatrix_fingerprint_v1_fingerprint_proto_rawDesc = "" +
@@ -683,13 +873,26 @@ const file_redmatrix_fingerprint_v1_fingerprint_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aenabled\x18\x02 \x01(\bR\aenabled\"N\n" +
 	"\x18ToggleCustomRuleResponse\x122\n" +
-	"\x04rule\x18\x01 \x01(\v2\x1e.redmatrix.fingerprint.v1.RuleR\x04rule2\xf8\x04\n" +
+	"\x04rule\x18\x01 \x01(\v2\x1e.redmatrix.fingerprint.v1.RuleR\x04rule\"f\n" +
+	"\x1cBulkImportCustomRulesRequest\x12\x1b\n" +
+	"\tyaml_text\x18\x01 \x01(\tR\byamlText\x12)\n" +
+	"\x10duplicate_policy\x18\x02 \x01(\tR\x0fduplicatePolicy\"X\n" +
+	"\x14BulkImportRuleResult\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\"\xb5\x01\n" +
+	"\x1dBulkImportCustomRulesResponse\x12\x18\n" +
+	"\acreated\x18\x01 \x01(\x05R\acreated\x12\x18\n" +
+	"\askipped\x18\x02 \x01(\x05R\askipped\x12\x16\n" +
+	"\x06failed\x18\x03 \x01(\x05R\x06failed\x12H\n" +
+	"\adetails\x18\x04 \x03(\v2..redmatrix.fingerprint.v1.BulkImportRuleResultR\adetails2\x83\x06\n" +
 	"\x12FingerprintService\x12y\n" +
 	"\x10ListBuiltinRules\x121.redmatrix.fingerprint.v1.ListBuiltinRulesRequest\x1a2.redmatrix.fingerprint.v1.ListBuiltinRulesResponse\x12v\n" +
 	"\x0fListCustomRules\x120.redmatrix.fingerprint.v1.ListCustomRulesRequest\x1a1.redmatrix.fingerprint.v1.ListCustomRulesResponse\x12y\n" +
 	"\x10CreateCustomRule\x121.redmatrix.fingerprint.v1.CreateCustomRuleRequest\x1a2.redmatrix.fingerprint.v1.CreateCustomRuleResponse\x12y\n" +
 	"\x10DeleteCustomRule\x121.redmatrix.fingerprint.v1.DeleteCustomRuleRequest\x1a2.redmatrix.fingerprint.v1.DeleteCustomRuleResponse\x12y\n" +
-	"\x10ToggleCustomRule\x121.redmatrix.fingerprint.v1.ToggleCustomRuleRequest\x1a2.redmatrix.fingerprint.v1.ToggleCustomRuleResponseB\x82\x02\n" +
+	"\x10ToggleCustomRule\x121.redmatrix.fingerprint.v1.ToggleCustomRuleRequest\x1a2.redmatrix.fingerprint.v1.ToggleCustomRuleResponse\x12\x88\x01\n" +
+	"\x15BulkImportCustomRules\x126.redmatrix.fingerprint.v1.BulkImportCustomRulesRequest\x1a7.redmatrix.fingerprint.v1.BulkImportCustomRulesResponseB\x82\x02\n" +
 	"\x1ccom.redmatrix.fingerprint.v1B\x10FingerprintProtoP\x01ZNgithub.com/ffff5sec/RedMatrix/gen/proto/redmatrix/fingerprint/v1;fingerprintv1\xa2\x02\x03RFX\xaa\x02\x18Redmatrix.Fingerprint.V1\xca\x02\x18Redmatrix\\Fingerprint\\V1\xe2\x02$Redmatrix\\Fingerprint\\V1\\GPBMetadata\xea\x02\x1aRedmatrix::Fingerprint::V1b\x06proto3"
 
 var (
@@ -704,43 +907,49 @@ func file_redmatrix_fingerprint_v1_fingerprint_proto_rawDescGZIP() []byte {
 	return file_redmatrix_fingerprint_v1_fingerprint_proto_rawDescData
 }
 
-var file_redmatrix_fingerprint_v1_fingerprint_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_redmatrix_fingerprint_v1_fingerprint_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_redmatrix_fingerprint_v1_fingerprint_proto_goTypes = []any{
-	(*Rule)(nil),                     // 0: redmatrix.fingerprint.v1.Rule
-	(*ListBuiltinRulesRequest)(nil),  // 1: redmatrix.fingerprint.v1.ListBuiltinRulesRequest
-	(*ListBuiltinRulesResponse)(nil), // 2: redmatrix.fingerprint.v1.ListBuiltinRulesResponse
-	(*ListCustomRulesRequest)(nil),   // 3: redmatrix.fingerprint.v1.ListCustomRulesRequest
-	(*ListCustomRulesResponse)(nil),  // 4: redmatrix.fingerprint.v1.ListCustomRulesResponse
-	(*CreateCustomRuleRequest)(nil),  // 5: redmatrix.fingerprint.v1.CreateCustomRuleRequest
-	(*CreateCustomRuleResponse)(nil), // 6: redmatrix.fingerprint.v1.CreateCustomRuleResponse
-	(*DeleteCustomRuleRequest)(nil),  // 7: redmatrix.fingerprint.v1.DeleteCustomRuleRequest
-	(*DeleteCustomRuleResponse)(nil), // 8: redmatrix.fingerprint.v1.DeleteCustomRuleResponse
-	(*ToggleCustomRuleRequest)(nil),  // 9: redmatrix.fingerprint.v1.ToggleCustomRuleRequest
-	(*ToggleCustomRuleResponse)(nil), // 10: redmatrix.fingerprint.v1.ToggleCustomRuleResponse
-	(*timestamppb.Timestamp)(nil),    // 11: google.protobuf.Timestamp
+	(*Rule)(nil),                          // 0: redmatrix.fingerprint.v1.Rule
+	(*ListBuiltinRulesRequest)(nil),       // 1: redmatrix.fingerprint.v1.ListBuiltinRulesRequest
+	(*ListBuiltinRulesResponse)(nil),      // 2: redmatrix.fingerprint.v1.ListBuiltinRulesResponse
+	(*ListCustomRulesRequest)(nil),        // 3: redmatrix.fingerprint.v1.ListCustomRulesRequest
+	(*ListCustomRulesResponse)(nil),       // 4: redmatrix.fingerprint.v1.ListCustomRulesResponse
+	(*CreateCustomRuleRequest)(nil),       // 5: redmatrix.fingerprint.v1.CreateCustomRuleRequest
+	(*CreateCustomRuleResponse)(nil),      // 6: redmatrix.fingerprint.v1.CreateCustomRuleResponse
+	(*DeleteCustomRuleRequest)(nil),       // 7: redmatrix.fingerprint.v1.DeleteCustomRuleRequest
+	(*DeleteCustomRuleResponse)(nil),      // 8: redmatrix.fingerprint.v1.DeleteCustomRuleResponse
+	(*ToggleCustomRuleRequest)(nil),       // 9: redmatrix.fingerprint.v1.ToggleCustomRuleRequest
+	(*ToggleCustomRuleResponse)(nil),      // 10: redmatrix.fingerprint.v1.ToggleCustomRuleResponse
+	(*BulkImportCustomRulesRequest)(nil),  // 11: redmatrix.fingerprint.v1.BulkImportCustomRulesRequest
+	(*BulkImportRuleResult)(nil),          // 12: redmatrix.fingerprint.v1.BulkImportRuleResult
+	(*BulkImportCustomRulesResponse)(nil), // 13: redmatrix.fingerprint.v1.BulkImportCustomRulesResponse
+	(*timestamppb.Timestamp)(nil),         // 14: google.protobuf.Timestamp
 }
 var file_redmatrix_fingerprint_v1_fingerprint_proto_depIdxs = []int32{
-	11, // 0: redmatrix.fingerprint.v1.Rule.created_at:type_name -> google.protobuf.Timestamp
-	11, // 1: redmatrix.fingerprint.v1.Rule.updated_at:type_name -> google.protobuf.Timestamp
+	14, // 0: redmatrix.fingerprint.v1.Rule.created_at:type_name -> google.protobuf.Timestamp
+	14, // 1: redmatrix.fingerprint.v1.Rule.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: redmatrix.fingerprint.v1.ListBuiltinRulesResponse.rules:type_name -> redmatrix.fingerprint.v1.Rule
 	0,  // 3: redmatrix.fingerprint.v1.ListCustomRulesResponse.rules:type_name -> redmatrix.fingerprint.v1.Rule
 	0,  // 4: redmatrix.fingerprint.v1.CreateCustomRuleResponse.rule:type_name -> redmatrix.fingerprint.v1.Rule
 	0,  // 5: redmatrix.fingerprint.v1.ToggleCustomRuleResponse.rule:type_name -> redmatrix.fingerprint.v1.Rule
-	1,  // 6: redmatrix.fingerprint.v1.FingerprintService.ListBuiltinRules:input_type -> redmatrix.fingerprint.v1.ListBuiltinRulesRequest
-	3,  // 7: redmatrix.fingerprint.v1.FingerprintService.ListCustomRules:input_type -> redmatrix.fingerprint.v1.ListCustomRulesRequest
-	5,  // 8: redmatrix.fingerprint.v1.FingerprintService.CreateCustomRule:input_type -> redmatrix.fingerprint.v1.CreateCustomRuleRequest
-	7,  // 9: redmatrix.fingerprint.v1.FingerprintService.DeleteCustomRule:input_type -> redmatrix.fingerprint.v1.DeleteCustomRuleRequest
-	9,  // 10: redmatrix.fingerprint.v1.FingerprintService.ToggleCustomRule:input_type -> redmatrix.fingerprint.v1.ToggleCustomRuleRequest
-	2,  // 11: redmatrix.fingerprint.v1.FingerprintService.ListBuiltinRules:output_type -> redmatrix.fingerprint.v1.ListBuiltinRulesResponse
-	4,  // 12: redmatrix.fingerprint.v1.FingerprintService.ListCustomRules:output_type -> redmatrix.fingerprint.v1.ListCustomRulesResponse
-	6,  // 13: redmatrix.fingerprint.v1.FingerprintService.CreateCustomRule:output_type -> redmatrix.fingerprint.v1.CreateCustomRuleResponse
-	8,  // 14: redmatrix.fingerprint.v1.FingerprintService.DeleteCustomRule:output_type -> redmatrix.fingerprint.v1.DeleteCustomRuleResponse
-	10, // 15: redmatrix.fingerprint.v1.FingerprintService.ToggleCustomRule:output_type -> redmatrix.fingerprint.v1.ToggleCustomRuleResponse
-	11, // [11:16] is the sub-list for method output_type
-	6,  // [6:11] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	12, // 6: redmatrix.fingerprint.v1.BulkImportCustomRulesResponse.details:type_name -> redmatrix.fingerprint.v1.BulkImportRuleResult
+	1,  // 7: redmatrix.fingerprint.v1.FingerprintService.ListBuiltinRules:input_type -> redmatrix.fingerprint.v1.ListBuiltinRulesRequest
+	3,  // 8: redmatrix.fingerprint.v1.FingerprintService.ListCustomRules:input_type -> redmatrix.fingerprint.v1.ListCustomRulesRequest
+	5,  // 9: redmatrix.fingerprint.v1.FingerprintService.CreateCustomRule:input_type -> redmatrix.fingerprint.v1.CreateCustomRuleRequest
+	7,  // 10: redmatrix.fingerprint.v1.FingerprintService.DeleteCustomRule:input_type -> redmatrix.fingerprint.v1.DeleteCustomRuleRequest
+	9,  // 11: redmatrix.fingerprint.v1.FingerprintService.ToggleCustomRule:input_type -> redmatrix.fingerprint.v1.ToggleCustomRuleRequest
+	11, // 12: redmatrix.fingerprint.v1.FingerprintService.BulkImportCustomRules:input_type -> redmatrix.fingerprint.v1.BulkImportCustomRulesRequest
+	2,  // 13: redmatrix.fingerprint.v1.FingerprintService.ListBuiltinRules:output_type -> redmatrix.fingerprint.v1.ListBuiltinRulesResponse
+	4,  // 14: redmatrix.fingerprint.v1.FingerprintService.ListCustomRules:output_type -> redmatrix.fingerprint.v1.ListCustomRulesResponse
+	6,  // 15: redmatrix.fingerprint.v1.FingerprintService.CreateCustomRule:output_type -> redmatrix.fingerprint.v1.CreateCustomRuleResponse
+	8,  // 16: redmatrix.fingerprint.v1.FingerprintService.DeleteCustomRule:output_type -> redmatrix.fingerprint.v1.DeleteCustomRuleResponse
+	10, // 17: redmatrix.fingerprint.v1.FingerprintService.ToggleCustomRule:output_type -> redmatrix.fingerprint.v1.ToggleCustomRuleResponse
+	13, // 18: redmatrix.fingerprint.v1.FingerprintService.BulkImportCustomRules:output_type -> redmatrix.fingerprint.v1.BulkImportCustomRulesResponse
+	13, // [13:19] is the sub-list for method output_type
+	7,  // [7:13] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_redmatrix_fingerprint_v1_fingerprint_proto_init() }
@@ -755,7 +964,7 @@ func file_redmatrix_fingerprint_v1_fingerprint_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redmatrix_fingerprint_v1_fingerprint_proto_rawDesc), len(file_redmatrix_fingerprint_v1_fingerprint_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

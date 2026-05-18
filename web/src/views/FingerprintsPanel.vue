@@ -16,6 +16,17 @@ const builtin = ref<Rule[]>([]);
 const custom = ref<Rule[]>([]);
 const loading = ref(false);
 const showCreate = ref(false);
+// PR-S77 批量导入
+const showImport = ref(false);
+const importYAML = ref('');
+const importPolicy = ref<'skip' | 'overwrite'>('skip');
+const importSubmitting = ref(false);
+const importResult = ref<{
+  created: number;
+  skipped: number;
+  failed: number;
+  details: { name: string; status: string; error: string }[];
+} | null>(null);
 const submitting = ref(false);
 
 const form = ref({
@@ -99,6 +110,40 @@ async function toggleEnabled(r: Rule) {
   }
 }
 
+async function bulkImport() {
+  if (importSubmitting.value || !importYAML.value.trim()) return;
+  importSubmitting.value = true;
+  importResult.value = null;
+  try {
+    const r = await fingerprintClient.bulkImportCustomRules({
+      yamlText: importYAML.value,
+      duplicatePolicy: importPolicy.value,
+    });
+    importResult.value = {
+      created: r.created,
+      skipped: r.skipped,
+      failed: r.failed,
+      details: r.details.map(d => ({ name: d.name, status: d.status, error: d.error })),
+    };
+    if (r.failed === 0) {
+      toast.success(`导入完成：新建 ${r.created} / 跳过 ${r.skipped}`);
+    } else {
+      toast.warning(`导入完成：新建 ${r.created} / 跳过 ${r.skipped} / 失败 ${r.failed}`);
+    }
+    await refresh();
+  } catch (e) {
+    toast.error(errorMessage(e));
+  } finally {
+    importSubmitting.value = false;
+  }
+}
+
+function resetImport() {
+  importYAML.value = '';
+  importResult.value = null;
+  importPolicy.value = 'skip';
+}
+
 async function del(r: Rule) {
   if (!confirm(`删除自定义规则 ${r.name}？已删除不可恢复（可同名重建）。`)) return;
   try {
@@ -154,7 +199,10 @@ async function del(r: Rule) {
     <div class="card">
       <div class="row" style="justify-content: space-between; align-items: baseline">
         <h3 style="margin: 0">自定义规则<span class="muted" style="margin-left: 8px">{{ custom.length }} 条</span></h3>
-        <button v-if="canWrite" class="primary" @click="showCreate = true">新建规则</button>
+        <div v-if="canWrite" class="row" style="gap: 8px">
+          <button @click="showImport = true; resetImport()">批量导入</button>
+          <button class="primary" @click="showCreate = true">新建规则</button>
+        </div>
       </div>
       <p class="muted">仅本租户可见可改；变更后 ≤ 60s 在扫描端生效。</p>
 
@@ -213,6 +261,52 @@ async function del(r: Rule) {
         <div class="row" style="justify-content: flex-end; gap: 8px; margin-top: 8px">
           <button @click="showCreate = false; resetForm()" :disabled="submitting">取消</button>
           <button class="primary" :disabled="submitting" @click="submit">{{ submitting ? '保存中…' : '保存' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PR-S77 批量导入 -->
+    <div v-if="showImport" class="overlay">
+      <div class="modal" style="width: 760px">
+        <h3 style="margin-top: 0">批量导入指纹规则</h3>
+        <p class="muted" style="margin-top: 0">
+          粘贴 RedMatrix YAML（同 rules.yaml schema：`rules:` 数组 + name / fields / keyword / case_sensitive 字段）。
+          常见开源源（EHole / FingerprintHub / Wappalyzer）可写小脚本转 YAML。
+        </p>
+        <div class="form-row form-row-top">
+          <span class="label">YAML 内容</span>
+          <textarea v-model="importYAML" rows="14" :disabled="importSubmitting"
+            style="flex: 1; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px"
+            :placeholder="'rules:\n  - name: MyTech\n    fields: [body, title]\n    keyword: mytech-banner\n    case_sensitive: false'" />
+        </div>
+        <div class="form-row">
+          <span class="label">同名策略</span>
+          <label style="margin-right: 12px">
+            <input type="radio" value="skip" v-model="importPolicy" :disabled="importSubmitting" /> 跳过同名
+          </label>
+          <label>
+            <input type="radio" value="overwrite" v-model="importPolicy" :disabled="importSubmitting" /> 覆盖（先软删旧再插）
+          </label>
+        </div>
+        <div v-if="importResult" class="info" style="margin-top: 8px">
+          <strong>导入结果</strong>：
+          新建 <b style="color: #15803d">{{ importResult.created }}</b> /
+          跳过 <span class="muted">{{ importResult.skipped }}</span> /
+          失败 <b v-if="importResult.failed > 0" style="color: #dc2626">{{ importResult.failed }}</b><span v-else>0</span>
+          <details v-if="importResult.failed > 0" style="margin-top: 4px">
+            <summary>查看失败详情</summary>
+            <ul style="font-size: 12px; margin: 4px 0 0 0">
+              <li v-for="d in importResult.details.filter(x => x.status === 'failed')" :key="d.name">
+                <code>{{ d.name }}</code>：{{ d.error }}
+              </li>
+            </ul>
+          </details>
+        </div>
+        <div class="row" style="justify-content: flex-end; gap: 8px; margin-top: 12px">
+          <button @click="showImport = false; resetImport()" :disabled="importSubmitting">关闭</button>
+          <button class="primary" :disabled="importSubmitting || !importYAML.trim()" @click="bulkImport">
+            {{ importSubmitting ? '导入中…' : '开始导入' }}
+          </button>
         </div>
       </div>
     </div>

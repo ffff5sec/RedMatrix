@@ -423,3 +423,53 @@ func TestRedeemRegistrationToken_NoAuth_OK(t *testing.T) {
 	require.NoError(t, callErr)
 	assert.Equal(t, fixtureNodeID, resp.Msg.Node.Id)
 }
+
+// === PR-S73 endpoints in CreateRegistrationToken response ===
+
+func TestCreateRegistrationToken_ReturnsEndpoints(t *testing.T) {
+	svc := &stubTenancySvc{
+		tokenCreateRes: &tenancy.CreateRegistrationTokenResult{
+			Token: &tenancydomain.RegistrationToken{
+				ID: "t-1", TenantID: fixtureTenantID, Name: "demo",
+				ExpiresAt: time.Now().Add(time.Hour), CreatedAt: time.Now(),
+			},
+			Plaintext: "rmnode_demo_abc",
+		},
+	}
+	h := newHandler(t, principal(identitydomain.RoleSuperAdmin, fixtureTenantID, "u-sa"), svc)
+	h.WithEndpoints(Endpoints{
+		ServerURL:      "https://rm.example.com",
+		NodeAgentURL:   "https://rm.example.com:9090",
+		MTLSServerName: "rm.example.com",
+	})
+
+	resp, err := h.CreateRegistrationToken(context.Background(),
+		authHeaderReq(&tenancyv1.CreateRegistrationTokenRequest{TenantId: fixtureTenantID, Name: "demo"}))
+	require.NoError(t, err)
+	assert.Equal(t, "rmnode_demo_abc", resp.Msg.Plaintext)
+	assert.Equal(t, "https://rm.example.com", resp.Msg.ServerUrl)
+	assert.Equal(t, "https://rm.example.com:9090", resp.Msg.NodeAgentUrl)
+	assert.Equal(t, "rm.example.com", resp.Msg.MtlsServerName)
+}
+
+// TestCreateRegistrationToken_NoEndpointsConfigured 没注入 Endpoints 时返空串
+// 不影响 token 创建。
+func TestCreateRegistrationToken_NoEndpointsConfigured(t *testing.T) {
+	svc := &stubTenancySvc{
+		tokenCreateRes: &tenancy.CreateRegistrationTokenResult{
+			Token: &tenancydomain.RegistrationToken{
+				ID: "t", TenantID: fixtureTenantID, Name: "x",
+				ExpiresAt: time.Now().Add(time.Hour), CreatedAt: time.Now(),
+			},
+			Plaintext: "rmnode_x",
+		},
+	}
+	h := newHandler(t, principal(identitydomain.RoleSuperAdmin, fixtureTenantID, "u-sa"), svc)
+	resp, err := h.CreateRegistrationToken(context.Background(),
+		authHeaderReq(&tenancyv1.CreateRegistrationTokenRequest{TenantId: fixtureTenantID, Name: "x"}))
+	require.NoError(t, err)
+	assert.Equal(t, "rmnode_x", resp.Msg.Plaintext)
+	assert.Empty(t, resp.Msg.ServerUrl)
+	assert.Empty(t, resp.Msg.NodeAgentUrl)
+	assert.Empty(t, resp.Msg.MtlsServerName)
+}

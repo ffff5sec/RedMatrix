@@ -27,10 +27,18 @@ import (
 )
 
 // Handler 实现 tenancyv1connect.TenancyServiceHandler。
+// Endpoints PR-S73：传给 CreateRegistrationToken 响应，让 UI 一键拼装节点接入命令。
+type Endpoints struct {
+	ServerURL      string // agent --server-url
+	NodeAgentURL   string // agent --node-agent-url（mTLS）
+	MTLSServerName string // agent --mtls-server-name（可空）
+}
+
 type Handler struct {
-	svc     tenancy.Service
-	authSvc auth.Service   // 给 RequireAuth 用
-	audit   audithook.Hook // PR-S41 可空（无审计时不写）
+	svc       tenancy.Service
+	authSvc   auth.Service   // 给 RequireAuth 用
+	audit     audithook.Hook // PR-S41 可空（无审计时不写）
+	endpoints Endpoints      // PR-S73 可空 → 返响应里也是空串
 }
 
 var _ tenancyv1connect.TenancyServiceHandler = (*Handler)(nil)
@@ -46,6 +54,14 @@ func New(svc tenancy.Service, authSvc auth.Service) (*Handler, error) {
 // WithAudit 注入审计钩子（PR-S41）。
 func (h *Handler) WithAudit(a audithook.Hook) *Handler {
 	h.audit = a
+	return h
+}
+
+// WithEndpoints PR-S73：注入 server 端公开端点配置，让 CreateRegistrationToken
+// 返响应里带上 server_url / node_agent_url / mtls_server_name；UI 用来拼接
+// "一键安装" 命令片段。
+func (h *Handler) WithEndpoints(e Endpoints) *Handler {
+	h.endpoints = e
 	return h
 }
 
@@ -611,8 +627,11 @@ func (h *Handler) CreateRegistrationToken(
 		return nil, toConnectError(err)
 	}
 	return connect.NewResponse(&tenancyv1.CreateRegistrationTokenResponse{
-		Token:     registrationTokenToProto(res.Token),
-		Plaintext: res.Plaintext,
+		Token:          registrationTokenToProto(res.Token),
+		Plaintext:      res.Plaintext,
+		ServerUrl:      h.endpoints.ServerURL,
+		NodeAgentUrl:   h.endpoints.NodeAgentURL,
+		MtlsServerName: h.endpoints.MTLSServerName,
 	}), nil
 }
 

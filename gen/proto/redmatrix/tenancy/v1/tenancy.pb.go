@@ -2103,9 +2103,14 @@ type CreateRegistrationTokenResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Token *RegistrationToken     `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// plaintext 一次性返回；丢失需 Revoke + 重建
-	Plaintext     string `protobuf:"bytes,2,opt,name=plaintext,proto3" json:"plaintext,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Plaintext string `protobuf:"bytes,2,opt,name=plaintext,proto3" json:"plaintext,omitempty"`
+	// PR-S73 节点接入辅助：server 端公开的 agent 入口；UI 用来拼"一键安装"命令。
+	// 由 server 配置（PUBLIC_DOMAIN / PUBLIC_GRPC_ADDR）注入，不需 caller 提供。
+	ServerUrl      string `protobuf:"bytes,3,opt,name=server_url,json=serverUrl,proto3" json:"server_url,omitempty"`                  // agent --server-url，例 https://redmatrix.example.com 或 http://127.0.0.1:8080
+	NodeAgentUrl   string `protobuf:"bytes,4,opt,name=node_agent_url,json=nodeAgentUrl,proto3" json:"node_agent_url,omitempty"`       // agent --node-agent-url，mTLS 端点；例 https://redmatrix.example.com:9090
+	MtlsServerName string `protobuf:"bytes,5,opt,name=mtls_server_name,json=mtlsServerName,proto3" json:"mtls_server_name,omitempty"` // agent --mtls-server-name SAN override；server URL 用 IP 时通常等于 IP
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CreateRegistrationTokenResponse) Reset() {
@@ -2148,6 +2153,27 @@ func (x *CreateRegistrationTokenResponse) GetToken() *RegistrationToken {
 func (x *CreateRegistrationTokenResponse) GetPlaintext() string {
 	if x != nil {
 		return x.Plaintext
+	}
+	return ""
+}
+
+func (x *CreateRegistrationTokenResponse) GetServerUrl() string {
+	if x != nil {
+		return x.ServerUrl
+	}
+	return ""
+}
+
+func (x *CreateRegistrationTokenResponse) GetNodeAgentUrl() string {
+	if x != nil {
+		return x.NodeAgentUrl
+	}
+	return ""
+}
+
+func (x *CreateRegistrationTokenResponse) GetMtlsServerName() string {
+	if x != nil {
+		return x.MtlsServerName
 	}
 	return ""
 }
@@ -4246,10 +4272,14 @@ const file_redmatrix_tenancy_v1_tenancy_proto_rawDesc = "" +
 	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1f\n" +
 	"\vttl_seconds\x18\x03 \x01(\x03R\n" +
-	"ttlSeconds\"~\n" +
+	"ttlSeconds\"\xed\x01\n" +
 	"\x1fCreateRegistrationTokenResponse\x12=\n" +
 	"\x05token\x18\x01 \x01(\v2'.redmatrix.tenancy.v1.RegistrationTokenR\x05token\x12\x1c\n" +
-	"\tplaintext\x18\x02 \x01(\tR\tplaintext\"<\n" +
+	"\tplaintext\x18\x02 \x01(\tR\tplaintext\x12\x1d\n" +
+	"\n" +
+	"server_url\x18\x03 \x01(\tR\tserverUrl\x12$\n" +
+	"\x0enode_agent_url\x18\x04 \x01(\tR\fnodeAgentUrl\x12(\n" +
+	"\x10mtls_server_name\x18\x05 \x01(\tR\x0emtlsServerName\"<\n" +
 	"\x1dListRegistrationTokensRequest\x12\x1b\n" +
 	"\ttenant_id\x18\x01 \x01(\tR\btenantId\"a\n" +
 	"\x1eListRegistrationTokensResponse\x12?\n" +

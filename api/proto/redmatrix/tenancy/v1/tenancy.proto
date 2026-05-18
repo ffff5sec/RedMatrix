@@ -295,6 +295,11 @@ message CreateRegistrationTokenResponse {
   RegistrationToken token = 1;
   // plaintext 一次性返回；丢失需 Revoke + 重建
   string plaintext = 2;
+  // PR-S73 节点接入辅助：server 端公开的 agent 入口；UI 用来拼"一键安装"命令。
+  // 由 server 配置（PUBLIC_DOMAIN / PUBLIC_GRPC_ADDR）注入，不需 caller 提供。
+  string server_url = 3; // agent --server-url，例 https://redmatrix.example.com 或 http://127.0.0.1:8080
+  string node_agent_url = 4; // agent --node-agent-url，mTLS 端点；例 https://redmatrix.example.com:9090
+  string mtls_server_name = 5; // agent --mtls-server-name SAN override；server URL 用 IP 时通常等于 IP
 }
 
 message ListRegistrationTokensRequest {

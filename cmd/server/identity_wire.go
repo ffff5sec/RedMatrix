@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ffff5sec/RedMatrix/gen/proto/redmatrix/identity/v1/identityv1connect"
 	"github.com/ffff5sec/RedMatrix/internal/config"
@@ -94,7 +95,7 @@ func buildIdentityMount(pool *pg.Pool, rds *rmredis.Client, jwtSecret string) (*
 //
 // 依赖：pgxpool.App + identity Auth Service + 节点签发用 CA。
 // PR-S41: auditHook 可空；不空则 wire 进 handler.WithAudit，项目/成员变更落 audit。
-func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA, auditHook audithook.Hook) (*identityHandlerMount, tenancy.Service, error) {
+func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA, auditHook audithook.Hook, endpoints tenancyhandler.Endpoints) (*identityHandlerMount, tenancy.Service, error) {
 	if pool == nil || pool.App == nil {
 		return nil, nil, errx.New(errx.ErrInternal, "buildTenancyMount: pg.Pool.App 不能为 nil")
 	}
@@ -120,8 +121,50 @@ func buildTenancyMount(pool *pg.Pool, authSvc auth.Service, ca *pki.CA, auditHoo
 	if auditHook != nil {
 		h.WithAudit(auditHook)
 	}
+	h.WithEndpoints(endpoints) // PR-S73 注入 server URL / mTLS endpoint，CreateRegistrationToken 响应里带上
 	path, hh := tenancyv1connect.NewTenancyServiceHandler(h)
 	return &identityHandlerMount{path: path, handler: hh}, svc, nil
+}
+
+// computeAgentEndpoints PR-S73：根据 cfg.Public + 监听端口推导 agent 接入
+// 端点。优先级：
+//
+//	server URL    = cfg.Public.Domain ? scheme://Domain : "http://127.0.0.1<httpBindAddr>"
+//	node agent URL = scheme://cfg.Public.GRPCAddr（必填，否则空串）
+//	mtls SAN      = host(GRPCAddr) 或 cfg.Public.Domain 之一
+//
+// 不需 caller 提供；UI 拿到后拼一键安装命令。
+func computeAgentEndpoints(cfg *config.Config, httpBindAddr string) tenancyhandler.Endpoints {
+	if cfg == nil {
+		return tenancyhandler.Endpoints{}
+	}
+	out := tenancyhandler.Endpoints{}
+	// server URL：dev 没设 Domain 时 fallback localhost + http
+	domain := cfg.Public.Domain
+	if domain == "" || domain == "localhost" {
+		port := httpBindAddr
+		if port == "" {
+			port = ":8080"
+		}
+		// 把 ":8080" 转 "127.0.0.1:8080"
+		if strings.HasPrefix(port, ":") {
+			port = "127.0.0.1" + port
+		}
+		out.ServerURL = "http://" + port
+	} else {
+		out.ServerURL = "https://" + domain
+	}
+	// node agent URL：永远走 https://+ GRPCAddr（mTLS）
+	if cfg.Public.GRPCAddr != "" {
+		out.NodeAgentURL = "https://" + cfg.Public.GRPCAddr
+		// mTLS SAN：host 部分
+		if i := strings.LastIndex(cfg.Public.GRPCAddr, ":"); i > 0 {
+			out.MTLSServerName = cfg.Public.GRPCAddr[:i]
+		} else {
+			out.MTLSServerName = cfg.Public.GRPCAddr
+		}
+	}
+	return out
 }
 
 // ensureCA 启动期保证根 CA 落地：

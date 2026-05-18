@@ -159,7 +159,15 @@ const tokens = ref<RegistrationToken[]>([]);
 const tokensLoading = ref(false);
 const newToken = ref({ name: '', ttlHours: 1 });
 const tokenSubmitting = ref(false);
-const lastPlaintext = ref<{ name: string; plaintext: string } | null>(null);
+// PR-S73 新创建的 token + server 端点（用来渲染一键安装命令）
+const lastPlaintext = ref<{
+  name: string;
+  plaintext: string;
+  serverUrl: string;
+  nodeAgentUrl: string;
+  mtlsServerName: string;
+} | null>(null);
+const snippetTab = ref<'binary' | 'docker' | 'manual'>('binary');
 
 async function refreshTokens() {
   tokensLoading.value = true;
@@ -187,7 +195,13 @@ async function createToken() {
       name: newToken.value.name,
       ttlSeconds: BigInt(Math.max(60, Math.min(86400, newToken.value.ttlHours * 3600))),
     });
-    lastPlaintext.value = { name: newToken.value.name, plaintext: r.plaintext };
+    lastPlaintext.value = {
+      name: newToken.value.name,
+      plaintext: r.plaintext,
+      serverUrl: r.serverUrl,
+      nodeAgentUrl: r.nodeAgentUrl,
+      mtlsServerName: r.mtlsServerName,
+    };
     newToken.value = { name: '', ttlHours: 1 };
     toast.success(`令牌 ${lastPlaintext.value.name} 已生成（plaintext 仅显示一次）`);
     await refreshTokens();
@@ -211,6 +225,66 @@ async function revokeToken(id: string, name: string) {
 
 function copyText(s: string) {
   navigator.clipboard?.writeText(s);
+}
+
+// PR-S73：用 token + endpoint 生成 3 种一键安装命令片段。
+function snippetBinary(t: NonNullable<typeof lastPlaintext.value>, nodeName: string): string {
+  const sanFlag = t.mtlsServerName ? ` \\\n  --mtls-server-name '${t.mtlsServerName}'` : '';
+  return [
+    '# 1) 拷贝 redmatrix-node 二进制到本机（or 用 docker / docker compose 见其他 tab）',
+    '# 2) 准备 data 目录持久 leaf cert',
+    'mkdir -p /var/lib/redmatrix-node',
+    '',
+    './redmatrix-node \\',
+    `  --server-url '${t.serverUrl}' \\`,
+    `  --node-agent-url '${t.nodeAgentUrl}' \\`,
+    `  --token '${t.plaintext}' \\`,
+    `  --node-name '${nodeName || 'NODE-NAME-HERE'}' \\`,
+    `  --data-dir /var/lib/redmatrix-node${sanFlag}`,
+  ].join('\n');
+}
+
+function snippetDocker(t: NonNullable<typeof lastPlaintext.value>, nodeName: string): string {
+  const sanEnv = t.mtlsServerName ? `\\\n  -e REDMATRIX_MTLS_SERVER_NAME='${t.mtlsServerName}' ` : '';
+  return [
+    '# Docker 单容器（生产建议见 deploy/docker-compose.node.yml）',
+    'docker volume create redmatrix-node-data',
+    '',
+    'docker run -d \\',
+    '  --name redmatrix-node \\',
+    '  --restart unless-stopped \\',
+    '  -v redmatrix-node-data:/data \\',
+    '  -v /opt/redmatrix/plugins:/opt/plugins:ro \\',
+    `  -e REDMATRIX_SERVER_URL='${t.serverUrl}' \\`,
+    `  -e REDMATRIX_NODE_AGENT_URL='${t.nodeAgentUrl}' \\`,
+    `  -e REDMATRIX_NODE_TOKEN='${t.plaintext}' \\`,
+    `  -e REDMATRIX_NODE_NAME='${nodeName || 'NODE-NAME-HERE'}' \\`,
+    '  -e REDMATRIX_NODE_DATA_DIR=/data \\',
+    `  -e REDMATRIX_PLUGIN_DIR=/opt/plugins ${sanEnv}\\`,
+    '  ghcr.io/your-org/redmatrix-node:prod',
+  ].join('\n');
+}
+
+function snippetManual(t: NonNullable<typeof lastPlaintext.value>): string {
+  return [
+    '# 配置项（env 或 flag 任选）：',
+    `# server URL          = ${t.serverUrl}`,
+    `# node agent URL      = ${t.nodeAgentUrl}`,
+    `# token (一次性，10 分钟内 redeem) = ${t.plaintext}`,
+    t.mtlsServerName ? `# mtls server name override = ${t.mtlsServerName}` : '# mtls server name override = (留空)',
+    '',
+    '# 节点名同租户内唯一；接入成功后 leaf cert 持久在 data dir，重启不需重 redeem。',
+  ].join('\n');
+}
+
+function currentSnippet(): string {
+  if (!lastPlaintext.value) return '';
+  const name = lastPlaintext.value.name;
+  switch (snippetTab.value) {
+    case 'binary': return snippetBinary(lastPlaintext.value, name);
+    case 'docker': return snippetDocker(lastPlaintext.value, name);
+    case 'manual': return snippetManual(lastPlaintext.value);
+  }
 }
 
 function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
@@ -240,10 +314,27 @@ function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
 
       <div v-if="showTokens">
         <div v-if="lastPlaintext" class="info">
-          <strong>新令牌已创建（仅本次显示）·{{ lastPlaintext.name }}：</strong>
+          <strong>新令牌已创建（仅本次显示）·{{ lastPlaintext.name }}</strong>
+          <div style="margin-top: 6px">Token：</div>
           <code class="mono" style="display: block; margin-top: 4px; word-break: break-all">{{ lastPlaintext.plaintext }}</code>
-          <button style="margin-top: 8px" @click="copyText(lastPlaintext.plaintext)">复制</button>
+          <button style="margin-top: 8px" @click="copyText(lastPlaintext.plaintext)">复制 Token</button>
           <button style="margin-left: 4px" @click="lastPlaintext = null">关闭</button>
+
+          <!-- PR-S73：一键安装命令片段 -->
+          <div style="margin-top: 16px">
+            <strong>在节点机器上执行：</strong>
+            <div class="row" style="gap: 4px; margin-top: 6px">
+              <button :class="{ tab: true, 'tab-active': snippetTab === 'binary' }" @click="snippetTab = 'binary'">Linux binary</button>
+              <button :class="{ tab: true, 'tab-active': snippetTab === 'docker' }" @click="snippetTab = 'docker'">Docker</button>
+              <button :class="{ tab: true, 'tab-active': snippetTab === 'manual' }" @click="snippetTab = 'manual'">配置项</button>
+              <button style="margin-left: auto" @click="copyText(currentSnippet())">复制命令</button>
+            </div>
+            <pre class="snippet">{{ currentSnippet() }}</pre>
+            <p class="muted" style="margin-top: 4px; font-size: 12px">
+              Token 一次性消费；10 分钟内 redeem。接入成功后 leaf cert 持久在 data dir，重启不需重新 redeem。
+              节点名同租户内唯一。
+            </p>
+          </div>
         </div>
 
         <div v-if="authStore.isSuperAdmin()" class="row" style="margin: 12px 0">
@@ -483,5 +574,28 @@ function tokenStatusOf(t: RegistrationToken): { text: string; cls: string } {
 @keyframes pulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16); }
   50%      { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.04); }
+}
+/* PR-S73: install snippet */
+.tab {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  background: rgba(0,0,0,0.04);
+}
+.tab-active {
+  background: rgba(59, 130, 246, 0.16);
+  color: #1d4ed8;
+  font-weight: 500;
+}
+.snippet {
+  background: #0d1117;
+  color: #e6edf3;
+  padding: 12px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  margin-top: 8px;
+  overflow-x: auto;
+  white-space: pre;
 }
 </style>

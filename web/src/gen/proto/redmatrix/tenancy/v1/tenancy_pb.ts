@@ -1752,6 +1752,30 @@ export class CreateRegistrationTokenResponse extends Message<CreateRegistrationT
    */
   plaintext = "";
 
+  /**
+   * PR-S73 节点接入辅助：server 端公开的 agent 入口；UI 用来拼"一键安装"命令。
+   * 由 server 配置（PUBLIC_DOMAIN / PUBLIC_GRPC_ADDR）注入，不需 caller 提供。
+   *
+   * agent --server-url，例 https://redmatrix.example.com 或 http://127.0.0.1:8080
+   *
+   * @generated from field: string server_url = 3;
+   */
+  serverUrl = "";
+
+  /**
+   * agent --node-agent-url，mTLS 端点；例 https://redmatrix.example.com:9090
+   *
+   * @generated from field: string node_agent_url = 4;
+   */
+  nodeAgentUrl = "";
+
+  /**
+   * agent --mtls-server-name SAN override；server URL 用 IP 时通常等于 IP
+   *
+   * @generated from field: string mtls_server_name = 5;
+   */
+  mtlsServerName = "";
+
   constructor(data?: PartialMessage<CreateRegistrationTokenResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1762,6 +1786,9 @@ export class CreateRegistrationTokenResponse extends Message<CreateRegistrationT
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "token", kind: "message", T: RegistrationToken },
     { no: 2, name: "plaintext", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "server_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "node_agent_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "mtls_server_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateRegistrationTokenResponse {

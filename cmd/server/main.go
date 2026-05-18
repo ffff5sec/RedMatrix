@@ -372,7 +372,7 @@ func runWith(stdout, stderr io.Writer, opts runOptions) int {
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)
 			return failExitCode(err)
 		}
-		tnMount, tenancySvc, err := buildTenancyMount(pool, authSvc, ca, auditHook)
+		tnMount, tenancySvc, err := buildTenancyMount(pool, authSvc, ca, auditHook, computeAgentEndpoints(cfg, opts.httpBindAddr))
 		if err != nil {
 			logger.LogError(ctx, "tenancy stack init failed", err)
 			fmt.Fprintf(stderr, "redmatrix-server: %v\n", err)

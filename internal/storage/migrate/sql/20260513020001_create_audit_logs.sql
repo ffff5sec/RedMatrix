@@ -52,11 +52,14 @@ CREATE INDEX idx_audit_project ON audit_logs (project_id, created_at DESC) WHERE
 
 -- 拒绝任何 UPDATE / DELETE：trigger 拒绝改动（hash 链完整性的最低保障）。
 -- 注：DROP / TRUNCATE 仍可（DBA 责任域）；应用层不暴露任何修改接口。
+-- 用 goose StatementBegin/End 标记 plpgsql 块（含 $$ 引号 + 多行）
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION audit_logs_no_change() RETURNS trigger AS $$
 BEGIN
     RAISE EXCEPTION 'audit_logs is append-only';
 END;
 $$ LANGUAGE plpgsql;
+-- +goose StatementEnd
 
 CREATE TRIGGER audit_logs_block_update BEFORE UPDATE ON audit_logs
     FOR EACH ROW EXECUTE FUNCTION audit_logs_no_change();
